@@ -35,11 +35,18 @@ export default function ImageUpload({ folder, images, onChange, max = 5, label =
         body: JSON.stringify({ folder }),
       })
       const sigData = await sigRes.json()
-      if (!sigRes.ok) throw new Error(sigData.error)
+      if (!sigRes.ok) throw new Error(sigData.error || 'Error al obtener firma')
+      if (!sigData.cloudName || !sigData.apiKey) throw new Error('Configuración de Cloudinary incompleta')
 
       const newUrls: string[] = []
 
       for (const file of Array.from(files)) {
+        // Validar tamaño (máx 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          setError(`"${file.name}" excede 10MB`)
+          continue
+        }
+
         const formData = new FormData()
         formData.append('file', file)
         formData.append('api_key', sigData.apiKey)
@@ -52,12 +59,16 @@ export default function ImageUpload({ folder, images, onChange, max = 5, label =
           { method: 'POST', body: formData }
         )
         const upData = await upRes.json()
-        if (upData.secure_url) newUrls.push(upData.secure_url)
+
+        if (!upRes.ok || upData.error) {
+          throw new Error(upData.error?.message || `Error subiendo ${file.name}`)
+        }
+        newUrls.push(upData.secure_url)
       }
 
       onChange([...images, ...newUrls])
-    } catch {
-      setError('Error al subir imagen')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al subir imagen')
     } finally {
       setUploading(false)
       if (inputRef.current) inputRef.current.value = ''

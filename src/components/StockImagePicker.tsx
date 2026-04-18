@@ -63,6 +63,7 @@ export default function StockImagePicker({ tipo, titulo, currentCount, max, onIm
       return
     }
     setImporting(img.id)
+    setError('')
     try {
       const res = await fetch('/api/images/import', {
         method: 'POST',
@@ -72,16 +73,21 @@ export default function StockImagePicker({ tipo, titulo, currentCount, max, onIm
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || 'Error al importar')
+        setError(data.error || `Error al importar (${res.status})`)
+        setImporting(null)
+        return
+      }
+
+      if (!data.url) {
+        setError('No se recibió URL de la imagen importada')
         setImporting(null)
         return
       }
 
       onImport(data.url)
-      // Quitar la imagen importada de la grilla
       setImages(prev => prev.filter(i => i.id !== img.id))
-    } catch {
-      setError('Error al importar')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error de conexión al importar')
     }
     setImporting(null)
   }

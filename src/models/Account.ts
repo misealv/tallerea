@@ -35,7 +35,7 @@ const AccountSchema = new Schema<IAccount>({
   activo: { type: Boolean, default: true },
 }, { timestamps: true });
 
-AccountSchema.index({ slug: 1 });
+// slug index already created by unique: true on field definition
 AccountSchema.index({ ownerId: 1 });
 AccountSchema.index({ especialidades: 1 });
 AccountSchema.index({ verificado: 1 });

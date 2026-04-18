@@ -66,7 +66,7 @@ const WorkshopSchema = new Schema<IWorkshop>({
   activo: { type: Boolean, default: true },
 }, { timestamps: true });
 
-WorkshopSchema.index({ slug: 1 });
+// slug index already created by unique: true on field definition
 WorkshopSchema.index({ accountId: 1 });
 WorkshopSchema.index({ tipo: 1 });
 WorkshopSchema.index({ modalidad: 1 });
