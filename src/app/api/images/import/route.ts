@@ -31,7 +31,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: result.secure_url })
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Error al importar imagen'
+    // Cloudinary errors often have http_code and message
+    const err = error as { message?: string; http_code?: number; error?: { message?: string } }
+    const message = err?.error?.message || err?.message || 'Error al importar imagen'
+    console.error('[images/import] Error:', JSON.stringify({ message, http_code: err?.http_code }))
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

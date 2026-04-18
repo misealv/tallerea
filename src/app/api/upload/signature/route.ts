@@ -18,6 +18,17 @@ export async function POST(req: NextRequest) {
     }
 
     const data = generateSignature(folder)
+
+    // Verificar que cloudinary está configurado
+    if (!data.cloudName || !data.apiKey) {
+      console.error('[upload/signature] Cloudinary env vars missing:', {
+        hasCloudName: !!process.env.CLOUDINARY_CLOUD_NAME,
+        hasApiKey: !!process.env.CLOUDINARY_API_KEY,
+        hasApiSecret: !!process.env.CLOUDINARY_API_SECRET,
+      })
+      return NextResponse.json({ error: 'Configuración de Cloudinary incompleta en el servidor' }, { status: 500 })
+    }
+
     return NextResponse.json(data)
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error interno'
