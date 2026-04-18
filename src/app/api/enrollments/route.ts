@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { EnrollmentService } from '@/services/EnrollmentService'
 import { validateRequired, validateObjectId } from '@/lib/validate'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })

@@ -7,6 +7,8 @@ import Account from '@/models/Account'
 import Workshop from '@/models/Workshop'
 import Enrollment from '@/models/Enrollment'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/admin/stats — KPIs de la plataforma
 export async function GET() {
   const session = await getServerSession(authOptions)

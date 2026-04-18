@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { generateSignature } from '@/lib/cloudinary'
 
+export const dynamic = 'force-dynamic'
+
 // POST /api/upload/signature — genera firma para upload directo a Cloudinary
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)

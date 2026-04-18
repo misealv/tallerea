@@ -8,6 +8,8 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import WorkshopCard from '@/components/WorkshopCard'
 
+export const dynamic = 'force-dynamic'
+
 interface PageProps {
   params: Promise<{ slug: string }>
 }

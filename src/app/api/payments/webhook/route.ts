@@ -3,6 +3,8 @@ import crypto from 'crypto'
 import { paymentClient } from '@/lib/mercadopago'
 import { PaymentService } from '@/services/PaymentService'
 
+export const dynamic = 'force-dynamic'
+
 // POST /api/payments/webhook — recibe notificación de MercadoPago
 export async function POST(req: NextRequest) {
   try {

@@ -8,6 +8,8 @@ import { generateSlug, ensureUniqueSlug } from '@/lib/slugify'
 import Workshop from '@/models/Workshop'
 import dbConnect from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)

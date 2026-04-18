@@ -7,6 +7,8 @@ import User from '@/models/User'
 import dbConnect from '@/lib/db'
 import { validateObjectId } from '@/lib/validate'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/accounts/[id]/members — listar miembros del espacio
 export async function GET(
   _req: NextRequest,

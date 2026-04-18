@@ -5,6 +5,8 @@ import Footer from '@/components/Footer'
 import WorkshopCard from '@/components/WorkshopCard'
 import SearchFilters from '@/components/SearchFilters'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: 'Buscar talleres de arte — Tallerea',
   description: 'Encuentra talleres de artes visuales, teatro, danza y música en Chile. Filtra por tipo, comuna, precio y horario.',

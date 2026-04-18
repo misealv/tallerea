@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { PaymentService } from '@/services/PaymentService'
 
+export const dynamic = 'force-dynamic'
+
 // POST /api/payments/create — crea inscripción + preferencia MercadoPago
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)

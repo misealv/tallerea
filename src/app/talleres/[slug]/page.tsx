@@ -5,6 +5,8 @@ import { WorkshopService } from '@/services/WorkshopService'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 
+export const dynamic = 'force-dynamic'
+
 interface PageProps {
   params: Promise<{ slug: string }>
 }

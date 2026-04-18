@@ -7,6 +7,8 @@ import { generateSlug, ensureUniqueSlug } from '@/lib/slugify'
 import Account from '@/models/Account'
 import dbConnect from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })

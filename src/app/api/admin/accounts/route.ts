@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth'
 import dbConnect from '@/lib/db'
 import Account from '@/models/Account'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/admin/accounts — listar todos los espacios
 export async function GET() {
   const session = await getServerSession(authOptions)

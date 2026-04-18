@@ -7,6 +7,8 @@ import Footer from '@/components/Footer'
 import Link from 'next/link'
 import CancelButton from './CancelButton'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: 'Mis talleres — Tallerea',
 }

@@ -4,6 +4,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import WorkshopCard from "@/components/WorkshopCard";
 
+export const dynamic = 'force-dynamic'
+
 export default async function Home() {
   const featured = await WorkshopService.getAll({}, 1, 6);
 

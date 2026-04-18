@@ -5,6 +5,8 @@ import { LocationService } from '@/services/LocationService'
 import { AccountService } from '@/services/AccountService'
 import { validateObjectId } from '@/lib/validate'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }

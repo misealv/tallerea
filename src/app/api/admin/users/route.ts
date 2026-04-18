@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth'
 import dbConnect from '@/lib/db'
 import User from '@/models/User'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/admin/users — listar todos los usuarios
 export async function GET() {
   const session = await getServerSession(authOptions)

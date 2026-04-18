@@ -6,6 +6,8 @@ import { LocationService } from '@/services/LocationService'
 import { EnrollmentService } from '@/services/EnrollmentService'
 import Link from 'next/link'
 
+export const dynamic = 'force-dynamic'
+
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
   const account = await AccountService.getByOwnerId(session!.user.id)
