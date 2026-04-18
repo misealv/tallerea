@@ -7,6 +7,7 @@ export interface IUser extends Document {
   role: 'alumno' | 'admin';
   phone?: string;
   image?: string;
+  activo: boolean;
   createdAt: Date;
 }
 
@@ -17,6 +18,7 @@ const UserSchema = new Schema<IUser>({
   role: { type: String, enum: ['alumno', 'admin'], default: 'alumno' },
   phone: { type: String, trim: true },
   image: { type: String },
+  activo: { type: Boolean, default: true },
 }, { timestamps: true });
 
 UserSchema.index({ email: 1 });

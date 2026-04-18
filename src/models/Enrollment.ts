@@ -6,6 +6,7 @@ export interface IEnrollment extends Document {
   estado: 'pendiente' | 'pagado' | 'cancelado';
   pagoRef?: string;
   monto: number;
+  activo: boolean;
   createdAt: Date;
 }
 
@@ -15,6 +16,7 @@ const EnrollmentSchema = new Schema<IEnrollment>({
   estado: { type: String, enum: ['pendiente', 'pagado', 'cancelado'], default: 'pendiente' },
   pagoRef: { type: String },
   monto: { type: Number, required: true, min: 0 },
+  activo: { type: Boolean, default: true },
 }, { timestamps: true });
 
 EnrollmentSchema.index({ workshopId: 1 });

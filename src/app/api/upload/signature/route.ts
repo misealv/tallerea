@@ -1,0 +1,24 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { generateSignature } from '@/lib/cloudinary'
+
+// POST /api/upload/signature — genera firma para upload directo a Cloudinary
+export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  try {
+    const { folder } = await req.json()
+    const validFolders = ['tallerea/workshops', 'tallerea/accounts']
+    if (!folder || !validFolders.includes(folder)) {
+      return NextResponse.json({ error: 'Folder inválido' }, { status: 400 })
+    }
+
+    const data = generateSignature(folder)
+    return NextResponse.json(data)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error interno'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}

@@ -1,0 +1,57 @@
+import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
+import { paymentClient } from '@/lib/mercadopago'
+import { PaymentService } from '@/services/PaymentService'
+
+// POST /api/payments/webhook — recibe notificación de MercadoPago
+export async function POST(req: NextRequest) {
+  try {
+    // Validar firma del webhook
+    const xSignature = req.headers.get('x-signature') || ''
+    const xRequestId = req.headers.get('x-request-id') || ''
+    const { searchParams } = new URL(req.url)
+    const dataId = searchParams.get('data.id') || ''
+
+    if (process.env.MP_WEBHOOK_SECRET) {
+      const parts = xSignature.split(',').reduce((acc: Record<string, string>, part) => {
+        const [key, value] = part.trim().split('=')
+        if (key && value) acc[key] = value
+        return acc
+      }, {})
+
+      const ts = parts['ts']
+      const hash = parts['v1']
+      const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`
+      const expected = crypto
+        .createHmac('sha256', process.env.MP_WEBHOOK_SECRET)
+        .update(manifest)
+        .digest('hex')
+
+      if (hash !== expected) {
+        return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
+      }
+    }
+
+    const body = await req.json()
+
+    // Solo procesar notificaciones de pago
+    if (body.type !== 'payment' && body.action !== 'payment.created') {
+      return NextResponse.json({ ok: true })
+    }
+
+    const paymentId = body.data?.id
+    if (!paymentId) return NextResponse.json({ ok: true })
+
+    // Consultar el pago en MercadoPago
+    const payment = await paymentClient.get({ id: paymentId })
+
+    if (payment.status === 'approved' && payment.external_reference) {
+      await PaymentService.handleApprovedPayment(payment.external_reference, String(paymentId))
+    }
+
+    return NextResponse.json({ ok: true })
+  } catch {
+    // Siempre retornar 200 para que MercadoPago no reintente
+    return NextResponse.json({ ok: true })
+  }
+}

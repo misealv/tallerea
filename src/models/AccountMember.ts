@@ -9,6 +9,7 @@ export interface IAccountMember extends Document {
   especialidades?: string[];
   invitadoEn: Date;
   aceptado: boolean;
+  activo: boolean;
 }
 
 const AccountMemberSchema = new Schema<IAccountMember>({
@@ -20,6 +21,7 @@ const AccountMemberSchema = new Schema<IAccountMember>({
   especialidades: [{ type: String, enum: ['visual', 'teatro', 'danza', 'musica', 'otro'] }],
   invitadoEn: { type: Date, default: Date.now },
   aceptado: { type: Boolean, default: false },
+  activo: { type: Boolean, default: true },
 }, { timestamps: true });
 
 AccountMemberSchema.index({ accountId: 1 });

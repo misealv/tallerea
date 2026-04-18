@@ -14,6 +14,7 @@ export interface IAccount extends Document {
   };
   verificado: boolean;
   ownerId: Types.ObjectId;
+  activo: boolean;
   createdAt: Date;
 }
 
@@ -31,6 +32,7 @@ const AccountSchema = new Schema<IAccount>({
   },
   verificado: { type: Boolean, default: false },
   ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  activo: { type: Boolean, default: true },
 }, { timestamps: true });
 
 AccountSchema.index({ slug: 1 });

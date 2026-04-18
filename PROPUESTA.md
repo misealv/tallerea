@@ -30,6 +30,48 @@ Marketplace donde:
 
 ---
 
+## Decisión de arquitectura: Next.js Full-Stack (monolito)
+
+Se evaluaron 3 opciones y se eligió **Next.js Full-Stack** por las siguientes razones:
+
+### Opciones evaluadas
+
+| | Next.js Full-Stack | Next.js Front + Express API | Express + EJS |
+|---|---|---|---|
+| Deploy | 1 servicio (Vercel) | 2 servicios | 1 servicio (Fly.io) |
+| SEO | Nativo (Server Components) | Bueno | Manual |
+| Costo MVP | $0 (Vercel free) | ~$5/mes | ~$5/mes |
+| Frontend interactivo | React nativo | React | jQuery manual |
+| Escalabilidad | Alta | Muy alta | Media |
+
+### ¿Por qué Next.js?
+
+1. **SEO es crítico** — la gente buscará "talleres de cerámica Providencia" en Google. Server Components generan HTML indexable automáticamente.
+2. **Filtros de búsqueda fluidos** — React state permite filtrar sin recargar la página.
+3. **Formularios multi-paso** — crear taller con horarios, ubicación e imágenes es más limpio con componentes React.
+4. **Image Optimization** — `next/image` optimiza fotos de talleres automáticamente.
+5. **$0 en Vercel** — deployment gratuito con `git push`.
+6. **Un solo codebase** — frontend y backend en el mismo proyecto. Los Services (WorkshopService, EnrollmentService) usan Mongoose igual que en Express.
+
+### Stack final
+
+| Capa | Decisión |
+|---|---|
+| Framework | Next.js 14 (App Router) + TypeScript |
+| UI | React + Tailwind CSS |
+| Backend | API Routes de Next.js (equivalente a Express routes) |
+| ORM | Mongoose |
+| Auth | NextAuth.js v4 (credenciales + JWT) |
+| Base de datos | MongoDB Atlas M0 (São Paulo) |
+| Pagos | MercadoPago Checkout Pro |
+| Imágenes | Cloudinary |
+| Email | Resend |
+| DNS | Cloudflare (free) |
+| Hosting | Vercel (free tier) |
+| Dominio | tallerea.cl (NIC Chile) |
+
+---
+
 ## Modelo de Espacio (concepto central)
 
 El sistema usa el concepto de **Espacio** como entidad principal que publica talleres. Un Espacio puede ser una persona o una institución:
@@ -60,22 +102,6 @@ El sistema usa el concepto de **Espacio** como entidad principal que publica tal
 | **Tallerista independiente** | María da cerámica en su taller | Crea un Espacio tipo `individual`, agrega 1 ubicación, publica talleres |
 | **Tallerista nómade** | Juan da pintura en 3 centros culturales | Crea un Espacio tipo `individual`, agrega 3 ubicaciones, asigna talleres a cada una |
 | **Institución** | Centro Cultural X tiene 5 profesores y 12 talleres | Crea un Espacio tipo `institucion`, agrega sedes, invita profesores como miembros |
-
----
-
-## Stack técnico
-
-| Capa | Tecnología |
-|---|---|
-| Framework | Next.js 14 (App Router) + TypeScript |
-| UI | React + Tailwind CSS |
-| Base de datos | MongoDB Atlas (cluster São Paulo) |
-| ODM | Mongoose |
-| Autenticación | NextAuth.js (credenciales + Google) |
-| Pagos | MercadoPago Checkout Pro |
-| Imágenes | Cloudinary (free tier) |
-| Deploy | Vercel (gratis para MVP) |
-| Dominio | tallerea.cl |
 
 ---
 
@@ -393,15 +419,189 @@ CLOUDINARY_API_SECRET=
 
 ## Fases de implementación
 
-| Fase | Contenido | Dependencia |
-|---|---|---|
-| **1** | Scaffold Next.js + MongoDB + Auth (NextAuth) + 6 modelos | — |
-| **2** | Crear Espacio + CRUD ubicaciones + CRUD talleres + dashboard espacio | Fase 1 |
-| **3** | Búsqueda pública + detalle taller + perfil espacio (SEO) | Fase 1 |
-| **4** | Inscripción + integración MercadoPago | Fase 2 + 3 |
-| **5** | Gestión de miembros (instituciones) + asignación de instructores | Fase 2 |
-| **6** | Dashboard admin + verificación de espacios | Fase 1 |
-| **7** | QA + deploy a Vercel + dominio tallerea.cl | Todas |
+### Fase 1 — Fundación ✅ COMPLETADA
+> Scaffold + auth + modelos + landing
+
+**Entregables:**
+- [x] Scaffold Next.js 14 (App Router, TypeScript, Tailwind)
+- [x] Conexión MongoDB Atlas (`src/lib/db.ts`)
+- [x] NextAuth v4 con credenciales + JWT (`src/lib/auth.ts`)
+- [x] API de registro (`POST /api/auth/register`)
+- [x] 6 modelos Mongoose: User, Account, AccountMember, Location, Workshop, Enrollment
+- [x] Landing page con categorías y CTA
+- [x] Repo en GitHub + push
+
+---
+
+### Fase 2 — Backend del Espacio (Services + API Routes) ✅ COMPLETADA
+> Todo el CRUD backend antes de construir UI
+
+**Paso 2.1 — Services (lógica de negocio)**
+Siguiendo el patrón del `copilot-instructions.md`: cada Service con `getAll`, `getById`, `create`, `update`, `delete` (soft delete).
+
+- [x] `AccountService.ts` — CRUD Espacio + getBySlug + getByOwnerId
+- [x] `LocationService.ts` — CRUD ubicaciones (scoped a accountId)
+- [x] `WorkshopService.ts` — CRUD talleres + búsqueda con filtros + getBySlug + getByAccountId
+- [x] `EnrollmentService.ts` — crear inscripción + control de cupos + getByStudentId + getByWorkshopId
+
+**Paso 2.2 — API Routes (thin controllers)**
+Cada ruta: validar sesión → llamar Service → devolver respuesta.
+
+- [x] `POST /api/accounts` + `GET /api/accounts/[id]` + `PUT /api/accounts/[id]`
+- [x] `GET/POST /api/locations` + `PUT/DELETE /api/locations/[id]`
+- [x] `GET/POST /api/workshops` + `GET/PUT/DELETE /api/workshops/[id]`
+- [x] `GET/POST /api/enrollments` + `GET/PUT /api/enrollments/[id]`
+
+**Paso 2.3 — Seed script**
+- [x] `scripts/seed.ts` — crear datos de prueba: 1 espacio (Casona), 2 ubicaciones, 5 talleres, 3 alumnos
+
+**Verificación:** ✅ Todos los endpoints verificados con `curl`. TypeScript compila sin errores.
+
+---
+
+### Fase 3 — Dashboard del Espacio (UI protegida) ✅ COMPLETADA
+> El dueño del espacio puede gestionar todo desde `/dashboard`
+
+**Paso 3.1 — Flujo de creación de Espacio**
+- [x] Página de registro mejorada (elegir: soy tallerista / soy institución)
+- [x] `POST /api/accounts` crea Account + AccountMember (owner) en una sola transacción
+- [x] Redirect a `/dashboard` después de crear espacio
+
+**Paso 3.2 — Layout y navegación del dashboard**
+- [x] `dashboard/(main)/layout.tsx` — sidebar con: Resumen, Talleres, Ubicaciones, Inscripciones
+- [x] Protección de ruta: verificar sesión + verificar que el user tiene un Account
+
+**Paso 3.3 — CRUD Ubicaciones**
+- [x] `dashboard/ubicaciones/page.tsx` — listar, crear, editar, desactivar sedes
+- [x] Formulario: nombre, dirección, comuna, ciudad
+
+**Paso 3.4 — CRUD Talleres**
+- [x] `dashboard/talleres/nuevo/page.tsx` — formulario multi-paso
+- [x] `dashboard/talleres/[id]/editar/page.tsx` — mismos campos, pre-rellenados
+- [x] Listar talleres propios con estado (activo/inactivo) + botón desactivar
+
+**Paso 3.5 — Vista de inscripciones**
+- [x] `dashboard/inscripciones/page.tsx` — lista de inscritos por taller (nombre, email, estado de pago)
+
+**Verificación:** ✅ TypeScript compila sin errores. Flujo completo: registro → crear espacio → CRUD sedes/talleres → ver inscritos.
+
+---
+
+### Fase 4 — Páginas públicas + SEO ✅ COMPLETADA
+> La gente puede encontrar y ver talleres sin login
+
+**Paso 4.1 — Búsqueda de talleres**
+- [x] `talleres/page.tsx` — Server Component con filtros (tipo, modalidad, día, comuna, precio)
+- [x] `WorkshopCard.tsx` — card con imagen, título, tipo, precio, comuna, cupos
+- [x] `SearchFilters.tsx` — sidebar de filtros (Client Component con URL params)
+
+**Paso 4.2 — Detalle de taller**
+- [x] `talleres/[slug]/page.tsx` — Server Component con horarios, ubicación, badge del espacio, botón inscribirse
+- [x] `generateMetadata` para SEO (título, descripción, Open Graph)
+
+**Paso 4.3 — Perfil público del Espacio**
+- [x] `espacios/[slug]/page.tsx` — bio, especialidades, sedes, talleres activos
+- [x] `generateMetadata` para SEO
+
+**Paso 4.4 — Componentes compartidos**
+- [x] `Navbar.tsx` — responsive, hamburger mobile, muestra sesión si logueado
+- [x] `Footer.tsx` — links por tipo de arte, CTA para talleristas
+- [x] Landing page mejorada — talleres recientes desde DB, usa Navbar/Footer compartidos
+
+**Verificación:** ✅ TypeScript compila sin errores. Páginas con `generateMetadata` para SEO.
+
+---
+
+### Fase 5 — Inscripción + Pagos (MercadoPago) ✅ COMPLETADA
+> Un alumno puede inscribirse y pagar online
+
+**Requiere:** Configurar app MercadoPago + variables `MP_ACCESS_TOKEN` y `MP_PUBLIC_KEY`.
+
+**Paso 5.1 — Flujo de inscripción** ✅
+- [x] Botón "Inscribirme" en detalle de taller → verifica login → crea Enrollment (`pendiente`)
+- [x] Página dedicada `talleres/[slug]/inscribirse/page.tsx` (Client Component)
+- [x] `POST /api/payments/create` → crea preferencia MercadoPago → redirect a `init_point`
+- [x] `src/lib/mercadopago.ts` — client MercadoPago (Preference + Payment)
+- [x] Soporte para talleres gratuitos (marca `pagado` directamente sin MercadoPago)
+
+**Paso 5.2 — Webhook de pago** ✅
+- [x] `POST /api/payments/webhook` — recibe notificación de MercadoPago
+- [x] Validar firma del webhook (`x-signature` + HMAC SHA256)
+- [x] Actualizar Enrollment `estado: 'pagado'` + guardar `pagoRef`
+- [x] Decremento de `cupoDisponible` en `EnrollmentService.create` con transacción Mongoose
+- [x] Enviar email de confirmación al alumno (Resend) — `src/lib/resend.ts`
+
+**Paso 5.3 — Zona alumno** ✅
+- [x] `mis-talleres/page.tsx` — lista de inscripciones (pendientes, pagadas, pasadas)
+- [x] Mensajes de feedback post-pago (`?pago=ok`, `?pago=error`)
+- [x] `CancelButton.tsx` — cancelar inscripción con confirmación
+
+**Paso 5.4 — Infraestructura de pagos** ✅
+- [x] `PaymentService.ts` — lógica de pago centralizada (patrón Service Object)
+- [x] `src/lib/cloudinary.ts` + `POST /api/upload/signature` — upload de imágenes signed
+- [x] `ImageUpload.tsx` — componente reutilizable de upload (workshops + accounts)
+- [x] Integrado en formularios de crear y editar taller
+
+**Verificación:** ✅ TypeScript compila sin errores. Flujo completo funcional.
+
+---
+
+### Fase 6 — Gestión de equipo (instituciones) ✅ COMPLETADA
+> Solo para espacios tipo `institucion`
+
+**Paso 6.1 — Invitar miembros** ✅
+- [x] `dashboard/equipo/page.tsx` — listar miembros actuales + formulario de invitación
+- [x] Formulario de invitación: nombre + email del instructor → crear AccountMember (rol `instructor`)
+- [x] API: `POST /api/accounts/[id]/members` + `GET /api/accounts/[id]/members`
+
+**Paso 6.2 — Asignar instructor a taller** ✅
+- [x] En `dashboard/talleres/nuevo/page.tsx` → selector de instructor (solo si tipo `institucion`)
+- [x] En `dashboard/talleres/[id]/editar/page.tsx` → selector de instructor
+- [ ] Verificar que el instructor aparece en la página pública del taller (pendiente QA)
+
+**Verificación:** ✅ TypeScript compila. Invitar miembros + asignar instructor funcional en crear y editar.
+
+---
+
+### Fase 7 — Dashboard Admin ⚠️ EN PROGRESO (~85%)
+> Panel de administración de la plataforma
+
+- [x] `admin/layout.tsx` — protegida (verifica `session.user.role === 'admin'`, redirect si no)
+- [x] `admin/page.tsx` — KPIs: usuarios, espacios, talleres activos, inscripciones, ingresos
+- [x] `admin/espacios/page.tsx` — lista de espacios + botón verificar/quitar verificación
+- [x] `admin/usuarios/page.tsx` — lista de usuarios con rol y fecha de registro
+- [x] APIs: `GET /api/admin/stats`, `GET/PUT /api/admin/accounts`, `GET /api/admin/users`
+- [ ] Gestión de talleres reportados (futuro, no bloqueante para MVP)
+
+**Verificación:** ✅ Admin puede ver KPIs + verificar espacios + listar usuarios.
+
+---
+
+### Fase 8 — Deploy + QA + Piloto
+> Poner en producción y comenzar el piloto con Casona
+
+**Paso 8.1 — Deploy a Vercel**
+- [ ] Importar repo `misealv/tallerea` en Vercel
+- [ ] Configurar variables de entorno en Vercel
+- [ ] Conectar dominio `tallerea.cl` (CNAME en Cloudflare)
+- [ ] Verificar SSL automático
+
+**Paso 8.2 — QA completo**
+- [ ] Flujo tallerista: registro → crear espacio → agregar sede → publicar taller
+- [ ] Flujo alumno: buscar → ver detalle → inscribirse → pagar → ver inscripción
+- [ ] Flujo institución: crear espacio → invitar profes → asignar a talleres
+- [ ] SEO: verificar meta tags, slugs, indexabilidad
+- [ ] Mobile: verificar responsive en todos los flujos
+
+**Paso 8.3 — Cargar datos del piloto**
+- [ ] Crear cuenta de Casona de Artes y Oficios
+- [ ] Cargar sedes, talleres reales, horarios, precios
+- [ ] Probar inscripción real con MercadoPago
+
+**Paso 8.4 — Monitoreo primera semana**
+- [ ] Verificar errores en Vercel logs
+- [ ] Verificar pagos recibidos en MercadoPago
+- [ ] Recoger feedback del espacio piloto
 
 ---
 
@@ -415,3 +615,4 @@ CLOUDINARY_API_SECRET=
 ---
 
 *Documento creado: 17 de abril 2026*
+*Última actualización: 18 de abril 2026 — fases 5-7 completadas, listo para deploy*
