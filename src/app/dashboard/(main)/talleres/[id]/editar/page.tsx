@@ -104,13 +104,19 @@ export default function EditarTallerPage() {
       body: JSON.stringify(body),
     })
 
-    const data = await res.json()
     setSaving(false)
 
     if (!res.ok) {
-      setError(data.error || 'Error al actualizar')
+      const text = await res.text()
+      try {
+        const data = JSON.parse(text)
+        setError(data.error || `Error ${res.status}`)
+      } catch {
+        setError(`Error del servidor (${res.status})`)
+      }
       return
     }
+
     router.push('/dashboard/talleres')
   }
 
