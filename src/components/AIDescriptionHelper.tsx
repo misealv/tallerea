@@ -14,12 +14,27 @@ export default function AIDescriptionHelper({ titulo, tipo, modalidad, descripci
   const [loading, setLoading] = useState(false)
   const [preview, setPreview] = useState('')
   const [error, setError] = useState('')
+  const [genCount, setGenCount] = useState(0)
+  const [improveCount, setImproveCount] = useState(0)
+
+  const MAX_GEN = 2
+  const MAX_IMPROVE = 1
 
   async function generate(accion: 'generar' | 'mejorar' | 'resumir') {
     if (!titulo.trim()) {
       setError('Escribe un título primero')
       return
     }
+
+    if (accion === 'generar' && genCount >= MAX_GEN) {
+      setError(`Máximo ${MAX_GEN} generaciones por sesión`)
+      return
+    }
+    if ((accion === 'mejorar' || accion === 'resumir') && improveCount >= MAX_IMPROVE) {
+      setError(`Máximo ${MAX_IMPROVE} mejora por sesión`)
+      return
+    }
+
     setLoading(true)
     setError('')
     setPreview('')
@@ -38,6 +53,9 @@ export default function AIDescriptionHelper({ titulo, tipo, modalidad, descripci
         return
       }
 
+      if (accion === 'generar') setGenCount(prev => prev + 1)
+      else setImproveCount(prev => prev + 1)
+
       setPreview(data.text)
     } catch {
       setError('Error de conexión')
@@ -48,18 +66,18 @@ export default function AIDescriptionHelper({ titulo, tipo, modalidad, descripci
   return (
     <div className="space-y-3">
       {/* Botones de acción */}
-      <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => generate('generar')} disabled={loading}
+      <div className="flex flex-wrap gap-2 items-center">
+        <button type="button" onClick={() => generate('generar')} disabled={loading || genCount >= MAX_GEN}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 disabled:opacity-50 transition">
-          ✨ Generar descripción
+          ✨ Generar descripción {genCount > 0 && <span className="text-purple-400">({genCount}/{MAX_GEN})</span>}
         </button>
         {descripcion.trim().length > 20 && (
           <>
-            <button type="button" onClick={() => generate('mejorar')} disabled={loading}
+            <button type="button" onClick={() => generate('mejorar')} disabled={loading || improveCount >= MAX_IMPROVE}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition">
-              🔄 Mejorar texto
+              🔄 Mejorar texto {improveCount > 0 && <span className="text-blue-400">({improveCount}/{MAX_IMPROVE})</span>}
             </button>
-            <button type="button" onClick={() => generate('resumir')} disabled={loading}
+            <button type="button" onClick={() => generate('resumir')} disabled={loading || improveCount >= MAX_IMPROVE}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50 transition">
               📝 Resumir
             </button>
