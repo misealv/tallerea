@@ -15,16 +15,18 @@ export async function POST(req: NextRequest) {
     }
 
     // Solo permitir URLs de Pexels
-    if (!url.startsWith('https://images.pexels.com/')) {
+    if (!url.includes('images.pexels.com/')) {
       return NextResponse.json({ error: 'URL no permitida' }, { status: 400 })
     }
 
     const validFolders = ['tallerea/workshops', 'tallerea/accounts']
     const uploadFolder = validFolders.includes(folder) ? folder : 'tallerea/workshops'
 
+    // Subir URL remota a Cloudinary (sin transformación en upload, se aplica al servir)
     const result = await cloudinary.uploader.upload(url, {
       folder: uploadFolder,
-      transformation: [{ width: 1200, height: 800, crop: 'fill', quality: 'auto' }],
+      resource_type: 'image',
+      format: 'jpg',
     })
 
     return NextResponse.json({ url: result.secure_url })

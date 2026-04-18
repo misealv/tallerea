@@ -45,6 +45,7 @@ function addMinutes(time: string, mins: number): string {
 export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlotsChange }: SlotCalendarProps) {
   const [popover, setPopover] = useState<{ dia: string; hora: string; slotIdx?: number } | null>(null)
   const [popoverCupo, setPopoverCupo] = useState(String(cupoDefault))
+  const [popoverRepeatDias, setPopoverRepeatDias] = useState<string[]>([])
   const [duplicateTarget, setDuplicateTarget] = useState<number | null>(null)
   const [duplicateDias, setDuplicateDias] = useState<string[]>([])
   const gridRef = useRef<HTMLDivElement>(null)
@@ -63,14 +64,20 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
     const horaInicio = minutesToTime(minuteOfDay)
     setPopover({ dia, hora: horaInicio })
     setPopoverCupo(String(cupoDefault))
+    setPopoverRepeatDias([])
   }, [slots, cupoDefault])
 
   const handleCreate = () => {
     if (!popover || popover.slotIdx !== undefined) return
     const horaFin = addMinutes(popover.hora, duracionSesion)
     const cupo = Math.max(1, Number(popoverCupo) || cupoDefault)
-    onSlotsChange([...slots, { dia: popover.dia, horaInicio: popover.hora, horaFin, cupoMax: cupo, cupoDisponible: cupo }])
+    const diasToCreate = [popover.dia, ...popoverRepeatDias.filter(d => d !== popover.dia)]
+    const newSlots = diasToCreate
+      .filter(d => !slots.some(s => s.dia === d && s.horaInicio === popover.hora))
+      .map(d => ({ dia: d, horaInicio: popover.hora, horaFin, cupoMax: cupo, cupoDisponible: cupo }))
+    onSlotsChange([...slots, ...newSlots])
     setPopover(null)
+    setPopoverRepeatDias([])
   }
 
   const handleRemove = (idx: number) => {
@@ -203,12 +210,41 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
                     onChange={e => setPopoverCupo(e.target.value)}
                     className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent" />
                 </div>
+                {/* Repetir semanalmente */}
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Repetir en otros días</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {DIAS.filter(d => d !== popover.dia).map(d => {
+                      const exists = slots.some(s => s.dia === d && s.horaInicio === popover.hora)
+                      const selected = popoverRepeatDias.includes(d)
+                      return (
+                        <button key={d} type="button" disabled={exists}
+                          onClick={() => {
+                            if (selected) setPopoverRepeatDias(prev => prev.filter(x => x !== d))
+                            else setPopoverRepeatDias(prev => [...prev, d])
+                          }}
+                          className={`px-2 py-1 text-xs rounded-md border transition ${
+                            exists ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                            : selected ? 'bg-purple-100 text-purple-700 border-purple-300 font-medium'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300'
+                          }`}>
+                          {DIA_LABEL[d]}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {popoverRepeatDias.length > 0 && (
+                    <p className="text-xs text-purple-600 mt-1">
+                      Se creará en {popoverRepeatDias.length + 1} días
+                    </p>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <button onClick={handleCreate}
                     className="flex-1 bg-purple-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-purple-700">
-                    Crear
+                    {popoverRepeatDias.length > 0 ? `Crear (${popoverRepeatDias.length + 1})` : 'Crear'}
                   </button>
-                  <button onClick={() => setPopover(null)}
+                  <button onClick={() => { setPopover(null); setPopoverRepeatDias([]) }}
                     className="flex-1 bg-gray-100 text-gray-600 py-2 rounded-lg text-sm hover:bg-gray-200">
                     Cancelar
                   </button>
