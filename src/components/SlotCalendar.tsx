@@ -46,8 +46,7 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
   const [popover, setPopover] = useState<{ dia: string; hora: string; slotIdx?: number } | null>(null)
   const [popoverCupo, setPopoverCupo] = useState(String(cupoDefault))
   const [popoverRepeatDias, setPopoverRepeatDias] = useState<string[]>([])
-  const [duplicateTarget, setDuplicateTarget] = useState<number | null>(null)
-  const [duplicateDias, setDuplicateDias] = useState<string[]>([])
+  const [showRepeatInEdit, setShowRepeatInEdit] = useState(false)
   const gridRef = useRef<HTMLDivElement>(null)
 
   const handleCellClick = useCallback((dia: string, hour: number, half: number) => {
@@ -85,20 +84,16 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
     setPopover(null)
   }
 
-  const handleDuplicate = (idx: number) => {
-    setDuplicateTarget(idx)
-    setDuplicateDias([])
-    setPopover(null)
-  }
-
-  const confirmDuplicate = () => {
-    if (duplicateTarget === null) return
-    const source = slots[duplicateTarget]
-    const newSlots = duplicateDias
+  const handleRepeatExisting = () => {
+    if (!popover || popover.slotIdx === undefined || popoverRepeatDias.length === 0) return
+    const source = slots[popover.slotIdx]
+    const newSlots = popoverRepeatDias
       .filter(d => !slots.some(s => s.dia === d && s.horaInicio === source.horaInicio))
-      .map(d => ({ ...source, dia: d }))
+      .map(d => ({ ...source, dia: d, cupoDisponible: source.cupoMax }))
     onSlotsChange([...slots, ...newSlots])
-    setDuplicateTarget(null)
+    setPopover(null)
+    setShowRepeatInEdit(false)
+    setPopoverRepeatDias([])
   }
 
   // Generar filas de horas
@@ -187,16 +182,57 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
                   {DIA_LABEL[popover.dia]} {slots[popover.slotIdx].horaInicio} — {slots[popover.slotIdx].horaFin}
                 </h3>
                 <p className="text-sm text-gray-600">Cupo: {slots[popover.slotIdx].cupoMax}</p>
-                <div className="flex gap-2">
-                  <button onClick={() => handleDuplicate(popover.slotIdx!)}
-                    className="flex-1 text-sm bg-purple-50 text-purple-700 py-2 rounded-lg hover:bg-purple-100">
-                    Duplicar
-                  </button>
-                  <button onClick={() => handleRemove(popover.slotIdx!)}
-                    className="flex-1 text-sm bg-red-50 text-red-600 py-2 rounded-lg hover:bg-red-100">
-                    Eliminar
-                  </button>
-                </div>
+
+                {/* Repetir en otros días */}
+                {!showRepeatInEdit ? (
+                  <div className="flex gap-2">
+                    <button onClick={() => { setShowRepeatInEdit(true); setPopoverRepeatDias([]) }}
+                      className="flex-1 text-sm bg-purple-50 text-purple-700 py-2 rounded-lg hover:bg-purple-100">
+                      🔁 Repetir
+                    </button>
+                    <button onClick={() => handleRemove(popover.slotIdx!)}
+                      className="flex-1 text-sm bg-red-50 text-red-600 py-2 rounded-lg hover:bg-red-100">
+                      Eliminar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="text-xs text-gray-500 block">Repetir en otros días:</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {DIAS.filter(d => d !== popover.dia).map(d => {
+                        const exists = slots.some(s => s.dia === d && s.horaInicio === slots[popover.slotIdx!].horaInicio)
+                        const selected = popoverRepeatDias.includes(d)
+                        return (
+                          <button key={d} type="button" disabled={exists}
+                            onClick={() => {
+                              if (selected) setPopoverRepeatDias(prev => prev.filter(x => x !== d))
+                              else setPopoverRepeatDias(prev => [...prev, d])
+                            }}
+                            className={`px-2 py-1 text-xs rounded-md border transition ${
+                              exists ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                              : selected ? 'bg-purple-100 text-purple-700 border-purple-300 font-medium'
+                              : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300'
+                            }`}>
+                            {DIA_LABEL[d]}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {popoverRepeatDias.length > 0 && (
+                      <p className="text-xs text-purple-600">Se creará en {popoverRepeatDias.length} día{popoverRepeatDias.length !== 1 ? 's' : ''} más</p>
+                    )}
+                    <div className="flex gap-2">
+                      <button onClick={handleRepeatExisting} disabled={popoverRepeatDias.length === 0}
+                        className="flex-1 bg-purple-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50">
+                        Crear ({popoverRepeatDias.length})
+                      </button>
+                      <button onClick={() => setShowRepeatInEdit(false)}
+                        className="flex-1 bg-gray-100 text-gray-600 py-2 rounded-lg text-sm hover:bg-gray-200">
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -255,48 +291,9 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
         </div>
       )}
 
-      {/* Modal duplicar */}
-      {duplicateTarget !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20" onClick={() => setDuplicateTarget(null)}>
-          <div className="bg-white rounded-xl border shadow-lg p-5 w-72 space-y-3" onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold text-gray-900">Duplicar bloque</h3>
-            <p className="text-sm text-gray-600">
-              {slots[duplicateTarget].horaInicio} — {slots[duplicateTarget].horaFin}, {slots[duplicateTarget].cupoMax} cupos
-            </p>
-            <div className="space-y-1">
-              {DIAS.map(d => {
-                const exists = slots.some(s => s.dia === d && s.horaInicio === slots[duplicateTarget].horaInicio)
-                return (
-                  <label key={d} className={`flex items-center gap-2 text-sm ${exists ? 'text-gray-400' : 'text-gray-700'}`}>
-                    <input type="checkbox" disabled={exists}
-                      checked={exists || duplicateDias.includes(d)}
-                      onChange={e => {
-                        if (e.target.checked) setDuplicateDias(prev => [...prev, d])
-                        else setDuplicateDias(prev => prev.filter(x => x !== d))
-                      }}
-                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-500" />
-                    {DIA_LABEL[d]} {exists ? '(ya existe)' : ''}
-                  </label>
-                )
-              })}
-            </div>
-            <div className="flex gap-2">
-              <button onClick={confirmDuplicate} disabled={duplicateDias.length === 0}
-                className="flex-1 bg-purple-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50">
-                Duplicar
-              </button>
-              <button onClick={() => setDuplicateTarget(null)}
-                className="flex-1 bg-gray-100 text-gray-600 py-2 rounded-lg text-sm hover:bg-gray-200">
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Hint */}
       <p className="text-xs text-gray-400">
-        💡 Haz clic en un espacio vacío para agregar un bloque · Clic en un bloque para editar o duplicar
+        💡 Haz clic en un espacio vacío para agregar un bloque · Clic en un bloque para repetir o eliminar
       </p>
     </div>
   )
