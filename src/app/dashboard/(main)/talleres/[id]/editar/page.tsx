@@ -7,6 +7,7 @@ import { useRouter, useParams } from 'next/navigation'
 import ImageUpload from '@/components/ImageUpload'
 import SlotEditor, { DuracionSelector } from '@/components/SlotEditor'
 import AIDescriptionHelper from '@/components/AIDescriptionHelper'
+import StockImagePicker from '@/components/StockImagePicker'
 import { type SlotData } from '@/components/SlotCalendar'
 
 interface Location { _id: string; nombre: string; comuna: string }
@@ -183,8 +184,10 @@ export default function EditarTallerPage() {
         </section>
 
         {/* Imágenes */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6">
+        <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <ImageUpload folder="tallerea/workshops" images={imagenes} onChange={setImagenes} max={5} label="Fotos del taller" />
+          <StockImagePicker tipo={form.tipo} titulo={form.titulo} currentCount={imagenes.length} max={5}
+            onImport={(url) => setImagenes(prev => [...prev, url])} />
         </section>
 
         <button type="submit" disabled={saving}
