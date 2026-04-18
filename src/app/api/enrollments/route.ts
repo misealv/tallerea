@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { EnrollmentService } from '@/services/EnrollmentService'
+import { WorkshopService } from '@/services/WorkshopService'
 import { validateRequired, validateObjectId } from '@/lib/validate'
 
 export const dynamic = 'force-dynamic'
@@ -19,6 +20,18 @@ export async function GET(req: NextRequest) {
     if (workshopId) {
       if (!validateObjectId(workshopId)) {
         return NextResponse.json({ error: 'workshopId inválido' }, { status: 400 })
+      }
+      // Verificar ownership: solo el dueño del espacio o admin puede ver inscripciones
+      if (session.user.role !== 'admin') {
+        const workshop = await WorkshopService.getById(workshopId)
+        if (!workshop) return NextResponse.json({ error: 'Taller no encontrado' }, { status: 404 })
+        const accountId = typeof workshop.accountId === 'object' && workshop.accountId !== null && '_id' in workshop.accountId
+          ? String((workshop.accountId as { _id: unknown })._id) : String(workshop.accountId)
+        const { AccountService } = await import('@/services/AccountService')
+        const account = await AccountService.getById(accountId)
+        if (!account || String(account.ownerId) !== session.user.id) {
+          return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+        }
       }
       const result = await EnrollmentService.getByWorkshopId(workshopId, page, limit)
       return NextResponse.json(result)

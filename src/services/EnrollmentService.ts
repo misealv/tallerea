@@ -18,6 +18,7 @@ export const EnrollmentService = {
     const query = { activo: true, ...filters }
     const [data, total] = await Promise.all([
       Enrollment.find(query)
+        .select('-pagoRef')
         .populate('workshopId', 'titulo slug tipo')
         .populate('studentId', 'name email')
         .sort({ createdAt: -1 })

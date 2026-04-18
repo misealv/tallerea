@@ -1,6 +1,11 @@
 import Link from 'next/link'
 
-const tiposArte = ['Visual', 'Teatro', 'Danza', 'Música']
+const tiposArte = [
+  { label: 'Visual', value: 'visual' },
+  { label: 'Teatro', value: 'teatro' },
+  { label: 'Danza', value: 'danza' },
+  { label: 'Música', value: 'musica' },
+]
 
 export default function Footer() {
   return (
@@ -14,9 +19,9 @@ export default function Footer() {
           <h4 className="text-white text-sm font-semibold mb-3">Explorar</h4>
           <ul className="space-y-2 text-sm">
             {tiposArte.map((t) => (
-              <li key={t}>
-                <Link href={`/talleres?tipo=${t.toLowerCase()}`} className="hover:text-white">
-                  Talleres de {t}
+              <li key={t.value}>
+                <Link href={`/talleres?tipo=${t.value}`} className="hover:text-white">
+                  Talleres de {t.label}
                 </Link>
               </li>
             ))}
