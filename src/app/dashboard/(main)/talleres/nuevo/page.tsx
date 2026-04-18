@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import ImageUpload from '@/components/ImageUpload'
 import SlotEditor, { DuracionSelector } from '@/components/SlotEditor'
+import AIDescriptionHelper from '@/components/AIDescriptionHelper'
 import { type SlotData } from '@/components/SlotCalendar'
 
 interface Location { _id: string; nombre: string; comuna: string }
@@ -107,6 +108,8 @@ export default function NuevoTallerPage() {
           <textarea required rows={4} placeholder="Descripción detallada" value={form.descripcion}
             onChange={(e) => update('descripcion', e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent" />
+          <AIDescriptionHelper titulo={form.titulo} tipo={form.tipo} modalidad={form.modalidad}
+            descripcion={form.descripcion} onApply={(text) => update('descripcion', text)} />
           <div className="grid grid-cols-2 gap-4">
             <select value={form.tipo} onChange={(e) => update('tipo', e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
