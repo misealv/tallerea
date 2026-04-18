@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   try {
-    const { workshopId } = await req.json()
+    const { workshopId, slotIndex } = await req.json()
     if (!workshopId) return NextResponse.json({ error: 'workshopId es requerido' }, { status: 400 })
 
     const result = await PaymentService.createEnrollmentWithPayment(
@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
       session.user.id,
       session.user.name || '',
       session.user.email || '',
+      slotIndex ?? null,
     )
 
     return NextResponse.json(result)

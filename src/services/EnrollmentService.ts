@@ -46,38 +46,62 @@ export const EnrollmentService = {
     return this.getAll({ workshopId }, page, limit)
   },
 
-  async create(data: { workshopId: string; studentId: string; monto: number }): Promise<IEnrollment> {
+  async create(data: { workshopId: string; studentId: string; monto: number; slotIndex?: number | null }): Promise<IEnrollment> {
     await dbConnect()
 
-    // Verificar cupo disponible antes de inscribir
+    const slotIndex = data.slotIndex ?? null
     const workshop = await Workshop.findOne({ _id: data.workshopId, activo: true })
     if (!workshop) throw new Error('Taller no encontrado')
-    if (workshop.cupoDisponible <= 0) throw new Error('No hay cupos disponibles')
 
-    // Verificar inscripción duplicada
+    // Verificar cupo según si tiene slots o no
+    if (workshop.slots && workshop.slots.length > 0) {
+      if (slotIndex === null || slotIndex < 0 || slotIndex >= workshop.slots.length) {
+        throw new Error('Debes seleccionar un horario válido')
+      }
+      if (workshop.slots[slotIndex].cupoDisponible <= 0) {
+        throw new Error('No hay cupos disponibles en este horario')
+      }
+    } else {
+      if (workshop.cupoDisponible <= 0) throw new Error('No hay cupos disponibles')
+    }
+
+    // Verificar inscripción duplicada (mismo taller + mismo slot)
     const existing = await Enrollment.findOne({
       workshopId: data.workshopId,
       studentId: data.studentId,
+      slotIndex,
       activo: true,
       estado: { $ne: 'cancelado' }
     })
-    if (existing) throw new Error('Ya estás inscrito en este taller')
+    if (existing) throw new Error('Ya estás inscrito en este horario')
 
     // Transacción: crear enrollment + decrementar cupo
     const session = await mongoose.startSession()
     session.startTransaction()
     try {
       const [enrollment] = await Enrollment.create([{
-        ...data,
+        workshopId: data.workshopId,
+        studentId: data.studentId,
+        slotIndex,
+        monto: data.monto,
         estado: 'pendiente',
         activo: true,
       }], { session })
 
-      await Workshop.findByIdAndUpdate(
-        data.workshopId,
-        { $inc: { cupoDisponible: -1 } },
-        { session }
-      )
+      if (workshop.slots && workshop.slots.length > 0 && slotIndex !== null) {
+        // Decrementar cupo del slot específico
+        await Workshop.findByIdAndUpdate(
+          data.workshopId,
+          { $inc: { [`slots.${slotIndex}.cupoDisponible`]: -1 } },
+          { session }
+        )
+      } else {
+        await Workshop.findByIdAndUpdate(
+          data.workshopId,
+          { $inc: { cupoDisponible: -1 } },
+          { session }
+        )
+      }
 
       await session.commitTransaction()
       return enrollment
@@ -110,11 +134,22 @@ export const EnrollmentService = {
     session.startTransaction()
     try {
       await Enrollment.findByIdAndUpdate(id, { estado: 'cancelado' }, { session })
-      await Workshop.findByIdAndUpdate(
-        enrollment.workshopId,
-        { $inc: { cupoDisponible: 1 } },
-        { session }
-      )
+
+      const workshop = await Workshop.findById(enrollment.workshopId)
+      if (workshop && workshop.slots && workshop.slots.length > 0 && enrollment.slotIndex !== null) {
+        await Workshop.findByIdAndUpdate(
+          enrollment.workshopId,
+          { $inc: { [`slots.${enrollment.slotIndex}.cupoDisponible`]: 1 } },
+          { session }
+        )
+      } else {
+        await Workshop.findByIdAndUpdate(
+          enrollment.workshopId,
+          { $inc: { cupoDisponible: 1 } },
+          { session }
+        )
+      }
+
       await session.commitTransaction()
     } catch (error) {
       await session.abortTransaction()

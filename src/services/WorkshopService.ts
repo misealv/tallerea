@@ -30,13 +30,12 @@ export const WorkshopService = {
     if (filters?.tipo) query.tipo = filters.tipo
     if (filters?.modalidad) query.modalidad = filters.modalidad
     if (filters?.accountId) query.accountId = filters.accountId
-    if (filters?.dia) query['horarios.dia'] = filters.dia
+    if (filters?.dia) query['slots.dia'] = filters.dia
     if (filters?.precioMin || filters?.precioMax) {
       query.precio = {}
       if (filters.precioMin) (query.precio as Record<string, number>).$gte = filters.precioMin
       if (filters.precioMax) (query.precio as Record<string, number>).$lte = filters.precioMax
     }
-    // Filtro por comuna: buscar locations que coincidan y filtrar por locationId
     if (filters?.comuna) {
       const locations = await Location.find({
         comuna: { $regex: filters.comuna, $options: 'i' },
@@ -79,6 +78,10 @@ export const WorkshopService = {
 
   async create(data: Partial<IWorkshop>): Promise<IWorkshop> {
     await dbConnect()
+    // Inicializar cupoDisponible en cada slot
+    if (data.slots && data.slots.length > 0) {
+      data.slots = data.slots.map(s => ({ ...s, cupoDisponible: s.cupoMax }))
+    }
     return new Workshop({ ...data, cupoDisponible: data.cupoMax }).save()
   },
 
@@ -96,5 +99,13 @@ export const WorkshopService = {
   async delete(id: string): Promise<void> {
     await dbConnect()
     await Workshop.findByIdAndUpdate(id, { activo: false })
+  },
+
+  // Obtener cupo disponible total (suma de slots o cupo raíz)
+  getTotalCupoDisponible(workshop: IWorkshop): number {
+    if (workshop.slots && workshop.slots.length > 0) {
+      return workshop.slots.reduce((sum, s) => sum + s.cupoDisponible, 0)
+    }
+    return workshop.cupoDisponible
   },
 }

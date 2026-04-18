@@ -11,6 +11,7 @@ interface WorkshopCardProps {
   comuna?: string
   imagen?: string
   horarios?: { dia: string; horaInicio: string }[]
+  slots?: { dia: string; horaInicio: string; cupoDisponible: number }[]
   espacioNombre?: string
   espacioSlug?: string
 }
@@ -25,8 +26,13 @@ const modalidadLabel: Record<string, string> = {
 
 export default function WorkshopCard({
   slug, titulo, tipo, modalidad, precio, cupoDisponible,
-  comuna, imagen, horarios, espacioNombre, espacioSlug,
+  comuna, imagen, horarios, slots, espacioNombre, espacioSlug,
 }: WorkshopCardProps) {
+  const hasSlots = slots && slots.length > 0
+  const totalCupos = hasSlots
+    ? slots.reduce((s, sl) => s + sl.cupoDisponible, 0)
+    : cupoDisponible
+  const displaySlots = hasSlots ? slots : horarios
   return (
     <Link href={`/talleres/${slug}`} className="group block bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
       {/* Imagen */}
@@ -49,9 +55,9 @@ export default function WorkshopCard({
           {titulo}
         </h3>
 
-        {horarios && horarios.length > 0 && (
+        {displaySlots && displaySlots.length > 0 && (
           <p className="text-xs text-gray-500">
-            {horarios.map(h => `${h.dia} ${h.horaInicio}`).slice(0, 2).join(' · ')}
+            {displaySlots.map(h => `${h.dia} ${h.horaInicio}`).slice(0, 2).join(' · ')}
           </p>
         )}
 
@@ -59,8 +65,8 @@ export default function WorkshopCard({
           <span className="text-lg font-bold text-purple-700">
             {precio === 0 ? 'Gratis' : `$${precio.toLocaleString('es-CL')}`}
           </span>
-          <span className={`text-xs px-2 py-1 rounded-full ${cupoDisponible > 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
-            {cupoDisponible > 0 ? `${cupoDisponible} cupos` : 'Sin cupos'}
+          <span className={`text-xs px-2 py-1 rounded-full ${totalCupos > 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+            {totalCupos > 0 ? `${totalCupos} cupos` : 'Sin cupos'}
           </span>
         </div>
 

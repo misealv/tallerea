@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
       workshopId: body.workshopId,
       studentId: session.user.id,
       monto: body.monto,
+      slotIndex: body.slotIndex ?? null,
     })
     return NextResponse.json(enrollment, { status: 201 })
   } catch (error: unknown) {

@@ -5,14 +5,24 @@ export const dynamic = 'force-dynamic'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
+import SlotSelector from '@/components/SlotSelector'
+
+interface Slot {
+  dia: string
+  horaInicio: string
+  horaFin: string
+  cupoMax: number
+  cupoDisponible: number
+}
 
 interface Workshop {
   _id: string
   titulo: string
   precio: number
   cupoDisponible: number
+  cupoMax: number
   fechaInicio: string
-  horarios: { dia: string; horaInicio: string; horaFin: string }[]
+  slots: Slot[]
 }
 
 export default function InscribirsePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -23,6 +33,8 @@ export default function InscribirsePage({ params }: { params: Promise<{ slug: st
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [slug, setSlug] = useState('')
+  const [selectedSlots, setSelectedSlots] = useState<number[]>([])
+  const [currentSlotIdx, setCurrentSlotIdx] = useState(0)
 
   useEffect(() => {
     params.then(p => setSlug(p.slug))
@@ -47,33 +59,53 @@ export default function InscribirsePage({ params }: { params: Promise<{ slug: st
 
   const handleInscribirse = async () => {
     if (!workshop || !session) return
+    const hasSlots = workshop.slots && workshop.slots.length > 0
+
+    // Si tiene slots, validar selección
+    if (hasSlots && selectedSlots.length === 0) {
+      setError('Selecciona al menos un horario')
+      return
+    }
+
     setSubmitting(true)
     setError('')
 
     try {
-      const res = await fetch('/api/payments/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workshopId: workshop._id }),
-      })
-      const data = await res.json()
+      // Si hay múltiples slots seleccionados, inscribir uno por uno
+      const slotsToEnroll = hasSlots ? selectedSlots : [null]
 
-      if (!res.ok) {
-        setError(data.error || 'Error al inscribirse')
-        setSubmitting(false)
-        return
+      for (let i = 0; i < slotsToEnroll.length; i++) {
+        setCurrentSlotIdx(i)
+        const res = await fetch('/api/payments/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workshopId: workshop._id,
+            slotIndex: slotsToEnroll[i],
+          }),
+        })
+        const data = await res.json()
+
+        if (!res.ok) {
+          setError(data.error || 'Error al inscribirse')
+          setSubmitting(false)
+          return
+        }
+
+        // Si es gratis y es el último, redirigir
+        if (data.free && i === slotsToEnroll.length - 1) {
+          router.push('/mis-talleres?pago=ok')
+          return
+        }
+
+        // Si tiene pago, redirigir a MercadoPago (solo primer slot con pago)
+        if (data.initPoint) {
+          window.location.href = data.initPoint
+          return
+        }
       }
 
-      // Si es gratis, redirigir directo
-      if (data.free) {
-        router.push('/mis-talleres?pago=ok')
-        return
-      }
-
-      // Redirigir a MercadoPago
-      if (data.initPoint) {
-        window.location.href = data.initPoint
-      }
+      router.push('/mis-talleres?pago=ok')
     } catch {
       setError('Error de conexión')
       setSubmitting(false)
@@ -88,11 +120,6 @@ export default function InscribirsePage({ params }: { params: Promise<{ slug: st
     return <div className="min-h-screen flex items-center justify-center text-gray-500">Taller no encontrado</div>
   }
 
-  const diaLabel: Record<string, string> = {
-    lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves',
-    viernes: 'Viernes', sabado: 'Sábado', domingo: 'Domingo',
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="bg-white rounded-xl border border-gray-200 p-8 max-w-md w-full space-y-6">
@@ -101,12 +128,11 @@ export default function InscribirsePage({ params }: { params: Promise<{ slug: st
         <div className="space-y-3">
           <h2 className="text-lg font-semibold text-gray-800">{workshop.titulo}</h2>
 
-          {workshop.horarios.length > 0 && (
-            <div className="text-sm text-gray-600">
-              {workshop.horarios.map((h, i) => (
-                <p key={i}>{diaLabel[h.dia] || h.dia} {h.horaInicio} — {h.horaFin}</p>
-              ))}
-            </div>
+          {/* Selector de slot si tiene slots */}
+          {workshop.slots && workshop.slots.length > 0 ? (
+            <SlotSelector slots={workshop.slots} selectedSlots={selectedSlots} onSelectionChange={setSelectedSlots} />
+          ) : (
+            <p className="text-xs text-gray-400">{workshop.cupoDisponible} cupos disponibles</p>
           )}
 
           <p className="text-sm text-gray-500">
@@ -121,21 +147,17 @@ export default function InscribirsePage({ params }: { params: Promise<{ slug: st
               </span>
             </div>
           </div>
-
-          <p className="text-xs text-gray-400">
-            {workshop.cupoDisponible} cupos disponibles
-          </p>
         </div>
 
         {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded">{error}</p>}
 
         <button
           onClick={handleInscribirse}
-          disabled={submitting || workshop.cupoDisponible <= 0}
+          disabled={submitting || (workshop.slots?.length > 0 ? selectedSlots.length === 0 : workshop.cupoDisponible <= 0)}
           className="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
         >
           {submitting
-            ? 'Procesando...'
+            ? `Procesando${selectedSlots.length > 1 ? ` (${currentSlotIdx + 1}/${selectedSlots.length})` : ''}...`
             : workshop.precio === 0
             ? 'Inscribirme gratis'
             : `Pagar $${workshop.precio.toLocaleString('es-CL')}`}

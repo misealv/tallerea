@@ -19,16 +19,18 @@ export const PaymentService = {
     workshopId: string,
     studentId: string,
     studentName: string,
-    studentEmail: string
+    studentEmail: string,
+    slotIndex?: number | null
   ): Promise<CreatePaymentResult> {
     const workshop = await WorkshopService.getById(workshopId)
     if (!workshop) throw new Error('Taller no encontrado')
 
-    // Crear enrollment pendiente
+    // Crear enrollment pendiente con slotIndex
     const enrollment = await EnrollmentService.create({
       workshopId,
       studentId,
       monto: workshop.precio,
+      slotIndex: slotIndex ?? null,
     })
 
     const enrollmentId = String(enrollment._id)

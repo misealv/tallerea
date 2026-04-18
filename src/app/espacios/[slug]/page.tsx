@@ -133,7 +133,7 @@ export default async function EspacioPage({ params }: PageProps) {
                     cupoDisponible={w.cupoDisponible}
                     comuna={loc?.comuna}
                     imagen={w.imagenes?.[0]}
-                    horarios={w.horarios}
+                    slots={w.slots}
                   />
                 )
               })}

@@ -1,5 +1,13 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
+export interface ISlot {
+  dia: string;
+  horaInicio: string;
+  horaFin: string;
+  cupoMax: number;
+  cupoDisponible: number;
+}
+
 export interface IWorkshop extends Document {
   accountId: Types.ObjectId;
   locationId?: Types.ObjectId;
@@ -10,13 +18,11 @@ export interface IWorkshop extends Document {
   tipo: 'visual' | 'teatro' | 'danza' | 'musica' | 'otro';
   modalidad: 'presencial' | 'online' | 'hibrido';
   precio: number;
+  duracionSesion: number;
+  cupoDefault: number;
   cupoMax: number;
   cupoDisponible: number;
-  horarios: {
-    dia: string;
-    horaInicio: string;
-    horaFin: string;
-  }[];
+  slots: ISlot[];
   fechaInicio: Date;
   fechaFin?: Date;
   edadMinima?: number;
@@ -25,6 +31,16 @@ export interface IWorkshop extends Document {
   activo: boolean;
   createdAt: Date;
 }
+
+const DIAS_ENUM = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+
+const SlotSchema = new Schema({
+  dia: { type: String, enum: DIAS_ENUM, required: true },
+  horaInicio: { type: String, required: true },
+  horaFin: { type: String, required: true },
+  cupoMax: { type: Number, required: true, min: 1 },
+  cupoDisponible: { type: Number, required: true, min: 0 },
+}, { _id: false });
 
 const WorkshopSchema = new Schema<IWorkshop>({
   accountId: { type: Schema.Types.ObjectId, ref: 'Account', required: true },
@@ -36,13 +52,12 @@ const WorkshopSchema = new Schema<IWorkshop>({
   tipo: { type: String, enum: ['visual', 'teatro', 'danza', 'musica', 'otro'], required: true },
   modalidad: { type: String, enum: ['presencial', 'online', 'hibrido'], required: true },
   precio: { type: Number, required: true, min: 0 },
-  cupoMax: { type: Number, required: true, min: 1 },
-  cupoDisponible: { type: Number, required: true, min: 0 },
-  horarios: [{
-    dia: { type: String, enum: ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'], required: true },
-    horaInicio: { type: String, required: true },
-    horaFin: { type: String, required: true },
-  }],
+  duracionSesion: { type: Number, default: 90, min: 30, max: 240 },
+  cupoDefault: { type: Number, default: 10, min: 1 },
+  // cupoMax/cupoDisponible: solo para talleres sin slots (online asincrónicos)
+  cupoMax: { type: Number, default: 1, min: 1 },
+  cupoDisponible: { type: Number, default: 1, min: 0 },
+  slots: [SlotSchema],
   fechaInicio: { type: Date, required: true },
   fechaFin: { type: Date },
   edadMinima: { type: Number },
@@ -57,6 +72,6 @@ WorkshopSchema.index({ tipo: 1 });
 WorkshopSchema.index({ modalidad: 1 });
 WorkshopSchema.index({ activo: 1 });
 WorkshopSchema.index({ precio: 1 });
-WorkshopSchema.index({ 'horarios.dia': 1 });
+WorkshopSchema.index({ 'slots.dia': 1 });
 
 export default mongoose.models.Workshop || mongoose.model<IWorkshop>('Workshop', WorkshopSchema);

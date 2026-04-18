@@ -65,7 +65,7 @@ async function WorkshopResults({ searchParams }: { searchParams: PageProps['sear
               cupoDisponible={w.cupoDisponible}
               comuna={loc?.comuna}
               imagen={w.imagenes?.[0]}
-              horarios={w.horarios}
+              slots={w.slots}
               espacioNombre={acc?.nombre}
               espacioSlug={acc?.slug}
             />

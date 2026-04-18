@@ -5,14 +5,14 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import ImageUpload from '@/components/ImageUpload'
+import SlotEditor, { DuracionSelector } from '@/components/SlotEditor'
+import { type SlotData } from '@/components/SlotCalendar'
 
 interface Location { _id: string; nombre: string; comuna: string }
 interface Member { _id: string; nombre: string; rol: string }
-interface Horario { dia: string; horaInicio: string; horaFin: string }
 
 const TIPOS = ['visual', 'teatro', 'danza', 'musica', 'otro'] as const
 const MODALIDADES = ['presencial', 'online', 'hibrido'] as const
-const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'] as const
 
 export default function EditarTallerPage() {
   const router = useRouter()
@@ -24,11 +24,13 @@ export default function EditarTallerPage() {
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [imagenes, setImagenes] = useState<string[]>([])
+  const [duracionSesion, setDuracionSesion] = useState(90)
+  const [cupoDefault, setCupoDefault] = useState(10)
+  const [slots, setSlots] = useState<SlotData[]>([])
   const [form, setForm] = useState({
     titulo: '', descripcion: '', tipo: 'visual', modalidad: 'presencial',
-    precio: '', cupoMax: '', locationId: '', instructorId: '', fechaInicio: '', fechaFin: '',
+    precio: '', locationId: '', instructorId: '', fechaInicio: '', fechaFin: '',
     edadMinima: '', edadMaxima: '',
-    horarios: [{ dia: 'lunes', horaInicio: '10:00', horaFin: '12:00' }] as Horario[],
   })
 
   const accountId = typeof document !== 'undefined'
@@ -52,15 +54,17 @@ export default function EditarTallerPage() {
       setForm({
         titulo: workshop.titulo, descripcion: workshop.descripcion,
         tipo: workshop.tipo, modalidad: workshop.modalidad,
-        precio: String(workshop.precio), cupoMax: String(workshop.cupoMax),
+        precio: String(workshop.precio),
         locationId: workshop.locationId?._id || workshop.locationId || '',
         instructorId: workshop.instructorId?._id || workshop.instructorId || '',
         fechaInicio: workshop.fechaInicio?.slice(0, 10) || '',
         fechaFin: workshop.fechaFin?.slice(0, 10) || '',
         edadMinima: workshop.edadMinima ? String(workshop.edadMinima) : '',
         edadMaxima: workshop.edadMaxima ? String(workshop.edadMaxima) : '',
-        horarios: workshop.horarios?.length ? workshop.horarios : [{ dia: 'lunes', horaInicio: '10:00', horaFin: '12:00' }],
       })
+      setDuracionSesion(workshop.duracionSesion || 90)
+      setCupoDefault(workshop.cupoDefault || 10)
+      setSlots(workshop.slots || [])
       setImagenes(workshop.imagenes || [])
     }
     setLocations(locsData.data || [])
@@ -73,22 +77,6 @@ export default function EditarTallerPage() {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
-  function updateHorario(idx: number, field: string, value: string) {
-    setForm((prev) => {
-      const horarios = [...prev.horarios]
-      horarios[idx] = { ...horarios[idx], [field]: value }
-      return { ...prev, horarios }
-    })
-  }
-
-  function addHorario() {
-    setForm((prev) => ({ ...prev, horarios: [...prev.horarios, { dia: 'lunes', horaInicio: '10:00', horaFin: '12:00' }] }))
-  }
-
-  function removeHorario(idx: number) {
-    setForm((prev) => ({ ...prev, horarios: prev.horarios.filter((_, i) => i !== idx) }))
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -96,12 +84,14 @@ export default function EditarTallerPage() {
 
     const body = {
       titulo: form.titulo, descripcion: form.descripcion, tipo: form.tipo, modalidad: form.modalidad,
-      precio: Number(form.precio), cupoMax: Number(form.cupoMax),
+      precio: Number(form.precio), duracionSesion, cupoDefault,
+      cupoMax: slots.length > 0 ? 1 : cupoDefault,
+      slots,
       locationId: form.locationId || undefined,
       instructorId: form.instructorId || undefined,
       imagenes,
       fechaInicio: form.fechaInicio,
-      fechaFin: form.fechaFin || undefined, horarios: form.horarios,
+      fechaFin: form.fechaFin || undefined,
       edadMinima: form.edadMinima ? Number(form.edadMinima) : undefined,
       edadMaxima: form.edadMaxima ? Number(form.edadMaxima) : undefined,
     }
@@ -145,31 +135,21 @@ export default function EditarTallerPage() {
         </section>
 
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <h2 className="font-semibold text-gray-900">Precio y cupos</h2>
+          <h2 className="font-semibold text-gray-900">Precio y configuración</h2>
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-sm text-gray-600 mb-1">Precio (CLP)</label>
               <input type="number" required min="0" value={form.precio} onChange={(e) => update('precio', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
-            <div><label className="block text-sm text-gray-600 mb-1">Cupo máximo</label>
-              <input type="number" required min="1" value={form.cupoMax} onChange={(e) => update('cupoMax', e.target.value)}
+            <div><label className="block text-sm text-gray-600 mb-1">Cupo por defecto</label>
+              <input type="number" required min="1" value={cupoDefault}
+                onChange={(e) => setCupoDefault(Math.max(1, Number(e.target.value)))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
           </div>
+          <DuracionSelector value={duracionSesion} onChange={setDuracionSesion} />
         </section>
 
-        <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="font-semibold text-gray-900">Horarios</h2>
-            <button type="button" onClick={addHorario} className="text-sm text-purple-600 hover:underline">+ Agregar</button>
-          </div>
-          {form.horarios.map((h, idx) => (
-            <div key={idx} className="grid grid-cols-4 gap-2 items-end">
-              <select value={h.dia} onChange={(e) => updateHorario(idx, 'dia', e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm">{DIAS.map((d) => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}</select>
-              <input type="time" value={h.horaInicio} onChange={(e) => updateHorario(idx, 'horaInicio', e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              <input type="time" value={h.horaFin} onChange={(e) => updateHorario(idx, 'horaFin', e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              {form.horarios.length > 1 && <button type="button" onClick={() => removeHorario(idx)} className="text-red-400 hover:text-red-600 text-sm">✕</button>}
-            </div>
-          ))}
+        <section className="bg-white rounded-xl border border-gray-200 p-6">
+          <SlotEditor slots={slots} duracionSesion={duracionSesion} cupoDefault={cupoDefault} onSlotsChange={setSlots} />
         </section>
 
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">

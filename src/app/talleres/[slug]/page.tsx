@@ -83,17 +83,30 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               <p className="whitespace-pre-line text-gray-700">{workshop.descripcion}</p>
             </div>
 
-            {/* Horarios */}
-            {workshop.horarios.length > 0 && (
+            {/* Horarios (slots) */}
+            {workshop.slots && workshop.slots.length > 0 && (
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-3">Horarios</h2>
                 <div className="space-y-2">
-                  {workshop.horarios.map((h, i) => (
-                    <div key={i} className="flex items-center gap-3 bg-gray-50 rounded-lg px-4 py-2">
-                      <span className="font-medium text-gray-700 w-24">{diaLabel[h.dia] || h.dia}</span>
-                      <span className="text-gray-600">{h.horaInicio} — {h.horaFin}</span>
-                    </div>
-                  ))}
+                  {workshop.slots.map((s: { dia: string; horaInicio: string; horaFin: string; cupoMax: number; cupoDisponible: number }, i: number) => {
+                    const full = s.cupoDisponible <= 0
+                    const pct = s.cupoMax > 0 ? ((s.cupoMax - s.cupoDisponible) / s.cupoMax) * 100 : 100
+                    return (
+                      <div key={i} className={`flex items-center gap-3 rounded-lg px-4 py-2 ${full ? 'bg-red-50' : 'bg-gray-50'}`}>
+                        <span className="font-medium text-gray-700 w-24">{diaLabel[s.dia] || s.dia}</span>
+                        <span className="text-gray-600">{s.horaInicio} — {s.horaFin}</span>
+                        <div className="ml-auto flex items-center gap-2">
+                          <div className="w-12 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${full ? 'bg-red-400' : pct > 80 ? 'bg-orange-400' : 'bg-green-400'}`}
+                              style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className={`text-xs ${full ? 'text-red-500' : 'text-gray-500'}`}>
+                            {full ? 'Lleno' : `${s.cupoDisponible} cupos`}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -135,12 +148,23 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               </div>
 
               <div className="text-sm space-y-2 text-gray-600">
-                <div className="flex justify-between">
-                  <span>Cupos disponibles</span>
-                  <span className={`font-medium ${workshop.cupoDisponible > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {workshop.cupoDisponible} / {workshop.cupoMax}
-                  </span>
-                </div>
+                {workshop.slots && workshop.slots.length > 0 ? (
+                  <div className="flex justify-between">
+                    <span>Cupos disponibles</span>
+                    <span className={`font-medium ${
+                      workshop.slots.reduce((s: number, sl: { cupoDisponible: number }) => s + sl.cupoDisponible, 0) > 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {workshop.slots.reduce((s: number, sl: { cupoDisponible: number }) => s + sl.cupoDisponible, 0)} total
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between">
+                    <span>Cupos disponibles</span>
+                    <span className={`font-medium ${workshop.cupoDisponible > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {workshop.cupoDisponible} / {workshop.cupoMax}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>Inicio</span>
                   <span className="font-medium">{new Date(workshop.fechaInicio).toLocaleDateString('es-CL')}</span>
@@ -153,18 +177,24 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                 )}
               </div>
 
-              {workshop.cupoDisponible > 0 ? (
-                <Link
-                  href={`/talleres/${workshop.slug}/inscribirse`}
-                  className="block w-full text-center bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
-                >
-                  Inscribirme
-                </Link>
-              ) : (
-                <div className="w-full text-center bg-gray-200 text-gray-500 py-3 rounded-lg font-semibold">
-                  Sin cupos
-                </div>
-              )}
+              {(() => {
+                const hasSlots = workshop.slots && workshop.slots.length > 0
+                const totalCupos = hasSlots
+                  ? workshop.slots.reduce((s: number, sl: { cupoDisponible: number }) => s + sl.cupoDisponible, 0)
+                  : workshop.cupoDisponible
+                return totalCupos > 0 ? (
+                  <Link
+                    href={`/talleres/${workshop.slug}/inscribirse`}
+                    className="block w-full text-center bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
+                  >
+                    Inscribirme
+                  </Link>
+                ) : (
+                  <div className="w-full text-center bg-gray-200 text-gray-500 py-3 rounded-lg font-semibold">
+                    Sin cupos
+                  </div>
+                )
+              })()}
             </div>
 
             {/* Espacio */}
