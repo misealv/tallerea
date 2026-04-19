@@ -95,27 +95,12 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-3">Horarios</h2>
                 <div className="space-y-2">
-                  {workshop.slots.map((s: { dia: string; horaInicio: string; horaFin: string; cupoMax?: number; cupoDisponible?: number }, i: number) => {
-                    const cupoMax = s.cupoMax ?? 0
-                    const cupoDisp = s.cupoDisponible ?? 0
-                    const full = cupoDisp <= 0
-                    const pct = cupoMax > 0 ? ((cupoMax - cupoDisp) / cupoMax) * 100 : 100
-                    return (
-                      <div key={i} className={`flex items-center gap-3 rounded-lg px-4 py-2 ${full ? 'bg-red-50' : 'bg-gray-50'}`}>
-                        <span className="font-medium text-gray-700 w-24">{diaLabel[s.dia] || s.dia}</span>
-                        <span className="text-gray-600">{s.horaInicio} — {s.horaFin}</span>
-                        <div className="ml-auto flex items-center gap-2">
-                          <div className="w-12 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${full ? 'bg-red-400' : pct > 80 ? 'bg-orange-400' : 'bg-green-400'}`}
-                              style={{ width: `${pct}%` }} />
-                          </div>
-                          <span className={`text-xs ${full ? 'text-red-500' : 'text-gray-500'}`}>
-                            {full ? 'Lleno' : `${cupoDisp} cupos`}
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
+                  {workshop.slots.map((s: { dia: string; horaInicio: string; horaFin: string }, i: number) => (
+                    <div key={i} className="flex items-center gap-3 rounded-lg px-4 py-2 bg-gray-50">
+                      <span className="font-medium text-gray-700 w-24">{diaLabel[s.dia] || s.dia}</span>
+                      <span className="text-gray-600">{s.horaInicio} — {s.horaFin}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -163,6 +148,12 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                     {workshop.cupoPorSesion}
                   </span>
                 </div>
+                {workshop.maxAlumnosActivos && (
+                  <div className="flex justify-between">
+                    <span>Cupos totales</span>
+                    <span className="font-medium text-gray-900">{workshop.maxAlumnosActivos}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>Inicio</span>
                   <span className="font-medium">{new Date(workshop.fechaInicio).toLocaleDateString('es-CL')}</span>
