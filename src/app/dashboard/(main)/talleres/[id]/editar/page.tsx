@@ -29,6 +29,7 @@ export default function EditarTallerPage() {
   const [tipoCuenta, setTipoCuenta] = useState<'individual' | 'institucion'>('individual')
   const [duracionSesion, setDuracionSesion] = useState(90)
   const [cupoDefault, setCupoDefault] = useState(10)
+  const [maxAlumnosActivos, setMaxAlumnosActivos] = useState<number | null>(null)
   const [slots, setSlots] = useState<SlotData[]>([])
   const [form, setForm] = useState({
     titulo: '', descripcion: '', tipo: 'visual', modalidad: 'presencial',
@@ -72,6 +73,7 @@ export default function EditarTallerPage() {
       })
       setDuracionSesion(workshop.duracionSesion || 90)
       setCupoDefault(workshop.cupoDefault || 10)
+      setMaxAlumnosActivos(workshop.maxAlumnosActivos || null)
       setSlots(workshop.slots || [])
       setImagenes(workshop.imagenes || [])
     }
@@ -94,6 +96,7 @@ export default function EditarTallerPage() {
       titulo: form.titulo, descripcion: form.descripcion, tipo: form.tipo, modalidad: form.modalidad,
       precio: Number(form.precio), duracionSesion, cupoDefault,
       cupoMax: slots.length > 0 ? 1 : cupoDefault,
+      maxAlumnosActivos: maxAlumnosActivos || null,
       slots,
       locationId: form.locationId || undefined,
       instructorId: form.instructorId || undefined,
@@ -156,10 +159,27 @@ export default function EditarTallerPage() {
             <div><label className="block text-sm text-gray-600 mb-1">Precio (CLP)</label>
               <input type="number" required min="0" value={form.precio} onChange={(e) => update('precio', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
-            <div><label className="block text-sm text-gray-600 mb-1">Cupo por defecto</label>
+            <div><label className="block text-sm text-gray-600 mb-1">Alumnos por sesión</label>
               <input type="number" required min="1" value={cupoDefault}
                 onChange={(e) => setCupoDefault(Math.max(1, Number(e.target.value)))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+              <p className="text-xs text-gray-400 mt-1">Aforo máximo en cada clase</p></div>
+          </div>
+          <div>
+            <label className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+              <input type="checkbox" checked={maxAlumnosActivos !== null}
+                onChange={(e) => setMaxAlumnosActivos(e.target.checked ? 30 : null)}
+                className="rounded border-gray-300 text-purple-600 focus:ring-purple-500" />
+              Limitar total de alumnos suscritos
+            </label>
+            {maxAlumnosActivos !== null && (
+              <div className="mt-2">
+                <input type="number" min="1" value={maxAlumnosActivos}
+                  onChange={(e) => setMaxAlumnosActivos(Math.max(1, Number(e.target.value)))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                <p className="text-xs text-gray-400 mt-1">No se aceptan nuevas suscripciones después de este número</p>
+              </div>
+            )}
           </div>
           <DuracionSelector value={duracionSesion} onChange={setDuracionSesion} />
         </section>

@@ -26,6 +26,7 @@ export default function NuevoTallerPage() {
   const [tipoCuenta, setTipoCuenta] = useState<'individual' | 'institucion'>('individual')
   const [duracionSesion, setDuracionSesion] = useState(90)
   const [cupoDefault, setCupoDefault] = useState(10)
+  const [maxAlumnosActivos, setMaxAlumnosActivos] = useState<number | null>(null)
   const [slots, setSlots] = useState<SlotData[]>([])
   const [form, setForm] = useState({
     titulo: '', descripcion: '', tipo: 'visual', modalidad: 'presencial',
@@ -75,6 +76,7 @@ export default function NuevoTallerPage() {
       duracionSesion,
       cupoDefault,
       cupoMax: slots.length > 0 ? 1 : cupoDefault,
+      maxAlumnosActivos: maxAlumnosActivos || null,
       slots,
       locationId: form.locationId || undefined,
       instructorId: form.instructorId || undefined,
@@ -146,11 +148,28 @@ export default function NuevoTallerPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent" />
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Cupo por defecto</label>
+              <label className="block text-sm text-gray-600 mb-1">Alumnos por sesión</label>
               <input type="number" required min="1" value={cupoDefault}
                 onChange={(e) => setCupoDefault(Math.max(1, Number(e.target.value)))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent" />
+              <p className="text-xs text-gray-400 mt-1">Aforo máximo en cada clase</p>
             </div>
+          </div>
+          <div>
+            <label className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+              <input type="checkbox" checked={maxAlumnosActivos !== null}
+                onChange={(e) => setMaxAlumnosActivos(e.target.checked ? 30 : null)}
+                className="rounded border-gray-300 text-purple-600 focus:ring-purple-500" />
+              Limitar total de alumnos suscritos
+            </label>
+            {maxAlumnosActivos !== null && (
+              <div className="mt-2">
+                <input type="number" min="1" value={maxAlumnosActivos}
+                  onChange={(e) => setMaxAlumnosActivos(Math.max(1, Number(e.target.value)))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent" />
+                <p className="text-xs text-gray-400 mt-1">No se aceptan nuevas suscripciones después de este número</p>
+              </div>
+            )}
           </div>
           <DuracionSelector value={duracionSesion} onChange={setDuracionSesion} />
           <div className="grid grid-cols-2 gap-4">
