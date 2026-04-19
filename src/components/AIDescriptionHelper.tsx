@@ -7,10 +7,11 @@ interface AIDescriptionHelperProps {
   tipo: string
   modalidad: string
   descripcion: string
+  tipoCuenta?: 'individual' | 'institucion'
   onApply: (text: string) => void
 }
 
-export default function AIDescriptionHelper({ titulo, tipo, modalidad, descripcion, onApply }: AIDescriptionHelperProps) {
+export default function AIDescriptionHelper({ titulo, tipo, modalidad, descripcion, tipoCuenta, onApply }: AIDescriptionHelperProps) {
   const [loading, setLoading] = useState(false)
   const [preview, setPreview] = useState('')
   const [error, setError] = useState('')
@@ -43,7 +44,7 @@ export default function AIDescriptionHelper({ titulo, tipo, modalidad, descripci
       const res = await fetch('/api/ai/describe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titulo, tipo, modalidad, descripcionActual: descripcion, accion }),
+        body: JSON.stringify({ titulo, tipo, modalidad, descripcionActual: descripcion, accion, tipoCuenta }),
       })
       const data = await res.json()
 

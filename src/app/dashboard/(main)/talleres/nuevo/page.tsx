@@ -23,6 +23,7 @@ export default function NuevoTallerPage() {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [imagenes, setImagenes] = useState<string[]>([])
+  const [tipoCuenta, setTipoCuenta] = useState<'individual' | 'institucion'>('individual')
   const [duracionSesion, setDuracionSesion] = useState(90)
   const [cupoDefault, setCupoDefault] = useState(10)
   const [slots, setSlots] = useState<SlotData[]>([])
@@ -38,14 +39,20 @@ export default function NuevoTallerPage() {
 
   const fetchLocations = useCallback(async () => {
     if (!accountId) return
-    const res = await fetch(`/api/locations?accountId=${accountId}`)
+    const [res, mRes, aRes] = await Promise.all([
+      fetch(`/api/locations?accountId=${accountId}`),
+      fetch(`/api/accounts/${accountId}/members`),
+      fetch(`/api/accounts/${accountId}`),
+    ])
     const data = await res.json()
     setLocations(data.data || [])
-    // También cargar miembros para asignar instructor
-    const mRes = await fetch(`/api/accounts/${accountId}/members`)
     if (mRes.ok) {
       const mData = await mRes.json()
       setMembers(mData.filter((m: Member) => m.rol === 'instructor' || m.rol === 'owner'))
+    }
+    if (aRes.ok) {
+      const aData = await aRes.json()
+      if (aData.tipo) setTipoCuenta(aData.tipo)
     }
   }, [accountId])
 
@@ -115,7 +122,7 @@ export default function NuevoTallerPage() {
             onChange={(e) => update('descripcion', e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent" />
           <AIDescriptionHelper titulo={form.titulo} tipo={form.tipo} modalidad={form.modalidad}
-            descripcion={form.descripcion} onApply={(text) => update('descripcion', text)} />
+            descripcion={form.descripcion} tipoCuenta={tipoCuenta} onApply={(text) => update('descripcion', text)} />
           <div className="grid grid-cols-2 gap-4">
             <select value={form.tipo} onChange={(e) => update('tipo', e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
