@@ -7,11 +7,11 @@ interface WorkshopCardProps {
   tipo: string
   modalidad: string
   precio: number
-  cupoDisponible: number
+  cupoPorSesion: number
   comuna?: string
   imagen?: string
   horarios?: { dia: string; horaInicio: string }[]
-  slots?: { dia: string; horaInicio: string; cupoDisponible?: number }[]
+  slots?: { dia: string; horaInicio: string }[]
   espacioNombre?: string
   espacioSlug?: string
 }
@@ -25,14 +25,10 @@ const modalidadLabel: Record<string, string> = {
 }
 
 export default function WorkshopCard({
-  slug, titulo, tipo, modalidad, precio, cupoDisponible,
+  slug, titulo, tipo, modalidad, precio, cupoPorSesion,
   comuna, imagen, horarios, slots, espacioNombre, espacioSlug,
 }: WorkshopCardProps) {
-  const hasSlots = slots && slots.length > 0
-  const totalCupos = hasSlots
-    ? slots.reduce((s, sl) => s + (sl.cupoDisponible ?? 0), 0)
-    : cupoDisponible
-  const displaySlots = hasSlots ? slots : horarios
+  const displaySlots = (slots && slots.length > 0) ? slots : horarios
   return (
     <Link href={`/talleres/${slug}`} className="group block bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
       {/* Imagen */}
@@ -65,8 +61,8 @@ export default function WorkshopCard({
           <span className="text-lg font-bold text-purple-700">
             {precio === 0 ? 'Gratis' : `$${precio.toLocaleString('es-CL')}`}
           </span>
-          <span className={`text-xs px-2 py-1 rounded-full ${totalCupos > 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
-            {totalCupos > 0 ? `${totalCupos} cupos` : 'Sin cupos'}
+          <span className={`text-xs px-2 py-1 rounded-full ${cupoPorSesion > 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+            {cupoPorSesion > 0 ? `${cupoPorSesion} cupos/sesión` : 'Sin cupos'}
           </span>
         </div>
 

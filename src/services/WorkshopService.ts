@@ -50,6 +50,7 @@ export const WorkshopService = {
     const [data, total] = await Promise.all([
       Workshop.find(query)
         .populate('locationId', 'nombre comuna ciudad')
+        .populate('accountId', 'nombre slug precioModalidad')
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
@@ -63,7 +64,7 @@ export const WorkshopService = {
     await dbConnect()
     return Workshop.findOne({ _id: id, activo: true, deletedAt: null })
       .populate('locationId', 'nombre direccion comuna ciudad')
-      .populate('accountId', 'nombre slug logo tipo')
+      .populate('accountId', 'nombre slug logo tipo precioModalidad')
       .lean<IWorkshop>()
   },
 
@@ -76,7 +77,7 @@ export const WorkshopService = {
     await dbConnect()
     return Workshop.findOne({ slug, activo: true, deletedAt: null })
       .populate('locationId', 'nombre direccion comuna ciudad coordenadas')
-      .populate('accountId', 'nombre slug logo tipo verificado')
+      .populate('accountId', 'nombre slug logo tipo verificado precioModalidad')
       .lean<IWorkshop>()
   },
 

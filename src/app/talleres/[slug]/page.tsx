@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { WorkshopService } from '@/services/WorkshopService'
+import { SiteConfigService } from '@/services/SiteConfigService'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 
@@ -41,12 +42,18 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
   const workshop = await WorkshopService.getBySlug(slug)
   if (!workshop) notFound()
 
+  const comisionPct = await SiteConfigService.getComisionPct()
+
   const loc = workshop.locationId as unknown as {
     nombre: string; direccion: string; comuna: string; ciudad: string
   } | null
   const acc = workshop.accountId as unknown as {
-    nombre: string; slug: string; tipo: string; verificado: boolean
+    nombre: string; slug: string; tipo: string; verificado: boolean; precioModalidad?: string
   } | null
+
+  const precioPublico = (acc?.precioModalidad === 'neto' || workshop.precioModalidad === 'neto')
+    ? Math.round(workshop.precio * 100 / (100 - comisionPct))
+    : workshop.precio
 
   return (
     <>
@@ -145,28 +152,17 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
             <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-20 space-y-4">
               <div className="text-center">
                 <p className="text-3xl font-bold text-purple-700">
-                  {workshop.precio === 0 ? 'Gratis' : `$${workshop.precio.toLocaleString('es-CL')}`}
+                  {precioPublico === 0 ? 'Gratis' : `$${precioPublico.toLocaleString('es-CL')}`}
                 </p>
               </div>
 
               <div className="text-sm space-y-2 text-gray-600">
-                {workshop.slots && workshop.slots.length > 0 ? (
-                  <div className="flex justify-between">
-                    <span>Cupos disponibles</span>
-                    <span className={`font-medium ${
-                      workshop.slots.reduce((s: number, sl: { cupoDisponible?: number }) => s + (sl.cupoDisponible ?? 0), 0) > 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {workshop.slots.reduce((s: number, sl: { cupoDisponible?: number }) => s + (sl.cupoDisponible ?? 0), 0)} total
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex justify-between">
-                    <span>Cupos disponibles</span>
-                    <span className={`font-medium ${workshop.cupoDisponible > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {workshop.cupoDisponible} / {workshop.cupoMax}
-                    </span>
-                  </div>
-                )}
+                <div className="flex justify-between">
+                  <span>Cupos por sesión</span>
+                  <span className={`font-medium ${workshop.cupoPorSesion > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {workshop.cupoPorSesion}
+                  </span>
+                </div>
                 <div className="flex justify-between">
                   <span>Inicio</span>
                   <span className="font-medium">{new Date(workshop.fechaInicio).toLocaleDateString('es-CL')}</span>
@@ -180,11 +176,7 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               </div>
 
               {(() => {
-                const hasSlots = workshop.slots && workshop.slots.length > 0
-                const totalCupos = hasSlots
-                  ? workshop.slots.reduce((s: number, sl: { cupoDisponible?: number }) => s + (sl.cupoDisponible ?? 0), 0)
-                  : workshop.cupoDisponible
-                return totalCupos > 0 ? (
+                return workshop.cupoPorSesion > 0 ? (
                   <Link
                     href={`/talleres/${workshop.slug}/inscribirse`}
                     className="block w-full text-center bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition-colors"

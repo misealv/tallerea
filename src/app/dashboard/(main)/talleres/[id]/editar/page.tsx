@@ -28,6 +28,7 @@ export default function EditarTallerPage() {
   const [loading, setLoading] = useState(true)
   const [imagenes, setImagenes] = useState<string[]>([])
   const [tipoCuenta, setTipoCuenta] = useState<'individual' | 'institucion'>('individual')
+  const [precioModalidad, setPrecioModalidad] = useState<'neto' | 'bruto'>('bruto')
   const [duracionSesion, setDuracionSesion] = useState(90)
   const [cupoDefault, setCupoDefault] = useState(10)
   const [maxAlumnosActivos, setMaxAlumnosActivos] = useState<number | null>(null)
@@ -59,6 +60,7 @@ export default function EditarTallerPage() {
     if (aRes.ok) {
       const aData = await aRes.json()
       if (aData.tipo) setTipoCuenta(aData.tipo)
+      if (aData.precioModalidad) setPrecioModalidad(aData.precioModalidad)
     }
 
     if (wRes.ok && workshop) {
@@ -107,7 +109,7 @@ export default function EditarTallerPage() {
 
     const body = {
       titulo: form.titulo, descripcion: form.descripcion, tipo: form.tipo, modalidad: form.modalidad,
-      precio: Number(form.precio), duracionSesion, cupoDefault,
+      precio: Number(form.precio), precioModalidad, duracionSesion, cupoDefault,
       cupoPorSesion: cupoDefault,
       cupoMax: slots.length > 0 ? 1 : cupoDefault,
       maxAlumnosActivos: maxAlumnosActivos || null,

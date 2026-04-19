@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { WorkshopService } from "@/services/WorkshopService";
+import { SiteConfigService } from "@/services/SiteConfigService";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import WorkshopCard from "@/components/WorkshopCard";
@@ -8,6 +9,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function Home() {
   const featured = await WorkshopService.getAll({}, 1, 6);
+  const comisionPct = await SiteConfigService.getComisionPct();
 
   return (
     <>
@@ -55,7 +57,10 @@ export default async function Home() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {featured.data.map((w) => {
                   const loc = w.locationId as unknown as { comuna?: string } | null;
-                  const acc = w.accountId as unknown as { nombre: string; slug: string } | null;
+                  const acc = w.accountId as unknown as { nombre: string; slug: string; precioModalidad?: string } | null;
+                  const precioPublico = (acc?.precioModalidad === 'neto' || w.precioModalidad === 'neto')
+                    ? Math.round(w.precio * 100 / (100 - comisionPct))
+                    : w.precio;
                   return (
                     <WorkshopCard
                       key={String(w._id)}
@@ -63,8 +68,8 @@ export default async function Home() {
                       titulo={w.titulo}
                       tipo={w.tipo}
                       modalidad={w.modalidad}
-                      precio={w.precio}
-                      cupoDisponible={w.cupoDisponible}
+                      precio={precioPublico}
+                      cupoPorSesion={w.cupoPorSesion}
                       comuna={loc?.comuna}
                       imagen={w.imagenes?.[0]}
                       slots={w.slots}

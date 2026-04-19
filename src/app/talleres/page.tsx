@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { WorkshopService } from '@/services/WorkshopService'
+import { SiteConfigService } from '@/services/SiteConfigService'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import WorkshopCard from '@/components/WorkshopCard'
@@ -35,6 +36,7 @@ async function WorkshopResults({ searchParams }: { searchParams: PageProps['sear
   }
 
   const result = await WorkshopService.getAll(filters, page, 12)
+  const comisionPct = await SiteConfigService.getComisionPct()
   const totalPages = Math.ceil(result.total / 12)
 
   if (result.data.length === 0) {
@@ -53,7 +55,10 @@ async function WorkshopResults({ searchParams }: { searchParams: PageProps['sear
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {result.data.map((w) => {
           const loc = w.locationId as unknown as { nombre: string; comuna: string } | null
-          const acc = w.accountId as unknown as { nombre: string; slug: string } | null
+          const acc = w.accountId as unknown as { nombre: string; slug: string; precioModalidad?: string } | null
+          const precioPublico = (acc?.precioModalidad === 'neto' || w.precioModalidad === 'neto')
+            ? Math.round(w.precio * 100 / (100 - comisionPct))
+            : w.precio
           return (
             <WorkshopCard
               key={String(w._id)}
@@ -61,8 +66,8 @@ async function WorkshopResults({ searchParams }: { searchParams: PageProps['sear
               titulo={w.titulo}
               tipo={w.tipo}
               modalidad={w.modalidad}
-              precio={w.precio}
-              cupoDisponible={w.cupoDisponible}
+              precio={precioPublico}
+              cupoPorSesion={w.cupoPorSesion}
               comuna={loc?.comuna}
               imagen={w.imagenes?.[0]}
               slots={w.slots}

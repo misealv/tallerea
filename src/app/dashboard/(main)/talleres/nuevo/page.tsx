@@ -25,6 +25,7 @@ export default function NuevoTallerPage() {
   const [saving, setSaving] = useState(false)
   const [imagenes, setImagenes] = useState<string[]>([])
   const [tipoCuenta, setTipoCuenta] = useState<'individual' | 'institucion'>('individual')
+  const [precioModalidad, setPrecioModalidad] = useState<'neto' | 'bruto'>('bruto')
   const [duracionSesion, setDuracionSesion] = useState(90)
   const [cupoDefault, setCupoDefault] = useState(10)
   const [maxAlumnosActivos, setMaxAlumnosActivos] = useState<number | null>(null)
@@ -56,6 +57,7 @@ export default function NuevoTallerPage() {
     if (aRes.ok) {
       const aData = await aRes.json()
       if (aData.tipo) setTipoCuenta(aData.tipo)
+      if (aData.precioModalidad) setPrecioModalidad(aData.precioModalidad)
     }
   }, [accountId])
 
@@ -75,6 +77,7 @@ export default function NuevoTallerPage() {
       accountId,
       imagenes,
       precio: Number(form.precio),
+      precioModalidad,
       duracionSesion,
       cupoDefault,
       cupoPorSesion: cupoDefault,
