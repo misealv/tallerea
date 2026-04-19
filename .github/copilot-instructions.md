@@ -365,6 +365,27 @@ Solo `NEXT_PUBLIC_*` se expone al client.
 
 ---
 
+## ⚠️ Configuración centralizada — SiteConfig (NO HARDCODEAR NUNCA)
+
+Todo parámetro de negocio (comisiones, montos mínimos, límites) se almacena en el modelo `SiteConfig` (singleton en MongoDB) y se gestiona **exclusivamente** desde el panel de administración (`/admin/configuracion`).
+
+**Reglas:**
+- **NUNCA** definir constantes como `DEFAULT_FEE_PCT`, `COMISION_PCT`, `LIQUIDACION_MINIMA` en código.
+- **NUNCA** usar números mágicos para porcentajes, montos o umbrales de negocio.
+- **SIEMPRE** leer valores de negocio vía `SiteConfigService.get()` o métodos específicos como `SiteConfigService.getComisionPct()`.
+- Si se necesita un nuevo parámetro configurable, agregarlo al modelo `SiteConfig` y exponerlo en `/admin/configuracion`.
+
+```typescript
+// ✅ CORRECTO
+const feePct = await SiteConfigService.getComisionPct()
+
+// ❌ PROHIBIDO
+const feePct = 15
+const DEFAULT_FEE_PCT = 15
+```
+
+---
+
 ## ⚠️ REGLAS FINANCIERAS — CRITICAL (NO SALTARSE NUNCA)
 
 Este marketplace maneja dinero real de profesores y alumnos. Las siguientes reglas son **inquebrantables**.

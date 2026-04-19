@@ -6,9 +6,7 @@ import { createPaymentPreference } from '@/lib/mercadopago'
 import { sendEnrollmentConfirmation } from '@/lib/resend'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
 import Account from '@/models/Account'
-
-// Comisión por defecto de Tallerea
-const DEFAULT_FEE_PCT = 15
+import { SiteConfigService } from '@/services/SiteConfigService'
 
 interface CreatePaymentResult {
   free?: boolean
@@ -92,7 +90,7 @@ export const PaymentService = {
 
     // [CUADRATURA] Crear PaymentBreakdown con desglose
     const account = await Account.findById(workshop.accountId)
-    const feePct = DEFAULT_FEE_PCT
+    const feePct = await SiteConfigService.getComisionPct()
     const desglose = FinanceService.calcularDesglose(enrollment.monto, feePct)
 
     const breakdown = await new PaymentBreakdown({

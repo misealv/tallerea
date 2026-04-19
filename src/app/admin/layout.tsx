@@ -23,6 +23,7 @@ export default async function AdminLayout({
           <a href="/admin/usuarios" className="text-gray-600 hover:text-purple-700">Usuarios</a>
           <a href="/admin/finanzas" className="text-gray-600 hover:text-purple-700">Finanzas</a>
           <a href="/admin/liquidaciones" className="text-gray-600 hover:text-purple-700">Liquidaciones</a>
+          <a href="/admin/configuracion" className="text-gray-600 hover:text-purple-700">Configuración</a>
         </nav>
       </header>
       <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>

@@ -20,6 +20,7 @@ export default function ConfiguracionPage() {
   const [loading, setLoading] = useState(true)
   const [precioModalidad, setPrecioModalidad] = useState('bruto')
   const [savingModalidad, setSavingModalidad] = useState(false)
+  const [comisionPct, setComisionPct] = useState<number | null>(null)
 
   const accountId = typeof document !== 'undefined'
     ? document.getElementById('accountId')?.getAttribute('value') || ''
@@ -37,6 +38,12 @@ export default function ConfiguracionPage() {
   }, [accountId])
 
   useEffect(() => { fetchAccount() }, [fetchAccount])
+
+  useEffect(() => {
+    fetch('/api/admin/config').then(r => r.ok ? r.json() : null).then(data => {
+      if (data) setComisionPct(data.comisionPct)
+    })
+  }, [])
 
   async function updatePrecioModalidad(value: string) {
     setPrecioModalidad(value)
@@ -86,6 +93,20 @@ export default function ConfiguracionPage() {
           </button>
         </div>
       </section>
+
+      {/* Comisión Tallerea */}
+      {comisionPct !== null && (
+        <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-2">
+          <h2 className="font-semibold text-gray-900">Comisión Tallerea</h2>
+          <p className="text-3xl font-bold text-purple-700">{comisionPct}%</p>
+          <p className="text-sm text-gray-500">
+            Este porcentaje se aplica sobre cada inscripción pagada.
+            {precioModalidad === 'bruto'
+              ? ' Se descuenta del precio que defines.'
+              : ' Se suma al precio que defines para calcular el cobro al alumno.'}
+          </p>
+        </section>
+      )}
 
       {/* Datos bancarios */}
       <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">

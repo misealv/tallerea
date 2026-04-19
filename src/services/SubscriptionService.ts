@@ -5,10 +5,8 @@ import Workshop from '@/models/Workshop'
 import Account from '@/models/Account'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
 import { FinanceService } from '@/services/FinanceService'
+import { SiteConfigService } from '@/services/SiteConfigService'
 import { createPaymentPreference } from '@/lib/mercadopago'
-
-// Comisión por defecto de Tallerea (configurable por Account a futuro)
-const DEFAULT_FEE_PCT = 15
 
 interface PaginatedResult<T> {
   data: T[]
@@ -132,7 +130,7 @@ export const SubscriptionService = {
 
     // [CUADRATURA] Calcular desglose financiero
     const account = await Account.findById(workshop.accountId)
-    const feePct = DEFAULT_FEE_PCT
+    const feePct = await SiteConfigService.getComisionPct()
     const desglose = FinanceService.calcularDesglose(monto, feePct)
 
     // Crear PaymentBreakdown pendiente
