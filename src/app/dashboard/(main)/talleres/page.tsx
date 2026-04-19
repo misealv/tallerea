@@ -44,6 +44,13 @@ export default function TalleresListPage() {
     fetchWorkshops()
   }
 
+  async function handleDelete(id: string, titulo: string) {
+    if (!confirm(`¿Eliminar "${titulo}"? Esta acción no se puede deshacer.`)) return
+    const res = await fetch(`/api/workshops/${id}`, { method: 'DELETE' })
+    if (res.ok) fetchWorkshops()
+    else alert('Error al eliminar el taller')
+  }
+
   const tipoLabel: Record<string, string> = {
     visual: '🎨', teatro: '🎭', danza: '💃', musica: '🎵', otro: '✨'
   }
@@ -88,6 +95,10 @@ export default function TalleresListPage() {
                 <button onClick={() => toggleActive(w._id, w.activo)}
                   className="text-sm text-gray-500 hover:underline">
                   {w.activo ? 'Desactivar' : 'Activar'}
+                </button>
+                <button onClick={() => handleDelete(w._id, w.titulo)}
+                  className="text-sm text-red-500 hover:underline">
+                  Eliminar
                 </button>
               </div>
             </div>
