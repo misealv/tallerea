@@ -16,13 +16,14 @@ export async function GET(req: NextRequest) {
     const page = Number(searchParams.get('page')) || 1
     const limit = Number(searchParams.get('limit')) || 20
 
-    const filters = {
+    const filters: Record<string, unknown> = {
       tipo: searchParams.get('tipo') || undefined,
       modalidad: searchParams.get('modalidad') || undefined,
       dia: searchParams.get('dia') || undefined,
       accountId: searchParams.get('accountId') || undefined,
       precioMin: searchParams.get('precioMin') ? Number(searchParams.get('precioMin')) : undefined,
       precioMax: searchParams.get('precioMax') ? Number(searchParams.get('precioMax')) : undefined,
+      includeInactive: searchParams.get('includeInactive') === 'true' ? true : undefined,
     }
 
     // Si piden por slug, devolver directo

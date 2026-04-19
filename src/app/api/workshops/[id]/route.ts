@@ -36,7 +36,8 @@ export async function PUT(
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
     }
 
-    const workshop = await WorkshopService.getById(params.id)
+    // Buscar incluyendo inactivos para poder reactivar
+    const workshop = await WorkshopService.getByIdIncludingInactive(params.id)
     if (!workshop) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
     // Ownership check vía account

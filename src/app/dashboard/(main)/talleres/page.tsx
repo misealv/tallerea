@@ -27,7 +27,7 @@ export default function TalleresListPage() {
 
   const fetchWorkshops = useCallback(async () => {
     if (!accountId) return
-    const res = await fetch(`/api/workshops?accountId=${accountId}`)
+    const res = await fetch(`/api/workshops?accountId=${accountId}&includeInactive=true`)
     const data = await res.json()
     setWorkshops(data.data || [])
     setLoading(false)

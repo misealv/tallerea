@@ -19,13 +19,14 @@ interface WorkshopFilters {
   precioMin?: number
   precioMax?: number
   accountId?: string
+  includeInactive?: boolean
 }
 
 export const WorkshopService = {
 
   async getAll(filters?: WorkshopFilters, page = 1, limit = 20): Promise<PaginatedResult<IWorkshop>> {
     await dbConnect()
-    const query: Record<string, unknown> = { activo: true }
+    const query: Record<string, unknown> = filters?.includeInactive ? {} : { activo: true }
 
     if (filters?.tipo) query.tipo = filters.tipo
     if (filters?.modalidad) query.modalidad = filters.modalidad
@@ -64,6 +65,14 @@ export const WorkshopService = {
       .lean<IWorkshop>()
   },
 
+  async getByIdIncludingInactive(id: string): Promise<IWorkshop | null> {
+    await dbConnect()
+    return Workshop.findOne({ _id: id })
+      .populate('locationId', 'nombre direccion comuna ciudad')
+      .populate('accountId', 'nombre slug logo tipo')
+      .lean<IWorkshop>()
+  },
+
   async getBySlug(slug: string): Promise<IWorkshop | null> {
     await dbConnect()
     return Workshop.findOne({ slug, activo: true })
@@ -88,7 +97,7 @@ export const WorkshopService = {
   async update(id: string, data: Partial<IWorkshop>): Promise<IWorkshop | null> {
     await dbConnect()
     const doc = await Workshop.findOneAndUpdate(
-      { _id: id, activo: true },
+      { _id: id },
       data,
       { new: true, runValidators: true }
     )
