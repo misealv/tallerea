@@ -104,7 +104,7 @@ export const WorkshopService = {
   // Obtener cupo disponible total (suma de slots o cupo raíz)
   getTotalCupoDisponible(workshop: IWorkshop): number {
     if (workshop.slots && workshop.slots.length > 0) {
-      return workshop.slots.reduce((sum, s) => sum + s.cupoDisponible, 0)
+      return workshop.slots.reduce((sum, s) => sum + (s.cupoDisponible ?? 0), 0)
     }
     return workshop.cupoDisponible
   },

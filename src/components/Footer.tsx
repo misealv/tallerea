@@ -5,6 +5,16 @@ const tiposArte = [
   { label: 'Teatro', value: 'teatro' },
   { label: 'Danza', value: 'danza' },
   { label: 'Música', value: 'musica' },
+  { label: 'Cerámica', value: 'ceramica' },
+  { label: 'Yoga', value: 'yoga' },
+  { label: 'Cocina', value: 'cocina' },
+  { label: 'Manualidades', value: 'manualidades' },
+  { label: 'Fotografía', value: 'fotografia' },
+  { label: 'Escritura', value: 'escritura' },
+  { label: 'Bienestar', value: 'bienestar' },
+  { label: 'Tecnología', value: 'tecnologia' },
+  { label: 'Idiomas', value: 'idiomas' },
+  { label: 'Infantil', value: 'infantil' },
 ]
 
 export default function Footer() {

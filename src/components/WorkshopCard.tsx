@@ -11,7 +11,7 @@ interface WorkshopCardProps {
   comuna?: string
   imagen?: string
   horarios?: { dia: string; horaInicio: string }[]
-  slots?: { dia: string; horaInicio: string; cupoDisponible: number }[]
+  slots?: { dia: string; horaInicio: string; cupoDisponible?: number }[]
   espacioNombre?: string
   espacioSlug?: string
 }
@@ -30,7 +30,7 @@ export default function WorkshopCard({
 }: WorkshopCardProps) {
   const hasSlots = slots && slots.length > 0
   const totalCupos = hasSlots
-    ? slots.reduce((s, sl) => s + sl.cupoDisponible, 0)
+    ? slots.reduce((s, sl) => s + (sl.cupoDisponible ?? 0), 0)
     : cupoDisponible
   const displaySlots = hasSlots ? slots : horarios
   return (

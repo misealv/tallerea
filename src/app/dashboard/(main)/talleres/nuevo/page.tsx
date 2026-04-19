@@ -13,7 +13,7 @@ import { type SlotData } from '@/components/SlotCalendar'
 interface Location { _id: string; nombre: string; comuna: string }
 interface Member { _id: string; nombre: string; rol: string }
 
-const TIPOS = ['visual', 'teatro', 'danza', 'musica', 'otro'] as const
+const TIPOS = ['visual', 'teatro', 'danza', 'musica', 'ceramica', 'yoga', 'cocina', 'manualidades', 'fotografia', 'escritura', 'bienestar', 'tecnologia', 'idiomas', 'infantil', 'otro'] as const
 const MODALIDADES = ['presencial', 'online', 'hibrido'] as const
 
 export default function NuevoTallerPage() {

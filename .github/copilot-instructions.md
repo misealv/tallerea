@@ -365,6 +365,180 @@ Solo `NEXT_PUBLIC_*` se expone al client.
 
 ---
 
+## ⚠️ REGLAS FINANCIERAS — CRITICAL (NO SALTARSE NUNCA)
+
+Este marketplace maneja dinero real de profesores y alumnos. Las siguientes reglas son **inquebrantables**.
+
+### Principio #1: Solo enteros, jamás floats
+
+```typescript
+// ✅ CORRECTO — CLP no usa decimales
+montoBruto: { type: Number, required: true }  // 25000
+
+// ❌ PROHIBIDO — jamás usar float para dinero
+montoBruto: 25000.50  // NUNCA
+montoBruto: parseFloat(req.body.monto) // NUNCA
+```
+
+- CLP no tiene centavos. Todos los montos son **enteros positivos**.
+- Usar `Math.round()` solo como red de seguridad, nunca como lógica principal.
+- Validar en API route: `if (!Number.isInteger(monto) || monto <= 0) → 400`.
+
+### Principio #2: Ecuación fundamental — siempre debe cuadrar
+
+```
+montoBruto = montoProfesor + feeTallerea
+```
+
+- Esta ecuación se verifica en **cada creación** de PaymentBreakdown.
+- Si no cuadra → lanzar error, NO guardar, NO continuar.
+- Implementar como pre-save hook en Mongoose:
+
+```typescript
+PaymentBreakdownSchema.pre('save', function(next) {
+  if (this.montoBruto !== this.montoProfesor + this.feeTallerea) {
+    return next(new Error(
+      `[FINANCE ERROR] Cuadratura fallida: ${this.montoBruto} ≠ ${this.montoProfesor} + ${this.feeTallerea}`
+    ))
+  }
+  next()
+})
+```
+
+### Principio #3: PaymentBreakdown es inmutable
+
+- Una vez creado, un PaymentBreakdown **NUNCA se modifica**.
+- No existe `update` ni `delete` para PaymentBreakdown.
+- Correcciones se hacen creando un nuevo registro con `tipo: 'ajuste'` o `tipo: 'reembolso'`.
+- El Service NO debe exponer métodos `update` ni `delete` para esta entidad.
+
+### Principio #4: Cálculo de comisión centralizado
+
+```typescript
+// src/services/FinanceService.ts — ÚNICA fuente de cálculo
+export function calcularDesglose(montoBruto: number, comisionPct: number): {
+  montoBruto: number
+  feeTallerea: number
+  montoProfesor: number
+} {
+  if (!Number.isInteger(montoBruto) || montoBruto <= 0) {
+    throw new Error('[FINANCE] Monto bruto debe ser entero positivo')
+  }
+  if (comisionPct < 0 || comisionPct > 100) {
+    throw new Error('[FINANCE] Comisión fuera de rango')
+  }
+  const feeTallerea = Math.round(montoBruto * comisionPct / 100)
+  const montoProfesor = montoBruto - feeTallerea
+  return { montoBruto, feeTallerea, montoProfesor }
+}
+```
+
+- **NUNCA** calcular comisiones inline en controllers o componentes.
+- **NUNCA** duplicar esta lógica — siempre importar desde `FinanceService`.
+- Si un desarrollador necesita el desglose, usa `calcularDesglose()`.
+
+### Principio #5: Liquidaciones con doble verificación
+
+Antes de marcar una liquidación como `pagada`:
+
+1. **Recalcular** la suma de todos los PaymentBreakdown del período.
+2. **Comparar** con el total declarado en la liquidación.
+3. Si hay diferencia de **incluso $1** → bloquear y loguear alerta.
+
+```typescript
+// En LiquidationService.markAsPaid()
+const sumReal = breakdowns.reduce((acc, b) => acc + b.montoProfesor, 0)
+if (sumReal !== liquidacion.totalProfesor) {
+  throw new Error(
+    `[FINANCE ALERT] Descuadre en liquidación ${liquidacion._id}: ` +
+    `calculado=${sumReal} vs declarado=${liquidacion.totalProfesor}`
+  )
+}
+```
+
+### Principio #6: Audit trail obligatorio
+
+- Toda operación financiera debe quedar registrada en `FinanceAuditLog`:
+
+```typescript
+{
+  accion: 'pago_recibido' | 'liquidacion_creada' | 'liquidacion_pagada' | 'reembolso' | 'ajuste',
+  entidadTipo: 'PaymentBreakdown' | 'Liquidation',
+  entidadId: ObjectId,
+  montoAnterior: Number,  // 0 para creaciones
+  montoNuevo: Number,
+  userId: ObjectId,        // quién ejecutó la acción
+  metadata: Mixed,         // contexto adicional
+  createdAt: Date
+}
+```
+
+- El audit log es **append-only**. No se modifica ni se borra.
+- Cada Service financiero debe llamar `FinanceAuditService.log()` en cada operación.
+
+### Principio #7: Alertas en código
+
+Usar estos flags en comentarios y respuestas cuando se toque código financiero:
+
+| Flag | Significado |
+|---|---|
+| `[FINANCE RISK]` | Cambio que afecta cálculo de montos o comisiones |
+| `[CUADRATURA]` | Operación que requiere verificación de ecuación fundamental |
+| `[LIQUIDACION]` | Cambio que afecta el flujo de pago a profesores |
+| `[INMUTABLE]` | Intento de modificar registro financiero inmutable |
+
+### Principio #8: Validaciones en capas
+
+```
+API Route → valida tipos (entero, positivo, requerido)
+    ↓
+Service → valida reglas de negocio (comisión en rango, período válido)
+    ↓
+Model (pre-save) → valida cuadratura final (ecuación fundamental)
+```
+
+- Si alguna capa falla → **NO continuar**. Error explícito.
+- **NUNCA** confiar en que "la capa anterior ya validó".
+
+### Principio #9: Tests financieros obligatorios
+
+Para cada función de `FinanceService` y `LiquidationService`:
+
+- Test de cuadratura: `montoBruto === montoProfesor + feeTallerea`
+- Test de borde: comisión 0%, comisión 100%, monto mínimo ($1.000)
+- Test de inmutabilidad: intentar update/delete de PaymentBreakdown → debe fallar
+- Test de liquidación: verificar suma real vs declarada
+- Test de redondeo: verificar que `Math.round` no genera descuadre acumulativo
+
+### Principio #10: MercadoPago — flujo seguro
+
+```
+1. Alumno paga → MercadoPago webhook → validar x-signature
+2. Webhook OK → crear PaymentBreakdown con calcularDesglose()
+3. Verificar cuadratura (pre-save hook)
+4. Actualizar Enrollment.estado = 'pagado'
+5. Log en FinanceAuditLog
+```
+
+- Pasos 2-5 dentro de **Mongoose transaction**. Si cualquier paso falla → rollback completo.
+- El webhook SIEMPRE retorna 200 a MercadoPago (procesar async si es necesario).
+- **NUNCA** crear PaymentBreakdown sin confirmación de pago real de MercadoPago.
+
+### Resumen de prohibiciones financieras
+
+| Prohibición | Razón |
+|---|---|
+| `parseFloat` para montos | CLP son enteros |
+| Calcular comisión inline | Debe usar `calcularDesglose()` |
+| Modificar PaymentBreakdown | Es inmutable |
+| Borrar registros financieros | Solo soft-delete o ajuste |
+| Liquidar sin recalcular | Riesgo de descuadre |
+| Crear PaymentBreakdown sin pago confirmado | Dinero fantasma |
+| Omitir audit log en op. financiera | Pierde trazabilidad |
+| Hardcodear porcentaje de comisión | Debe venir de config de Account |
+
+---
+
 ## Comandos útiles
 
 ```bash

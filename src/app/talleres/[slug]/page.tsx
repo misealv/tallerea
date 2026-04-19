@@ -88,9 +88,11 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-3">Horarios</h2>
                 <div className="space-y-2">
-                  {workshop.slots.map((s: { dia: string; horaInicio: string; horaFin: string; cupoMax: number; cupoDisponible: number }, i: number) => {
-                    const full = s.cupoDisponible <= 0
-                    const pct = s.cupoMax > 0 ? ((s.cupoMax - s.cupoDisponible) / s.cupoMax) * 100 : 100
+                  {workshop.slots.map((s: { dia: string; horaInicio: string; horaFin: string; cupoMax?: number; cupoDisponible?: number }, i: number) => {
+                    const cupoMax = s.cupoMax ?? 0
+                    const cupoDisp = s.cupoDisponible ?? 0
+                    const full = cupoDisp <= 0
+                    const pct = cupoMax > 0 ? ((cupoMax - cupoDisp) / cupoMax) * 100 : 100
                     return (
                       <div key={i} className={`flex items-center gap-3 rounded-lg px-4 py-2 ${full ? 'bg-red-50' : 'bg-gray-50'}`}>
                         <span className="font-medium text-gray-700 w-24">{diaLabel[s.dia] || s.dia}</span>
@@ -101,7 +103,7 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                               style={{ width: `${pct}%` }} />
                           </div>
                           <span className={`text-xs ${full ? 'text-red-500' : 'text-gray-500'}`}>
-                            {full ? 'Lleno' : `${s.cupoDisponible} cupos`}
+                            {full ? 'Lleno' : `${cupoDisp} cupos`}
                           </span>
                         </div>
                       </div>
@@ -152,9 +154,9 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                   <div className="flex justify-between">
                     <span>Cupos disponibles</span>
                     <span className={`font-medium ${
-                      workshop.slots.reduce((s: number, sl: { cupoDisponible: number }) => s + sl.cupoDisponible, 0) > 0 ? 'text-green-600' : 'text-red-600'
+                      workshop.slots.reduce((s: number, sl: { cupoDisponible?: number }) => s + (sl.cupoDisponible ?? 0), 0) > 0 ? 'text-green-600' : 'text-red-600'
                     }`}>
-                      {workshop.slots.reduce((s: number, sl: { cupoDisponible: number }) => s + sl.cupoDisponible, 0)} total
+                      {workshop.slots.reduce((s: number, sl: { cupoDisponible?: number }) => s + (sl.cupoDisponible ?? 0), 0)} total
                     </span>
                   </div>
                 ) : (
@@ -180,7 +182,7 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               {(() => {
                 const hasSlots = workshop.slots && workshop.slots.length > 0
                 const totalCupos = hasSlots
-                  ? workshop.slots.reduce((s: number, sl: { cupoDisponible: number }) => s + sl.cupoDisponible, 0)
+                  ? workshop.slots.reduce((s: number, sl: { cupoDisponible?: number }) => s + (sl.cupoDisponible ?? 0), 0)
                   : workshop.cupoDisponible
                 return totalCupos > 0 ? (
                   <Link

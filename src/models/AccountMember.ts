@@ -18,7 +18,11 @@ const AccountMemberSchema = new Schema<IAccountMember>({
   rol: { type: String, enum: ['owner', 'instructor', 'admin_espacio'], required: true },
   nombre: { type: String, required: true, trim: true },
   bio: { type: String },
-  especialidades: [{ type: String, enum: ['visual', 'teatro', 'danza', 'musica', 'otro'] }],
+  especialidades: [{ type: String, enum: [
+    'visual', 'teatro', 'danza', 'musica', 'ceramica', 'yoga',
+    'cocina', 'manualidades', 'fotografia', 'escritura', 'bienestar',
+    'tecnologia', 'idiomas', 'infantil', 'otro'
+  ] }],
   invitadoEn: { type: Date, default: Date.now },
   aceptado: { type: Boolean, default: false },
   activo: { type: Boolean, default: true },

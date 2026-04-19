@@ -19,6 +19,16 @@ export default function CrearEspacioPage() {
     { value: 'teatro', label: '🎭 Teatro' },
     { value: 'danza', label: '💃 Danza' },
     { value: 'musica', label: '🎵 Música' },
+    { value: 'ceramica', label: '🏺 Cerámica' },
+    { value: 'yoga', label: '🧘 Yoga' },
+    { value: 'cocina', label: '🍳 Cocina' },
+    { value: 'manualidades', label: '✂️ Manualidades' },
+    { value: 'fotografia', label: '📷 Fotografía' },
+    { value: 'escritura', label: '✍️ Escritura' },
+    { value: 'bienestar', label: '🌿 Bienestar' },
+    { value: 'tecnologia', label: '💻 Tecnología' },
+    { value: 'idiomas', label: '🌍 Idiomas' },
+    { value: 'infantil', label: '👶 Infantil' },
     { value: 'otro', label: '✨ Otro' },
   ]
 

@@ -1,11 +1,47 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
+const TIPOS_ENUM = [
+  'visual', 'teatro', 'danza', 'musica', 'ceramica', 'yoga',
+  'cocina', 'manualidades', 'fotografia', 'escritura', 'bienestar',
+  'tecnologia', 'idiomas', 'infantil', 'otro'
+] as const;
+
+export type TipoTaller = typeof TIPOS_ENUM[number];
+
 export interface ISlot {
   dia: string;
   horaInicio: string;
   horaFin: string;
-  cupoMax: number;
-  cupoDisponible: number;
+  fecha?: Date;
+  reservas: number;
+  cancelado: boolean;
+  // Campos legacy (solo talleres sin recurrencia)
+  cupoMax?: number;
+  cupoDisponible?: number;
+}
+
+export interface IPlan {
+  sesionesIncluidas: number;
+  vigencia: 'mensual' | 'por_ciclo' | 'sin_vencimiento';
+  precioSesionSuelta: number | null;
+  horasAntesCancelacion: number;
+  permitirCambioPostPlazo: boolean;
+  politicaNoShow: 'pierde' | 'reagendar_una_vez';
+}
+
+export interface IPlantillaSemanal {
+  dia: string;
+  horaInicio: string;
+  horaFin: string;
+}
+
+export interface IPlantillaMensual {
+  tipoDia: 'fijo' | 'posicion';
+  diaFijo?: number;
+  posicion?: 'primero' | 'segundo' | 'tercero' | 'cuarto' | 'ultimo';
+  diaSemana?: string;
+  horaInicio: string;
+  horaFin: string;
 }
 
 export interface IWorkshop extends Document {
@@ -15,13 +51,31 @@ export interface IWorkshop extends Document {
   slug: string;
   titulo: string;
   descripcion: string;
-  tipo: 'visual' | 'teatro' | 'danza' | 'musica' | 'otro';
+  tipo: TipoTaller;
+  tipoPersonalizado?: string | null;
   modalidad: 'presencial' | 'online' | 'hibrido';
   precio: number;
   duracionSesion: number;
+  // --- Recurrencia ---
+  tipoRecurrencia: 'unico' | 'semanal' | 'mensual';
+  recurrencia?: {
+    cantidadRepeticiones: number | null;
+    fechaFinRecurrencia: Date | null;
+  };
+  // --- Capacidad ---
+  cupoPorSesion: number;
+  maxAlumnosActivos: number | null;
+  // --- Plan ---
+  plan?: IPlan;
+  precioModalidad: 'neto' | 'bruto';
+  // --- Plantillas ---
+  plantillaSemanal?: IPlantillaSemanal[];
+  plantillaMensual?: IPlantillaMensual;
+  // --- Legacy ---
   cupoDefault: number;
   cupoMax: number;
   cupoDisponible: number;
+  // --- Slots ---
   slots: ISlot[];
   fechaInicio: Date;
   fechaFin?: Date;
@@ -38,8 +92,36 @@ const SlotSchema = new Schema({
   dia: { type: String, enum: DIAS_ENUM, required: true },
   horaInicio: { type: String, required: true },
   horaFin: { type: String, required: true },
-  cupoMax: { type: Number, required: true, min: 1 },
-  cupoDisponible: { type: Number, required: true, min: 0 },
+  fecha: { type: Date },
+  reservas: { type: Number, default: 0, min: 0 },
+  cancelado: { type: Boolean, default: false },
+  // Legacy
+  cupoMax: { type: Number, min: 1 },
+  cupoDisponible: { type: Number, min: 0 },
+}, { _id: false });
+
+const PlanSchema = new Schema({
+  sesionesIncluidas: { type: Number, required: true, min: 1 },
+  vigencia: { type: String, enum: ['mensual', 'por_ciclo', 'sin_vencimiento'], required: true },
+  precioSesionSuelta: { type: Number, default: null, min: 0 },
+  horasAntesCancelacion: { type: Number, default: 24, min: 0 },
+  permitirCambioPostPlazo: { type: Boolean, default: false },
+  politicaNoShow: { type: String, enum: ['pierde', 'reagendar_una_vez'], default: 'pierde' },
+}, { _id: false });
+
+const PlantillaSemanalSchema = new Schema({
+  dia: { type: String, enum: DIAS_ENUM, required: true },
+  horaInicio: { type: String, required: true },
+  horaFin: { type: String, required: true },
+}, { _id: false });
+
+const PlantillaMensualSchema = new Schema({
+  tipoDia: { type: String, enum: ['fijo', 'posicion'], required: true },
+  diaFijo: { type: Number, min: 1, max: 31 },
+  posicion: { type: String, enum: ['primero', 'segundo', 'tercero', 'cuarto', 'ultimo'] },
+  diaSemana: { type: String, enum: DIAS_ENUM },
+  horaInicio: { type: String, required: true },
+  horaFin: { type: String, required: true },
 }, { _id: false });
 
 const WorkshopSchema = new Schema<IWorkshop>({
@@ -49,14 +131,31 @@ const WorkshopSchema = new Schema<IWorkshop>({
   slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
   titulo: { type: String, required: true, trim: true },
   descripcion: { type: String, required: true },
-  tipo: { type: String, enum: ['visual', 'teatro', 'danza', 'musica', 'otro'], required: true },
+  tipo: { type: String, enum: TIPOS_ENUM, required: true },
+  tipoPersonalizado: { type: String, trim: true, maxlength: 50, default: null },
   modalidad: { type: String, enum: ['presencial', 'online', 'hibrido'], required: true },
   precio: { type: Number, required: true, min: 0 },
   duracionSesion: { type: Number, default: 90, min: 30, max: 240 },
+  // Recurrencia
+  tipoRecurrencia: { type: String, enum: ['unico', 'semanal', 'mensual'], default: 'unico' },
+  recurrencia: {
+    cantidadRepeticiones: { type: Number, default: null },
+    fechaFinRecurrencia: { type: Date, default: null },
+  },
+  // Capacidad
+  cupoPorSesion: { type: Number, default: 10, min: 1 },
+  maxAlumnosActivos: { type: Number, default: null },
+  // Plan
+  plan: { type: PlanSchema },
+  precioModalidad: { type: String, enum: ['neto', 'bruto'], default: 'bruto' },
+  // Plantillas
+  plantillaSemanal: [PlantillaSemanalSchema],
+  plantillaMensual: { type: PlantillaMensualSchema },
+  // Legacy
   cupoDefault: { type: Number, default: 10, min: 1 },
-  // cupoMax/cupoDisponible: solo para talleres sin slots (online asincrónicos)
   cupoMax: { type: Number, default: 1, min: 1 },
   cupoDisponible: { type: Number, default: 1, min: 0 },
+  // Slots + fechas
   slots: [SlotSchema],
   fechaInicio: { type: Date, required: true },
   fechaFin: { type: Date },
@@ -65,6 +164,14 @@ const WorkshopSchema = new Schema<IWorkshop>({
   imagenes: [{ type: String }],
   activo: { type: Boolean, default: true },
 }, { timestamps: true });
+
+// tipoPersonalizado solo se guarda si tipo === 'otro'
+WorkshopSchema.pre('save', function(next) {
+  if (this.tipo !== 'otro') {
+    this.tipoPersonalizado = null;
+  }
+  next();
+});
 
 // slug index already created by unique: true on field definition
 WorkshopSchema.index({ accountId: 1 });

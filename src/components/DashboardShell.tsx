@@ -7,9 +7,12 @@ import { signOut } from 'next-auth/react'
 const navItems = [
   { href: '/dashboard', label: 'Resumen', icon: '📊' },
   { href: '/dashboard/talleres', label: 'Talleres', icon: '🎨' },
-  { href: '/dashboard/ubicaciones', label: 'Ubicaciones', icon: '📍' },
+  { href: '/dashboard/calendario', label: 'Calendario', icon: '📅' },
   { href: '/dashboard/inscripciones', label: 'Inscripciones', icon: '👥' },
+  { href: '/dashboard/finanzas', label: 'Finanzas', icon: '💰' },
+  { href: '/dashboard/ubicaciones', label: 'Ubicaciones', icon: '📍' },
   { href: '/dashboard/equipo', label: 'Equipo', icon: '🤝' },
+  { href: '/dashboard/configuracion', label: 'Configuración', icon: '⚙️' },
 ]
 
 interface Props {

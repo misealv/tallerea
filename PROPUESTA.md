@@ -179,7 +179,7 @@ El sistema usa el concepto de **Espacio** como entidad principal que publica tal
   descripcion: string
   tipo: 'visual' | 'teatro' | 'danza' | 'musica' | 'otro'
   modalidad: 'presencial' | 'online' | 'hibrido'
-  precio: number              // en centavos (CLP)
+  precio: number              // en enteros CLP ($25000 = 25000)
   cupoMax: number
   cupoDisponible: number
   horarios: [{
@@ -204,7 +204,7 @@ El sistema usa el concepto de **Espacio** como entidad principal que publica tal
   studentId: ObjectId         // ref → User
   estado: 'pendiente' | 'pagado' | 'cancelado'
   pagoRef?: string            // ID de MercadoPago
-  monto: number               // en centavos
+  monto: number               // en enteros CLP
   createdAt: Date
 }
 ```
