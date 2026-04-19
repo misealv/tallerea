@@ -76,7 +76,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
     }
 
-    const workshop = await WorkshopService.getById(params.id)
+    const workshop = await WorkshopService.getByIdIncludingInactive(params.id)
     if (!workshop) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
     const account = await AccountService.getById(workshop.accountId.toString())

@@ -67,10 +67,7 @@ export const WorkshopService = {
 
   async getByIdIncludingInactive(id: string): Promise<IWorkshop | null> {
     await dbConnect()
-    return Workshop.findOne({ _id: id })
-      .populate('locationId', 'nombre direccion comuna ciudad')
-      .populate('accountId', 'nombre slug logo tipo')
-      .lean<IWorkshop>()
+    return Workshop.findById(id).lean<IWorkshop>()
   },
 
   async getBySlug(slug: string): Promise<IWorkshop | null> {
