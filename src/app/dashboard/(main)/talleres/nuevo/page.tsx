@@ -8,6 +8,7 @@ import ImageUpload from '@/components/ImageUpload'
 import SlotEditor, { DuracionSelector } from '@/components/SlotEditor'
 import AIDescriptionHelper from '@/components/AIDescriptionHelper'
 import StockImagePicker from '@/components/StockImagePicker'
+import RecurrenciaConfig, { type RecurrenciaData, RECURRENCIA_DEFAULTS } from '@/components/RecurrenciaConfig'
 import { type SlotData } from '@/components/SlotCalendar'
 
 interface Location { _id: string; nombre: string; comuna: string }
@@ -28,6 +29,7 @@ export default function NuevoTallerPage() {
   const [cupoDefault, setCupoDefault] = useState(10)
   const [maxAlumnosActivos, setMaxAlumnosActivos] = useState<number | null>(null)
   const [slots, setSlots] = useState<SlotData[]>([])
+  const [recurrencia, setRecurrencia] = useState<RecurrenciaData>(RECURRENCIA_DEFAULTS)
   const [form, setForm] = useState({
     titulo: '', descripcion: '', tipo: 'visual', modalidad: 'presencial',
     precio: '', locationId: '', instructorId: '', fechaInicio: '',
@@ -77,6 +79,19 @@ export default function NuevoTallerPage() {
       cupoDefault,
       cupoMax: slots.length > 0 ? 1 : cupoDefault,
       maxAlumnosActivos: maxAlumnosActivos || null,
+      tipoRecurrencia: recurrencia.tipoRecurrencia,
+      recurrencia: recurrencia.tipoRecurrencia !== 'unico' ? {
+        cantidadRepeticiones: recurrencia.cantidadRepeticiones,
+        fechaFinRecurrencia: null,
+      } : undefined,
+      plan: recurrencia.tipoRecurrencia !== 'unico' ? {
+        sesionesIncluidas: recurrencia.sesionesIncluidas,
+        vigencia: recurrencia.vigencia,
+        precioSesionSuelta: recurrencia.precioSesionSuelta,
+        horasAntesCancelacion: recurrencia.horasAntesCancelacion,
+        permitirCambioPostPlazo: recurrencia.permitirCambioPostPlazo,
+        politicaNoShow: recurrencia.politicaNoShow,
+      } : undefined,
       slots,
       locationId: form.locationId || undefined,
       instructorId: form.instructorId || undefined,
@@ -186,6 +201,11 @@ export default function NuevoTallerPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent" />
             </div>
           </div>
+        </section>
+
+        {/* Recurrencia y plan */}
+        <section className="bg-white rounded-xl border border-gray-200 p-6">
+          <RecurrenciaConfig data={recurrencia} onChange={setRecurrencia} />
         </section>
 
         {/* Horarios — SlotEditor */}

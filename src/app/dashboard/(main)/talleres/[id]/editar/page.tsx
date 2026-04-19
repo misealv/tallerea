@@ -8,6 +8,7 @@ import ImageUpload from '@/components/ImageUpload'
 import SlotEditor, { DuracionSelector } from '@/components/SlotEditor'
 import AIDescriptionHelper from '@/components/AIDescriptionHelper'
 import StockImagePicker from '@/components/StockImagePicker'
+import RecurrenciaConfig, { type RecurrenciaData, RECURRENCIA_DEFAULTS } from '@/components/RecurrenciaConfig'
 import { type SlotData } from '@/components/SlotCalendar'
 
 interface Location { _id: string; nombre: string; comuna: string }
@@ -31,6 +32,7 @@ export default function EditarTallerPage() {
   const [cupoDefault, setCupoDefault] = useState(10)
   const [maxAlumnosActivos, setMaxAlumnosActivos] = useState<number | null>(null)
   const [slots, setSlots] = useState<SlotData[]>([])
+  const [recurrencia, setRecurrencia] = useState<RecurrenciaData>(RECURRENCIA_DEFAULTS)
   const [form, setForm] = useState({
     titulo: '', descripcion: '', tipo: 'visual', modalidad: 'presencial',
     precio: '', locationId: '', instructorId: '', fechaInicio: '', fechaFin: '',
@@ -76,6 +78,17 @@ export default function EditarTallerPage() {
       setMaxAlumnosActivos(workshop.maxAlumnosActivos || null)
       setSlots(workshop.slots || [])
       setImagenes(workshop.imagenes || [])
+      // Cargar recurrencia existente
+      setRecurrencia({
+        tipoRecurrencia: workshop.tipoRecurrencia || 'unico',
+        cantidadRepeticiones: workshop.recurrencia?.cantidadRepeticiones ?? null,
+        sesionesIncluidas: workshop.plan?.sesionesIncluidas ?? 4,
+        vigencia: workshop.plan?.vigencia ?? 'mensual',
+        precioSesionSuelta: workshop.plan?.precioSesionSuelta ?? null,
+        horasAntesCancelacion: workshop.plan?.horasAntesCancelacion ?? 24,
+        permitirCambioPostPlazo: workshop.plan?.permitirCambioPostPlazo ?? false,
+        politicaNoShow: workshop.plan?.politicaNoShow ?? 'pierde',
+      })
     }
     setLocations(locsData.data || [])
     setLoading(false)
@@ -97,6 +110,19 @@ export default function EditarTallerPage() {
       precio: Number(form.precio), duracionSesion, cupoDefault,
       cupoMax: slots.length > 0 ? 1 : cupoDefault,
       maxAlumnosActivos: maxAlumnosActivos || null,
+      tipoRecurrencia: recurrencia.tipoRecurrencia,
+      recurrencia: recurrencia.tipoRecurrencia !== 'unico' ? {
+        cantidadRepeticiones: recurrencia.cantidadRepeticiones,
+        fechaFinRecurrencia: null,
+      } : undefined,
+      plan: recurrencia.tipoRecurrencia !== 'unico' ? {
+        sesionesIncluidas: recurrencia.sesionesIncluidas,
+        vigencia: recurrencia.vigencia,
+        precioSesionSuelta: recurrencia.precioSesionSuelta,
+        horasAntesCancelacion: recurrencia.horasAntesCancelacion,
+        permitirCambioPostPlazo: recurrencia.permitirCambioPostPlazo,
+        politicaNoShow: recurrencia.politicaNoShow,
+      } : undefined,
       slots,
       locationId: form.locationId || undefined,
       instructorId: form.instructorId || undefined,
@@ -182,6 +208,11 @@ export default function EditarTallerPage() {
             )}
           </div>
           <DuracionSelector value={duracionSesion} onChange={setDuracionSesion} />
+        </section>
+
+        {/* Recurrencia y plan */}
+        <section className="bg-white rounded-xl border border-gray-200 p-6">
+          <RecurrenciaConfig data={recurrencia} onChange={setRecurrencia} />
         </section>
 
         <section className="bg-white rounded-xl border border-gray-200 p-6">
