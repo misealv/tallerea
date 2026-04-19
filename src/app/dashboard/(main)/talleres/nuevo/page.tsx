@@ -77,6 +77,7 @@ export default function NuevoTallerPage() {
       precio: Number(form.precio),
       duracionSesion,
       cupoDefault,
+      cupoPorSesion: cupoDefault,
       cupoMax: slots.length > 0 ? 1 : cupoDefault,
       maxAlumnosActivos: maxAlumnosActivos || null,
       tipoRecurrencia: recurrencia.tipoRecurrencia,

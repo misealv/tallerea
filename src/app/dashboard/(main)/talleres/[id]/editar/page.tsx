@@ -108,6 +108,7 @@ export default function EditarTallerPage() {
     const body = {
       titulo: form.titulo, descripcion: form.descripcion, tipo: form.tipo, modalidad: form.modalidad,
       precio: Number(form.precio), duracionSesion, cupoDefault,
+      cupoPorSesion: cupoDefault,
       cupoMax: slots.length > 0 ? 1 : cupoDefault,
       maxAlumnosActivos: maxAlumnosActivos || null,
       tipoRecurrencia: recurrencia.tipoRecurrencia,
