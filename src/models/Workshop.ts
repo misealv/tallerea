@@ -83,6 +83,7 @@ export interface IWorkshop extends Document {
   edadMaxima?: number;
   imagenes: string[];
   activo: boolean;
+  deletedAt: Date | null;
   createdAt: Date;
 }
 
@@ -163,6 +164,7 @@ const WorkshopSchema = new Schema<IWorkshop>({
   edadMaxima: { type: Number },
   imagenes: [{ type: String }],
   activo: { type: Boolean, default: true },
+  deletedAt: { type: Date, default: null },
 }, { timestamps: true });
 
 // tipoPersonalizado solo se guarda si tipo === 'otro'

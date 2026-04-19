@@ -26,7 +26,9 @@ export const WorkshopService = {
 
   async getAll(filters?: WorkshopFilters, page = 1, limit = 20): Promise<PaginatedResult<IWorkshop>> {
     await dbConnect()
-    const query: Record<string, unknown> = filters?.includeInactive ? {} : { activo: true }
+    const query: Record<string, unknown> = filters?.includeInactive
+      ? { deletedAt: null }
+      : { activo: true, deletedAt: null }
 
     if (filters?.tipo) query.tipo = filters.tipo
     if (filters?.modalidad) query.modalidad = filters.modalidad
@@ -59,7 +61,7 @@ export const WorkshopService = {
 
   async getById(id: string): Promise<IWorkshop | null> {
     await dbConnect()
-    return Workshop.findOne({ _id: id, activo: true })
+    return Workshop.findOne({ _id: id, activo: true, deletedAt: null })
       .populate('locationId', 'nombre direccion comuna ciudad')
       .populate('accountId', 'nombre slug logo tipo')
       .lean<IWorkshop>()
@@ -67,12 +69,12 @@ export const WorkshopService = {
 
   async getByIdIncludingInactive(id: string): Promise<IWorkshop | null> {
     await dbConnect()
-    return Workshop.findById(id).lean<IWorkshop>()
+    return Workshop.findOne({ _id: id, deletedAt: null }).lean<IWorkshop>()
   },
 
   async getBySlug(slug: string): Promise<IWorkshop | null> {
     await dbConnect()
-    return Workshop.findOne({ slug, activo: true })
+    return Workshop.findOne({ slug, activo: true, deletedAt: null })
       .populate('locationId', 'nombre direccion comuna ciudad coordenadas')
       .populate('accountId', 'nombre slug logo tipo verificado')
       .lean<IWorkshop>()
@@ -104,7 +106,7 @@ export const WorkshopService = {
 
   async delete(id: string): Promise<void> {
     await dbConnect()
-    await Workshop.findByIdAndUpdate(id, { activo: false })
+    await Workshop.findByIdAndUpdate(id, { deletedAt: new Date() })
   },
 
   // Obtener cupo disponible total (suma de slots o cupo raíz)
