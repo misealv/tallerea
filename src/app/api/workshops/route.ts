@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { WorkshopService } from '@/services/WorkshopService'
 import { TallerService } from '@/services/TallerService'
+import { SiteConfigService } from '@/services/SiteConfigService'
 import { validateRequired, validateEnum } from '@/lib/validate'
 import { generateSlug, ensureUniqueSlug } from '@/lib/slugify'
 import Workshop, { WORKSHOP_TIPOS } from '@/models/Workshop'
@@ -31,7 +32,12 @@ export async function GET(req: NextRequest) {
     if (slugParam) {
       const workshop = await WorkshopService.getBySlug(slugParam)
       if (!workshop) return NextResponse.json({ data: [] })
-      return NextResponse.json({ data: [workshop] })
+      // Calcular precio público considerando modalidad neto
+      const comisionPct = await SiteConfigService.getComisionPct()
+      const precioPublico = workshop.precioModalidad === 'neto'
+        ? Math.round(workshop.precio * 100 / (100 - comisionPct))
+        : workshop.precio
+      return NextResponse.json({ data: [{ ...workshop, precioPublico }] })
     }
 
     const result = await WorkshopService.getAll(filters, page, limit)

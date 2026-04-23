@@ -19,6 +19,8 @@ interface Workshop {
   _id: string
   titulo: string
   precio: number
+  precioModalidad?: 'bruto' | 'neto'
+  precioPublico: number
   cupoDisponible: number
   cupoMax: number
   fechaInicio: string
@@ -155,7 +157,7 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
             <div className="flex justify-between text-lg">
               <span className="font-medium">Total</span>
               <span className="font-bold text-purple-700">
-                {workshop.precio === 0 ? 'Gratis' : `$${workshop.precio.toLocaleString('es-CL')}`}
+                {workshop.precioPublico === 0 ? 'Gratis' : `$${workshop.precioPublico.toLocaleString('es-CL')}`}
               </span>
             </div>
           </div>
@@ -203,9 +205,9 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
         >
           {submitting
             ? `Procesando${selectedSlots.length > 1 ? ` (${currentSlotIdx + 1}/${selectedSlots.length})` : ''}...`
-            : workshop.precio === 0
+            : workshop.precioPublico === 0
             ? 'Inscribirme gratis'
-            : `Pagar $${workshop.precio.toLocaleString('es-CL')}`}
+            : `Pagar $${workshop.precioPublico.toLocaleString('es-CL')}`}
         </button>
 
         <button
