@@ -45,7 +45,6 @@ export default async function TalleristaLayout({ children }: { children: React.R
           <Link href="/tallerista/reagendamientos" className="text-gray-600 hover:text-purple-700">Reagendamientos</Link>
           <Link href="/tallerista/finanzas" className="text-gray-600 hover:text-purple-700">Finanzas</Link>
           <Link href="/tallerista/liquidaciones" className="text-gray-600 hover:text-purple-700">Liquidaciones</Link>
-          <Link href="/tallerista/perfil" className="text-gray-600 hover:text-purple-700">Perfil</Link>
         </nav>
       </header>
       <main className="max-w-5xl mx-auto px-4 py-8">{children}</main>
