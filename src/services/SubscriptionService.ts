@@ -153,9 +153,9 @@ export const SubscriptionService = {
     subscription.paymentBreakdownId = breakdown._id as mongoose.Types.ObjectId
     await subscription.save()
 
-    // Crear preferencia MercadoPago
+    // Crear preferencia MercadoPago — prefijo 'sub:' identifica subscription
     const preference = await createPaymentPreference({
-      enrollmentId: String(subscription._id),
+      externalRef: `sub:${String(subscription._id)}`,
       workshopTitle: workshop.titulo,
       amount: monto,
       payerEmail: studentEmail,

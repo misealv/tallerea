@@ -8,6 +8,8 @@ import { issueMagicLink } from '@/lib/issueMagicLink'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
 import Account from '@/models/Account'
 import User from '@/models/User'
+import Subscription from '@/models/Subscription'
+import Workshop from '@/models/Workshop'
 import { SiteConfigService } from '@/services/SiteConfigService'
 
 interface CreatePaymentResult {
@@ -59,9 +61,9 @@ export const PaymentService = {
       return { free: true, enrollmentId }
     }
 
-    // Crear preferencia de pago en MercadoPago
+    // Crear preferencia de pago en MercadoPago — prefijo 'enr:' identifica enrollment
     const preference = await createPaymentPreference({
-      enrollmentId,
+      externalRef: `enr:${enrollmentId}`,
       workshopTitle: workshop.titulo,
       amount: workshop.precio,
       payerEmail: studentEmail,
@@ -144,6 +146,69 @@ export const PaymentService = {
         workshopTitle: workshop.titulo,
         workshopSlug: workshop.slug,
         monto: enrollment.monto,
+        magicUrl,
+      })
+    } catch {
+      // No bloquear el flujo por fallo de email
+    }
+  },
+
+  // [FINANCE RISK] Procesa pago aprobado de suscripción recurrente
+  async handleApprovedSubscription(subscriptionId: string, paymentId: string): Promise<void> {
+    await dbConnect()
+
+    const subscription = await Subscription.findById(subscriptionId)
+    if (!subscription) return
+
+    // Idempotencia: si ya tiene pagoRef seteado igual al actual, no reprocesar
+    if (subscription.pagoRef === String(paymentId)) return
+
+    // Marcar pagoRef + asegurar estado activa
+    subscription.pagoRef = String(paymentId)
+    if (subscription.estado !== 'activa') subscription.estado = 'activa'
+    await subscription.save()
+
+    // [CUADRATURA] Marcar PaymentBreakdown asociado como cobrado
+    if (subscription.paymentBreakdownId) {
+      await PaymentBreakdown.updateOne(
+        { _id: subscription.paymentBreakdownId, estado: 'pendiente' },
+        { estado: 'cobrado', mercadoPagoId: String(paymentId), fechaCobro: new Date() }
+      )
+    }
+
+    // Audit log
+    await FinanceService.log(
+      'pago_recibido',
+      'PaymentBreakdown',
+      String(subscription.paymentBreakdownId ?? subscription._id),
+      subscription.monto,
+      String(subscription.studentId)
+    )
+
+    // Email + magic link si guest
+    try {
+      const workshop = await Workshop.findById(subscription.workshopId).lean<{ titulo: string; slug: string }>()
+      const student = await User.findById(subscription.studentId).select('+password name email').lean<{
+        _id: string; name: string; email: string; password?: string
+      }>()
+      if (!workshop || !student) return
+
+      let magicUrl: string | undefined
+      if (!student.password) {
+        try {
+          const result = await issueMagicLink(String(student._id))
+          magicUrl = result.magicUrl
+        } catch {
+          // Si falla emisión, enviar email igual sin magic link
+        }
+      }
+
+      await sendEnrollmentConfirmation({
+        studentName: student.name,
+        studentEmail: student.email,
+        workshopTitle: workshop.titulo,
+        workshopSlug: workshop.slug,
+        monto: subscription.monto,
         magicUrl,
       })
     } catch {

@@ -8,7 +8,8 @@ export const preferenceClient = new Preference(client)
 export const paymentClient = new Payment(client)
 
 export interface CreatePreferenceInput {
-  enrollmentId: string
+  // Referencia opaca: 'enr:<id>' para enrollment, 'sub:<id>' para subscription
+  externalRef: string
   workshopTitle: string
   amount: number
   payerEmail: string
@@ -21,7 +22,7 @@ export async function createPaymentPreference(input: CreatePreferenceInput) {
     body: {
       items: [
         {
-          id: input.enrollmentId,
+          id: input.externalRef,
           title: input.workshopTitle,
           quantity: 1,
           unit_price: input.amount,
@@ -30,12 +31,12 @@ export async function createPaymentPreference(input: CreatePreferenceInput) {
       ],
       payer: { email: input.payerEmail },
       back_urls: {
-        success: `${baseUrl}/mis-talleres?pago=ok`,
-        failure: `${baseUrl}/mis-talleres?pago=error`,
-        pending: `${baseUrl}/mis-talleres?pago=pendiente`,
+        success: `${baseUrl}/alumno?pago=ok`,
+        failure: `${baseUrl}/alumno?pago=error`,
+        pending: `${baseUrl}/alumno?pago=pendiente`,
       },
       auto_return: 'approved',
-      external_reference: input.enrollmentId,
+      external_reference: input.externalRef,
       notification_url: `${baseUrl}/api/payments/webhook`,
     },
   })

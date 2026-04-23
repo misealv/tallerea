@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { PaymentService } from '@/services/PaymentService'
 import { findOrCreateGuestUser } from '@/lib/guestUser'
+import { rateLimit, getClientIp } from '@/lib/rateLimit'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -12,6 +13,18 @@ export const dynamic = 'force-dynamic'
 // Acepta sesión activa O checkout invitado (name + email) → User pre-pago
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
+
+  // Rate-limit anti-bot: 10 intentos por IP por minuto (sin sesión sólo)
+  if (!session?.user?.id) {
+    const ip = getClientIp(req)
+    const limited = rateLimit({ key: `pay:${ip}`, limit: 10, windowMs: 60 * 1000 })
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: 'Demasiados intentos. Espera un minuto.' },
+        { status: 429 }
+      )
+    }
+  }
 
   try {
     const body = await req.json()

@@ -51,7 +51,15 @@ export async function POST(req: NextRequest) {
     const payment = await paymentClient.get({ id: paymentId })
 
     if (payment.status === 'approved' && payment.external_reference) {
-      await PaymentService.handleApprovedPayment(payment.external_reference, String(paymentId))
+      const ref = payment.external_reference
+      // Rutear según prefijo: 'enr:<id>' o 'sub:<id>'. Sin prefijo asume enrollment (legacy)
+      if (ref.startsWith('sub:')) {
+        await PaymentService.handleApprovedSubscription(ref.slice(4), String(paymentId))
+      } else if (ref.startsWith('enr:')) {
+        await PaymentService.handleApprovedPayment(ref.slice(4), String(paymentId))
+      } else {
+        await PaymentService.handleApprovedPayment(ref, String(paymentId))
+      }
     }
 
     return NextResponse.json({ ok: true })
