@@ -282,3 +282,76 @@ export async function sendTallerReactivado({
     `,
   })
 }
+
+// ─── Emails para ciclo de suscripciones ──────────────────────────────────────
+
+export async function sendSubscriptionVencida({
+  email,
+  name,
+  workshopTitulo,
+  workshopSlug,
+}: {
+  email: string
+  name: string
+  workshopTitulo: string
+  workshopSlug: string
+}) {
+  if (!process.env.RESEND_API_KEY) return
+
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: email,
+    subject: `Tu suscripción a "${workshopTitulo}" venció`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7c3aed;">Tu suscripción venció</h2>
+        <p>Hola <strong>${name}</strong>,</p>
+        <p>Tu suscripción a <strong>${workshopTitulo}</strong> llegó a su fin. Las reservas que tenías programadas fueron canceladas automáticamente.</p>
+        <p>¿Quieres continuar? Puedes renovar tu suscripción cuando quieras.</p>
+        <a href="${baseUrl}/talleres/${workshopSlug}" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
+          Ver el taller y renovar
+        </a>
+        <p style="color: #6b7280; font-size: 14px;">Si ya no deseas recibir estos avisos, puedes ignorar este correo.</p>
+        <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
+      </div>
+    `,
+  })
+}
+
+export async function sendSubscriptionRenovar({
+  email,
+  name,
+  workshopTitulo,
+  workshopSlug,
+}: {
+  email: string
+  name: string
+  workshopTitulo: string
+  workshopSlug: string
+}) {
+  if (!process.env.RESEND_API_KEY) return
+
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: email,
+    subject: `Es hora de renovar tu suscripción a "${workshopTitulo}"`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7c3aed;">¡Tu ciclo terminó!</h2>
+        <p>Hola <strong>${name}</strong>,</p>
+        <p>Tu período de suscripción a <strong>${workshopTitulo}</strong> terminó. Para seguir asistiendo, renueva con un clic.</p>
+        <a href="${baseUrl}/talleres/${workshopSlug}" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
+          Renovar suscripción
+        </a>
+        <p style="color: #6b7280; font-size: 14px;">Si ya no quieres renovar, simplemente ignora este correo.</p>
+        <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
+      </div>
+    `,
+  })
+}

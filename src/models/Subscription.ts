@@ -12,6 +12,8 @@ export interface ISubscription extends Document {
   pagoRef: string;
   paymentBreakdownId?: Types.ObjectId;
   monto: number;
+  autoRenovar: boolean;            // si true → cron envía email de renovación con link
+  renovadaDesdeId?: Types.ObjectId; // suscripción del ciclo anterior
   activo: boolean;
   createdAt: Date;
 }
@@ -28,6 +30,8 @@ const SubscriptionSchema = new Schema<ISubscription>({
   pagoRef: { type: String },
   paymentBreakdownId: { type: Schema.Types.ObjectId, ref: 'PaymentBreakdown' },
   monto: { type: Number, required: true, min: 0 },
+  autoRenovar: { type: Boolean, default: true },
+  renovadaDesdeId: { type: Schema.Types.ObjectId, ref: 'Subscription' },
   activo: { type: Boolean, default: true },
 }, { timestamps: true });
 

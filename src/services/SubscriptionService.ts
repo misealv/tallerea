@@ -1,12 +1,15 @@
 import mongoose from 'mongoose'
 import dbConnect from '@/lib/db'
 import Subscription, { ISubscription } from '@/models/Subscription'
+import Booking from '@/models/Booking'
 import Workshop from '@/models/Workshop'
 import Account from '@/models/Account'
+import User from '@/models/User'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
 import { FinanceService } from '@/services/FinanceService'
 import { SiteConfigService } from '@/services/SiteConfigService'
 import { createPaymentPreference } from '@/lib/mercadopago'
+import { sendSubscriptionVencida, sendSubscriptionRenovar } from '@/lib/resend'
 
 interface PaginatedResult<T> {
   data: T[]
@@ -233,6 +236,106 @@ export const SubscriptionService = {
     sub.sesionesDisponibles += 1
     await sub.save()
     return sub
+  },
+
+  /**
+   * [CICLO] Cierra una suscripción vencida: cancela bookings futuras y envía email.
+   * Si autoRenovar=true → email con link para re-suscribirse.
+   * Si autoRenovar=false → email de vencimiento simple.
+   * No procesa cobro automático (MP Checkout Pro no soporta cargo recurrente sin tarjeta guardada).
+   */
+  async cerrarCiclo(sub: ISubscription): Promise<void> {
+    await dbConnect()
+
+    const now = new Date()
+
+    // 1. Cancelar todas las bookings futuras en estado 'reservada' de esta suscripción
+    await Booking.updateMany(
+      {
+        subscriptionId: sub._id,
+        estado: 'reservada',
+        fecha: { $gte: now },
+        activo: true,
+      },
+      {
+        $set: {
+          estado: 'cancelada',
+          canceladaEn: now,
+          canceladaRazon: 'ciclo_vencido',
+        },
+      }
+    )
+
+    // 2. Marcar suscripción como vencida
+    await Subscription.findByIdAndUpdate(sub._id, { estado: 'vencida' })
+
+    // 3. Obtener datos del alumno y el taller para el email
+    const [student, workshop] = await Promise.all([
+      User.findById(sub.studentId).select('name email').lean<{ _id: mongoose.Types.ObjectId; name: string; email: string }>(),
+      Workshop.findById(sub.workshopId).select('titulo slug').lean<{ _id: mongoose.Types.ObjectId; titulo: string; slug: string }>(),
+    ])
+
+    if (!student?.email || !workshop) return
+
+    // 4. Enviar email según preferencia del alumno
+    if (sub.autoRenovar) {
+      await sendSubscriptionRenovar({
+        email: student.email,
+        name: student.name,
+        workshopTitulo: workshop.titulo,
+        workshopSlug: workshop.slug,
+      }).catch(() => null)
+    } else {
+      await sendSubscriptionVencida({
+        email: student.email,
+        name: student.name,
+        workshopTitulo: workshop.titulo,
+        workshopSlug: workshop.slug,
+      }).catch(() => null)
+    }
+  },
+
+  /**
+   * [CICLO] Procesa todas las suscripciones activas cuyo fechaVencimiento < now.
+   * Diseñado para el cron diario. Procesa en batches de 100 para no exceder el timeout de Vercel.
+   * Retorna conteo de suscripciones procesadas.
+   */
+  async vencerLote(): Promise<{ procesadas: number; errores: number }> {
+    await dbConnect()
+
+    const now = new Date()
+    let procesadas = 0
+    let errores = 0
+    const BATCH = 100
+    let skip = 0
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const lote = await Subscription.find({
+        estado: 'activa',
+        fechaVencimiento: { $lt: now },
+        activo: true,
+      })
+        .skip(skip)
+        .limit(BATCH)
+        .lean<ISubscription[]>()
+
+      if (lote.length === 0) break
+
+      for (const sub of lote) {
+        try {
+          await this.cerrarCiclo(sub)
+          procesadas++
+        } catch {
+          errores++
+        }
+      }
+
+      if (lote.length < BATCH) break
+      skip += BATCH
+    }
+
+    return { procesadas, errores }
   },
 
   // Soft delete
