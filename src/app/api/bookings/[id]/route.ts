@@ -60,9 +60,9 @@ export async function PUT(
   try {
     const body = await req.json()
 
-    // Marcar asistencia (solo admin/owner)
+    // Marcar asistencia (solo admin por ahora — ownership del tallerista se agrega en Fase 7)
     if (body.estado && ['asistio', 'no_asistio'].includes(body.estado)) {
-      if (session.user.role !== 'admin' && session.user.role !== 'owner') {
+      if (session.user.role !== 'admin') {
         return NextResponse.json({ error: 'Solo profesores pueden marcar asistencia' }, { status: 403 })
       }
       const updated = await BookingService.markAttendance(params.id, body.estado)

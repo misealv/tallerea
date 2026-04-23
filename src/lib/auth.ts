@@ -42,7 +42,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id
-        token.role = user.role
+        token.role = (user.role ?? 'user') as 'user' | 'admin'
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         token.tallerEstado = (user as any).tallerEstado ?? null
       }
@@ -51,7 +51,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string
-        session.user.role = token.role as 'user' | 'admin'
+        session.user.role = (token.role ?? 'user') as 'user' | 'admin'
         session.user.tallerEstado = (token.tallerEstado ?? null) as string | null
       }
       return session
