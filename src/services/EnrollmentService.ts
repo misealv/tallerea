@@ -67,8 +67,8 @@ export const EnrollmentService = {
     }
 
     // Verificar inscripción duplicada (mismo taller + mismo slot)
-    // Los 'pendiente' de más de 30 min se consideran abandonados y no bloquean
-    const cutoff = new Date(Date.now() - 30 * 60 * 1000)
+    // Los 'pendiente' de más de 5 min se consideran abandonados y no bloquean
+    const cutoff = new Date(Date.now() - 5 * 60 * 1000)
     const existing = await Enrollment.findOne({
       workshopId: data.workshopId,
       studentId: data.studentId,
