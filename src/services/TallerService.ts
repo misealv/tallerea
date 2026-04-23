@@ -279,4 +279,37 @@ export const TallerService = {
       .select('-password -magicLinkToken -magicLinkExpiresAt')
       .lean<IUser>()
   },
+
+  /**
+   * El propio tallerista actualiza su perfil público.
+   * Solo campos editables por el tallerista: bio, credenciales, especialidades,
+   * entregaMateriales, logo, redesSociales.
+   * NO toca: estado, slug, historial, datosBancarios.
+   */
+  async actualizarPerfil(
+    userId: string,
+    data: Pick<SolicitudTallerData, 'bio' | 'credenciales' | 'especialidades' | 'entregaMateriales' | 'logo' | 'redesSociales'>
+  ): Promise<IUser> {
+    await connectDB()
+
+    const user = await User.findOne({ _id: userId, 'taller.estado': 'aprobado', activo: true })
+    if (!user) throw new Error('Tallerista no encontrado o no aprobado')
+
+    const $set: Record<string, unknown> = {
+      'taller.bio': data.bio,
+      'taller.credenciales': data.credenciales,
+      'taller.especialidades': data.especialidades,
+      'taller.entregaMateriales': data.entregaMateriales,
+    }
+    if (data.logo !== undefined) $set['taller.logo'] = data.logo
+    if (data.redesSociales !== undefined) $set['taller.redesSociales'] = data.redesSociales
+
+    await User.updateOne({ _id: userId }, { $set })
+
+    const updated = await User.findById(userId)
+      .select('-password -magicLinkToken -magicLinkExpiresAt')
+      .lean<IUser>()
+    if (!updated) throw new Error('Error al recuperar usuario actualizado')
+    return updated
+  },
 }

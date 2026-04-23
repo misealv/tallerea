@@ -111,6 +111,12 @@ export default async function TalleristaDashboardPage() {
         >
           Ver mis talleres
         </Link>
+        <Link
+          href="/tallerista/perfil"
+          className="bg-white border border-gray-200 hover:border-purple-300 text-gray-700 text-sm px-4 py-2 rounded-lg"
+        >
+          Editar mi perfil
+        </Link>
       </div>
     </div>
   )
