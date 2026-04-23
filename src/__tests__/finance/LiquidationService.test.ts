@@ -58,7 +58,7 @@ describe('LiquidationService.generate', () => {
   it('genera liquidación correctamente desde breakdowns cobrados', async () => {
     const { LiquidationService } = await import('@/services/LiquidationService')
     const { default: User } = await import('@/models/User')
-    const { docs, ownerId } = await createBreakdowns(3)
+    const { ownerId } = await createBreakdowns(3)
 
     // Crear usuario con mínimo de liquidación bajo
     await new User({
@@ -185,12 +185,11 @@ describe('LiquidationService.generate', () => {
 describe('LiquidationService.markAsPaid — doble verificación', () => {
   it('marca como pagada cuando la suma cuadra', async () => {
     const { default: User } = await import('@/models/User')
-    const { default: Liquidation } = await import('@/models/Liquidation')
     const { LiquidationService } = await import('@/services/LiquidationService')
     const { FinanceService } = await import('@/services/FinanceService')
     vi.spyOn(FinanceService, 'log').mockResolvedValue(undefined)
 
-    const { docs, ownerId } = await createBreakdowns(2)
+    const { ownerId } = await createBreakdowns(2)
     await new User({
       _id: ownerId,
       name: 'Pay Test',
@@ -217,7 +216,6 @@ describe('LiquidationService.markAsPaid — doble verificación', () => {
 
   it('[LIQUIDACION] bloquea si suma real difiere del declarado', async () => {
     const { default: User } = await import('@/models/User')
-    const { default: Liquidation } = await import('@/models/Liquidation')
     const { default: PB } = await import('@/models/PaymentBreakdown')
     const { LiquidationService } = await import('@/services/LiquidationService')
     const { FinanceService } = await import('@/services/FinanceService')
