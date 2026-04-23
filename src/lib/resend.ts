@@ -149,7 +149,7 @@ export async function sendTallerAprobado({ email, name }: { email: string; name:
         <h2 style="color: #7c3aed;">¡Solicitud aprobada! 🎉</h2>
         <p>Hola <strong>${name}</strong>,</p>
         <p>Tu solicitud para ser tallerista en Tallerea fue <strong>aprobada</strong>. Ya puedes publicar tus talleres y empezar a recibir alumnos.</p>
-        <a href="${baseUrl}/tallerista/dashboard" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
+        <a href="${baseUrl}/tallerista" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
           Ir a mi panel
         </a>
         <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
@@ -184,6 +184,99 @@ export async function sendTallerRechazado({
           <p style="margin: 0; color: #7f1d1d;"><strong>Razón:</strong> ${razon}</p>
         </div>
         <p>Puedes volver a postular después de 30 días. Si tienes preguntas, responde este correo.</p>
+        <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
+      </div>
+    `,
+  })
+}
+
+export async function sendTallerSolicitudRecibida({
+  email,
+  name,
+  esRepostulacion,
+}: {
+  email: string
+  name: string
+  esRepostulacion: boolean
+}) {
+  if (!process.env.RESEND_API_KEY) return
+
+  const resend = getResend()
+
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: email,
+    subject: esRepostulacion
+      ? 'Recibimos tu nueva postulación en Tallerea'
+      : 'Recibimos tu solicitud en Tallerea',
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7c3aed;">¡Gracias ${name}!</h2>
+        <p>Hemos recibido tu ${esRepostulacion ? 'nueva postulación' : 'solicitud'} para ser tallerista en Tallerea.</p>
+        <p>Nuestro equipo la revisará en los próximos días hábiles y te escribiremos por este mismo medio cuando tengamos una respuesta.</p>
+        <p style="color: #6b7280; font-size: 14px;">No necesitas hacer nada más por ahora.</p>
+        <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
+      </div>
+    `,
+  })
+}
+
+export async function sendTallerSuspendido({
+  email,
+  name,
+  razon,
+}: {
+  email: string
+  name: string
+  razon: string
+}) {
+  if (!process.env.RESEND_API_KEY) return
+
+  const resend = getResend()
+
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: email,
+    subject: 'Tu cuenta de tallerista ha sido suspendida temporalmente',
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7c3aed;">Cuenta suspendida</h2>
+        <p>Hola <strong>${name}</strong>,</p>
+        <p>Tu cuenta de tallerista ha sido suspendida temporalmente. Durante la suspensión no podrás publicar talleres ni recibir nuevas inscripciones.</p>
+        <div style="background: #fef2f2; border-left: 4px solid #ef4444; border-radius: 8px; padding: 16px; margin: 16px 0;">
+          <p style="margin: 0; color: #7f1d1d;"><strong>Motivo:</strong> ${razon}</p>
+        </div>
+        <p>Si crees que es un error, responde este correo para conversarlo.</p>
+        <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
+      </div>
+    `,
+  })
+}
+
+export async function sendTallerReactivado({
+  email,
+  name,
+}: {
+  email: string
+  name: string
+}) {
+  if (!process.env.RESEND_API_KEY) return
+
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: email,
+    subject: 'Tu cuenta de tallerista fue reactivada',
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7c3aed;">¡Bienvenido/a de vuelta!</h2>
+        <p>Hola <strong>${name}</strong>,</p>
+        <p>Tu cuenta de tallerista ha sido reactivada. Ya puedes volver a publicar talleres y recibir alumnos.</p>
+        <a href="${baseUrl}/tallerista" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
+          Ir a mi panel
+        </a>
         <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
       </div>
     `,

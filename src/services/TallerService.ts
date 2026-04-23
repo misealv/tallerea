@@ -2,7 +2,14 @@ import 'server-only'
 import { Types } from 'mongoose'
 import connectDB from '@/lib/db'
 import User, { IUser, ITaller } from '@/models/User'
-import { sendTallerSolicitudAdmin, sendTallerAprobado, sendTallerRechazado } from '@/lib/resend'
+import {
+  sendTallerSolicitudAdmin,
+  sendTallerSolicitudRecibida,
+  sendTallerAprobado,
+  sendTallerRechazado,
+  sendTallerSuspendido,
+  sendTallerReactivado,
+} from '@/lib/resend'
 
 // Payload mínimo para solicitar ser tallerista
 export interface SolicitudTallerData {
@@ -95,6 +102,13 @@ export const TallerService = {
       userEmail: updated.email,
       bio: data.bio,
     }).catch(() => null) // no bloquear si falla el email
+
+    // Acuse de recibo al tallerista
+    await sendTallerSolicitudRecibida({
+      email: updated.email,
+      name: updated.name,
+      esRepostulacion,
+    }).catch(() => null)
 
     return updated
   },
@@ -208,6 +222,9 @@ export const TallerService = {
 
     const updated = await User.findById(userId).lean<IUser>()
     if (!updated) throw new Error('Error al recuperar usuario actualizado')
+
+    await sendTallerSuspendido({ email: updated.email, name: updated.name, razon }).catch(() => null)
+
     return updated
   },
 
@@ -240,6 +257,9 @@ export const TallerService = {
 
     const updated = await User.findById(userId).lean<IUser>()
     if (!updated) throw new Error('Error al recuperar usuario actualizado')
+
+    await sendTallerReactivado({ email: updated.email, name: updated.name }).catch(() => null)
+
     return updated
   },
 

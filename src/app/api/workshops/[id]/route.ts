@@ -36,13 +36,18 @@ export async function PUT(
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
     }
 
-    // Buscar incluyendo inactivos para poder reactivar
     const workshop = await WorkshopService.getByIdIncludingInactive(params.id)
     if (!workshop) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-    // Ownership check vía account
-    const account = await AccountService.getById(workshop.accountId.toString())
-    if (!account || (account.ownerId.toString() !== session.user.id && session.user.role !== 'admin')) {
+    // Ownership: admin, o dueño directo (ownerId), o owner del Account legacy
+    const isAdmin = session.user.role === 'admin'
+    const isDirectOwner = workshop.ownerId?.toString() === session.user.id
+    let isAccountOwner = false
+    if (!isDirectOwner && workshop.accountId) {
+      const account = await AccountService.getById(workshop.accountId.toString())
+      isAccountOwner = !!account && account.ownerId.toString() === session.user.id
+    }
+    if (!isAdmin && !isDirectOwner && !isAccountOwner) {
       return NextResponse.json({ error: 'No tienes permiso' }, { status: 403 })
     }
 
@@ -79,8 +84,15 @@ export async function DELETE(
     const workshop = await WorkshopService.getByIdIncludingInactive(params.id)
     if (!workshop) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-    const account = await AccountService.getById(workshop.accountId.toString())
-    if (!account || (account.ownerId.toString() !== session.user.id && session.user.role !== 'admin')) {
+    // Ownership: admin, o dueño directo (ownerId), o owner del Account legacy
+    const isAdmin = session.user.role === 'admin'
+    const isDirectOwner = workshop.ownerId?.toString() === session.user.id
+    let isAccountOwner = false
+    if (!isDirectOwner && workshop.accountId) {
+      const account = await AccountService.getById(workshop.accountId.toString())
+      isAccountOwner = !!account && account.ownerId.toString() === session.user.id
+    }
+    if (!isAdmin && !isDirectOwner && !isAccountOwner) {
       return NextResponse.json({ error: 'No tienes permiso' }, { status: 403 })
     }
 

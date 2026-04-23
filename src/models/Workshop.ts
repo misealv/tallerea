@@ -51,7 +51,7 @@ export interface IPolitica {
 }
 
 export interface IWorkshop extends Document {
-  accountId: Types.ObjectId;   // legacy — usar ownerId en nuevos workshops
+  accountId?: Types.ObjectId;  // legacy — usar ownerId en nuevos workshops
   ownerId?: Types.ObjectId;    // User tallerista directo (sin Account)
   locationId?: Types.ObjectId;
   instructorId?: Types.ObjectId;
@@ -140,7 +140,8 @@ const PoliticaSchema = new Schema({
 }, { _id: false });
 
 const WorkshopSchema = new Schema<IWorkshop>({
-  accountId: { type: Schema.Types.ObjectId, ref: 'Account', required: true },
+  // accountId queda opcional durante la transición a ownerId-only (Fase 4 plan)
+  accountId: { type: Schema.Types.ObjectId, ref: 'Account' },
   ownerId: { type: Schema.Types.ObjectId, ref: 'User' },
   locationId: { type: Schema.Types.ObjectId, ref: 'Location' },
   instructorId: { type: Schema.Types.ObjectId, ref: 'AccountMember' },
@@ -185,6 +186,10 @@ const WorkshopSchema = new Schema<IWorkshop>({
 }, { timestamps: true });
 
 WorkshopSchema.pre('save', function(next) {
+  // Validar que exista al menos uno: ownerId (flujo nuevo) o accountId (legacy)
+  if (!this.ownerId && !this.accountId) {
+    return next(new Error('[WORKSHOP] Debe especificar ownerId o accountId'));
+  }
   // tipoPersonalizado solo se guarda si tipo === 'otro'
   if (this.tipo !== 'otro') {
     this.tipoPersonalizado = null;
