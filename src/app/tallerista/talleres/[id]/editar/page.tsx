@@ -78,7 +78,9 @@ export default function EditarTallerPage() {
           duracionSesion: String(w.duracionSesion ?? 90),
           cupoPorSesion: String(w.cupoPorSesion ?? 10),
           fechaInicio: fechaIso,
-          locationId: w.locationId ? String(w.locationId) : '',
+          locationId: w.locationId
+          ? (typeof w.locationId === 'object' ? String((w.locationId as { _id?: unknown })._id ?? '') : String(w.locationId))
+          : '',
           horasAntesCancelacion: String(w.politica?.horasAntesCancelacion ?? 24),
           permitirReagendamiento: w.politica?.permitirReagendamiento ?? true,
           sesionesIncluidas: String(w.plan?.sesionesIncluidas ?? w.plan?.sesionesPorPeriodo ?? 8),

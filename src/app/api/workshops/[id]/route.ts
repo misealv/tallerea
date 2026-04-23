@@ -48,6 +48,10 @@ export async function PUT(
     const body = await req.json()
     delete body.ownerId
     delete body.slug
+    // Si locationId llegó como objeto poblado, extraer solo el _id
+    if (body.locationId && typeof body.locationId === 'object') {
+      body.locationId = body.locationId._id ?? null
+    }
     if (!body.locationId) delete body.locationId
 
     const updated = await WorkshopService.update(params.id, body)
