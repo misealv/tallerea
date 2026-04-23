@@ -11,26 +11,55 @@
 ## Regla de Memoria (4GB RAM)
 
 1. **Máximo 150 líneas de código por respuesta.**
-2. Si una tarea requiere más, dividir automáticamente en pasos numerados:
-   `[PASO 1/N] → [PASO 2/N] → ...`
+2. Si una tarea requiere más, dividir en pasos numerados `[PASO 1/N] → [PASO 2/N] → ...`
 3. Esperar confirmación explícita entre pasos.
 4. **NUNCA** generar múltiples archivos en la misma respuesta.
-5. Antes de operaciones pesadas, advertir:
-   `⚠️ [MEMORIA] Esta operación genera ~X líneas. ¿Procedo en pasos?`
+5. Antes de operaciones pesadas, advertir: `⚠️ [MEMORIA] Esta operación genera ~X líneas. ¿Procedo en pasos?`
 
 ---
 
 ## Proyecto
 
-**Tallerea** — marketplace chileno de talleres de artes (visual, teatro, danza, música).
-Dominio: `tallerea.cl` | Deploy: Vercel (free tier)
+**Tallerea** es un **MarketSaaS** chileno: marketplace de talleres de arte + SaaS de gestión para el tallerista.
+Dominio: `tallerea.cl` | Deploy: Vercel | Repo: `misealv/tallerea`
 
 **Stack:** Next.js 14 (App Router) + TypeScript + Tailwind CSS + Mongoose + NextAuth v4 + MongoDB Atlas + MercadoPago + Cloudinary + Resend
 
+**Documento fuente de verdad:** `Docs/tallerea-proyecto.md` (visión) + `Docs/AUDITORIA_Y_ARQUITECTURA.md` (arquitectura). En caso de duda, esos archivos ganan.
+
 ---
 
-## Arquitectura obligatoria
+## Arquitectura MVP — Lo que importa entender
 
+### Modelos centrales (post-refactor)
+```
+User {
+  role: 'user' | 'admin'
+  taller?: {                    // si existe → es (o fue) tallerista
+    estado: 'pendiente' | 'aprobado' | 'rechazado' | 'suspendido'
+    slug, bio, credenciales, especialidades, datosBancarios, ...
+    historial: [...]            // trazabilidad de aprobaciones/rechazos
+    intentos, reviewsCount, reviewsAvg
+  }
+  creditoDisponible: number     // CLP enteros
+  password?: string              // solo tallerista/admin
+}
+
+Workshop { ownerId → User, modeloAcceso: 'puntual'|'recurrente', ... }
+Enrollment { workshopId, studentId, slotIndex, estado, montoPagado }
+Subscription { workshopId, studentId, periodoInicio, periodoFin, sesionesDisponibles, autoRenovar }
+Booking { subscriptionId, slotIndex, fecha, estado, reagendamiento? }
+Review { workshopId, studentId, ownerId, rating 1-5 }
+PaymentBreakdown { montoBruto, feeTallerea, montoProfesor }  // inmutable
+Liquidation { ownerId, breakdowns: [ObjectId], totalProfesor, estado }
+CreditTransaction { userId, tipo, monto, saldoResultante }   // append-only
+SiteConfig { comisionPct, liquidacionMinimaDefault, ... }   // singleton
+FinanceAuditLog { append-only }
+```
+
+**Eliminados del MVP (diferidos post-MVP):** `Account`, `AccountMember`, `Organization`.
+
+### Arquitectura obligatoria
 ```
 Model → Service → API Route (thin controller) → Component
 ```
@@ -40,531 +69,277 @@ Model → Service → API Route (thin controller) → Component
 - **NUNCA** conectar MongoDB desde un componente — siempre vía Service.
 - Default: **Server Components**. Solo `'use client'` cuando hay state/effects/handlers.
 
----
-
-## Estructura de carpetas
-
+### Estructura de carpetas
 ```
 src/
 ├── app/
-│   ├── (auth)/login, registro
-│   ├── talleres/page.tsx, [slug]/page.tsx
-│   ├── espacios/[slug]/page.tsx
-│   ├── dashboard/ (protected — space owner)
-│   ├── mis-talleres/page.tsx (student)
-│   ├── admin/page.tsx
-│   └── api/ (thin controllers)
-├── lib/          # db.ts, auth.ts, mercadopago.ts, slugify.ts, validate.ts
-├── models/       # Mongoose schemas (source of truth for types)
-├── services/     # Business logic layer
-├── components/   # UI components
-└── types/        # Shared TypeScript interfaces
+│   ├── (public)/ {talleres, talleristas}
+│   ├── (auth)/ {login, registro-tallerista, magic}
+│   ├── alumno/            # protegido: role 'user'
+│   ├── tallerista/        # protegido: taller.estado === 'aprobado'
+│   ├── admin/             # protegido: role === 'admin'
+│   └── api/
+├── lib/                   # db.ts, auth.ts, env.ts, mercadopago.ts, resend.ts, slugify.ts, validate.ts
+├── models/
+├── services/              # business logic
+├── components/
+└── types/
 ```
 
 ---
 
-## Patrón CRUD completo
+## Reglas de negocio críticas (NUNCA VIOLAR)
 
-Cuando se crea o modifica una entidad, generar **siempre** el set completo:
+### 1. Roles y acceso
+- **Alumno:** role `'user'` sin objeto `taller`. Nace de una transacción (nunca se pre-registra).
+- **Tallerista:** role `'user'` con `taller.estado === 'aprobado'`. Solo puede publicar si aprobado.
+- **Alumno-Tallerista:** mismo User; `taller` existe, `role` es `'user'`.
+- **Admin:** `role === 'admin'`. Un admin puede tener `taller` también.
 
-### 1. Model (`src/models/Entity.ts`)
+### 2. Autenticación dual
+- **Alumno:** magic link post-pago (NextAuth EmailProvider). Sin password. Token single-use 15min.
+- **Tallerista + Admin:** Credentials (email + password bcrypt).
+- `/registro` público para alumnos NO EXISTE. Solo `/registro-tallerista`.
 
-- Todo modelo deleteable lleva `activo: { type: Boolean, default: true }`
-- Exportar interfaz `IEntity` con todos los campos tipados
-- Usar `{ timestamps: true }`
-
-### 2. Service (`src/services/EntityService.ts`)
-
-Métodos obligatorios: `getAll`, `getById`, `getBySlug` (si tiene slug), `create`, `update`, `delete`
-
-```typescript
-import connectDB from '@/lib/db'
-import Entity, { IEntity } from '@/models/Entity'
-
-interface PaginatedResult<T> {
-  data: T[]
-  total: number
-  page: number
-  limit: number
-}
-
-export const EntityService = {
-
-  async getAll(filters?: Record<string, unknown>, page = 1, limit = 20): Promise<PaginatedResult<IEntity>> {
-    await connectDB()
-    const query = { activo: true, ...filters }
-    const [data, total] = await Promise.all([
-      Entity.find(query).skip((page - 1) * limit).limit(limit).lean<IEntity[]>(),
-      Entity.countDocuments(query)
-    ])
-    return { data, total, page, limit }
-  },
-
-  async getById(id: string): Promise<IEntity | null> {
-    await connectDB()
-    return Entity.findOne({ _id: id, activo: true }).lean<IEntity>()
-  },
-
-  async getBySlug(slug: string): Promise<IEntity | null> {
-    await connectDB()
-    return Entity.findOne({ slug, activo: true }).lean<IEntity>()
-  },
-
-  async create(data: Partial<IEntity>): Promise<IEntity> {
-    await connectDB()
-    return new Entity(data).save()
-  },
-
-  async update(id: string, data: Partial<IEntity>): Promise<IEntity | null> {
-    await connectDB()
-    const doc = await Entity.findOneAndUpdate(
-      { _id: id, activo: true },
-      data,
-      { new: true, runValidators: true }
-    )
-    if (!doc) throw new Error(`Entity ${id} not found`)
-    return doc
-  },
-
-  async delete(id: string): Promise<void> {
-    await connectDB()
-    await Entity.findByIdAndUpdate(id, { activo: false })
-  },
-}
+### 3. Estados del tallerista — máquina estricta
 ```
-
-### 3. API Routes (thin controllers)
-
-**`route.ts`** — GET (list) + POST (create):
-
-```typescript
-import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { EntityService } from '@/services/EntityService'
-
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url)
-    const page = Number(searchParams.get('page')) || 1
-    const limit = Number(searchParams.get('limit')) || 20
-    const result = await EntityService.getAll({}, page, limit)
-    return NextResponse.json(result)
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Error interno'
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
-}
-
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-
-  try {
-    const body = await req.json()
-    // TODO: validate body with validateEntity(body)
-    const item = await EntityService.create(body)
-    return NextResponse.json(item, { status: 201 })
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Error interno'
-    return NextResponse.json({ error: message }, { status: 400 })
-  }
-}
+(sin taller) → pendiente → aprobado ⇄ suspendido
+                       → rechazado → pendiente (tras cooldown)
 ```
+Toda transición:
+- La ejecuta un admin (excepto `solicitud`/`re_postulacion` que las hace el usuario)
+- Registra entrada en `taller.historial[]` con `adminId`, `fecha`, `razon`
+- Incrementa contadores derivados (`intentos`, `suspensionesCount`, `ultimoRechazoEn`)
 
-**`[id]/route.ts`** — GET + PUT + DELETE con ownership check:
+Solo un tallerista con `taller.estado === 'aprobado'` puede:
+- Publicar talleres
+- Recibir pagos
+- Aparecer en perfil público
 
-```typescript
-import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { EntityService } from '@/services/EntityService'
+### 4. Modelo de acceso del Workshop
+- `modeloAcceso: 'puntual' | 'recurrente'` es **obligatorio** y define todo el flujo
+- Recurrente → tiene `plan.sesionesPorPeriodo`, crea Subscription + Booking
+- Puntual → sin `plan`, crea Enrollment con slot único
+- Pre-save valida coherencia
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    const item = await EntityService.getById(params.id)
-    if (!item) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
-    return NextResponse.json(item)
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Error interno'
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
-}
+### 5. Ciclo mensual (recurrente)
+- Al vencer `Subscription.periodoFin`:
+  - Bookings futuras reservadas → canceladas `razon:'ciclo_vencido'`
+  - Si `autoRenovar` → cobro MP → nueva Subscription
+  - Si no → `estado = 'vencida'`
+- Reservas NUNCA se acumulan entre períodos
+- Implementado vía Vercel Cron diario
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+### 6. Política no-show — nivel Workshop
+- `workshop.politica.horasAntesCancelacion` (default 24)
+- `workshop.politica.permitirReagendamiento`
+- Dentro del plazo → cancelación libre, devuelve sesión
+- Fuera del plazo + reagendable → solicitud al tallerista, él decide
+- Todo configurable por el tallerista, tanto en puntual como recurrente
 
-  // OWNERSHIP CHECK: verify session.user owns this resource
-  // const item = await EntityService.getById(params.id)
-  // if (item.ownerId.toString() !== session.user.id) return 403
+### 7. Reembolsos = CRÉDITO
+- Nunca se devuelve dinero
+- Crédito vive en `User.creditoDisponible` + `CreditTransaction` append-only
+- Se aplica en checkout (Enrollment.creditoAplicado / Subscription equivalente)
 
-  try {
-    const body = await req.json()
-    const updated = await EntityService.update(params.id, body)
-    return NextResponse.json(updated)
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Error interno'
-    const status = message.includes('not found') ? 404 : 400
-    return NextResponse.json({ error: message }, { status })
-  }
-}
-
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-
-  // OWNERSHIP CHECK: same pattern as PUT
-
-  try {
-    await EntityService.delete(params.id)
-    return NextResponse.json({ success: true })
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Error interno'
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
-}
-```
+### 8. Reviews
+- Por taller (no por tallerista)
+- Elegibilidad validada en service:
+  - Enrollment pagado + slot.fecha < now
+  - OR Subscription con ≥30 días + ≥1 booking `asistio`
+- Único por (workshopId, studentId)
+- Actualiza métricas denormalizadas en Workshop + User.taller
 
 ---
 
-## Slug generation
+## Reglas financieras — INQUEBRANTABLES
 
-Usar `src/lib/slugify.ts` para generar slugs SEO-friendly:
+### Principios
+1. **Solo enteros CLP.** Nunca `parseFloat` ni decimales para dinero.
+2. **Ecuación fundamental:** `montoBruto === montoProfesor + feeTallerea` (pre-save valida).
+3. **PaymentBreakdown es INMUTABLE.** Solo se crean — jamás update/delete. Correcciones = nuevo registro `tipo:'ajuste'`.
+4. **Cálculo centralizado:** solo `FinanceService.calcularDesglose()`. Nunca inline.
+5. **Liquidaciones con doble verificación:** recalcular suma antes de marcar `pagada`.
+6. **Audit trail obligatorio:** toda op financiera crea `FinanceAuditLog` append-only.
+7. **Comisión NUNCA hardcoded:** siempre `await SiteConfigService.getComisionPct()`.
+8. **Validaciones en capas:** API route valida tipos → Service valida reglas → Model pre-save valida cuadratura.
+9. **MercadoPago:** webhook valida `x-signature` + todo dentro de transaction + retorna 200 siempre.
+10. **Nunca PaymentBreakdown sin pago confirmado.** Dinero fantasma prohibido.
 
-```typescript
-// Pattern: titulo-comuna → "acuarela-para-adultos-providencia"
-// If duplicate exists, append -2, -3, etc.
-export function generateSlug(titulo: string, comuna?: string): string
-export async function ensureUniqueSlug(base: string, Model: any, excludeId?: string): Promise<string>
-```
-
-Nunca exponer ObjectIds en URLs públicas. Siempre slug descriptivo.
-
----
-
-## Validación de input
-
-Validar en la capa de API route ANTES de pasar al Service:
-
-```typescript
-// src/lib/validate.ts — simple validation helpers
-export function validateRequired(body: Record<string, unknown>, fields: string[]): string | null
-export function validateEnum(value: string, allowed: string[], fieldName: string): string | null
-export function validateObjectId(id: string): boolean
-```
-
-Si el body falla validación → responder 400 con mensaje claro. No dejar que Mongoose lance `ValidationError` como 500.
-
----
-
-## Ownership & Authorization
-
-Tres niveles en cada ruta protegida:
-
-1. **Autenticación**: `getServerSession` — ¿hay sesión? → 401
-2. **Ownership**: ¿el recurso pertenece al usuario? → 403
-3. **Role check**: ¿tiene el rol necesario? (admin, owner, instructor) → 403
-
-```typescript
-// Helper reutilizable en src/lib/auth.ts
-export async function requireOwnership(session: Session, resourceOwnerId: string): void {
-  if (session.user.role !== 'admin' && session.user.id !== resourceOwnerId) {
-    throw new Error('Forbidden')
-  }
-}
-```
-
----
-
-## Respuesta estándar de API
-
-```typescript
-// Success (single): { ...entity fields }
-// Success (list):   { data: [...], total: number, page: number, limit: number }
-// Error:            { error: "mensaje descriptivo" }  + HTTP status code
-// Delete success:   { success: true }
-```
+### Flags en comentarios
+- `[FINANCE RISK]` — cambio que afecta cálculo de montos
+- `[CUADRATURA]` — verificación de ecuación fundamental
+- `[LIQUIDACION]` — afecta pago al tallerista
+- `[INMUTABLE]` — intento de modificar registro inmutable
+- `[TALLER ESTADO]` — cambio que afecta máquina de estados del tallerista
+- `[CICLO]` — lógica de período mensual / caducidad
+- `[BREAKING CHANGE]` — rompe contratos existentes
 
 ---
 
 ## Convenciones de código
 
-- **TypeScript strict**. No `any`. Return types explícitos en services.
-- Nombres de archivos: `PascalCase` (componentes, modelos), `camelCase` (lib, utils).
+- **TypeScript strict.** No `any`. Return types explícitos en services.
 - Texto visible al usuario: **español**. Code/vars/functions: **inglés**.
 - `async/await` siempre. Nunca `.then().catch()`.
-- Soft delete (`activo: false`). Nunca `findByIdAndDelete`.
-- `connectDB()` al inicio de cada método de Service.
-- `.lean<IType>()` en queries de lectura para performance.
-- `.select('-password')` en cualquier query que devuelva User.
-- No `console.log` en producción. Eliminar antes de commit.
+- Soft delete (`activo: false` o `deletedAt`). Nunca `findByIdAndDelete`.
+- `dbConnect()` al inicio de cada método de Service.
+- `.lean<IType>()` en queries de lectura.
+- `.select('-password -magicLinkToken')` en cualquier query que devuelva User al cliente.
+- No `console.log` en producción. Logging estructurado.
 
----
-
-## SEO (crítico para marketplace)
-
-```typescript
-// Toda página pública con [slug] DEBE exportar generateMetadata
-export async function generateMetadata({ params }: { params: { slug: string } }) {
-  const workshop = await WorkshopService.getBySlug(params.slug)
-  if (!workshop) return { title: 'Tallerea' }
-  return {
-    title: `${workshop.titulo} — Tallerea`,
-    description: workshop.descripcion.slice(0, 155),
-    openGraph: { images: workshop.imagenes[0] ? [workshop.imagenes[0]] : [] },
-  }
+### Patrón Service estándar
+```ts
+export const EntityService = {
+  async getAll(filters?, page = 1, limit = 20): Promise<PaginatedResult<IEntity>>
+  async getById(id: string): Promise<IEntity | null>
+  async getBySlug(slug: string): Promise<IEntity | null>
+  async create(data: Partial<IEntity>): Promise<IEntity>
+  async update(id: string, data: Partial<IEntity>): Promise<IEntity | null>
+  async delete(id: string): Promise<void>
 }
+```
+
+### Respuesta estándar API
+```ts
+// Success single: { ...entity }
+// Success list:   { data: [...], total, page, limit }
+// Error:          { error: "mensaje" } + status
+// Delete:         { success: true }
 ```
 
 ---
 
-## Pagos — MercadoPago
+## Ownership & Authorization
 
-- Checkout Pro (redirect). Montos en **CLP enteros** (no centavos).
-- Webhook SIEMPRE valida `x-signature` antes de procesar.
-- Enrollment: `pendiente → pagado → cancelado`. Usar Mongoose transactions para inscripción + decremento de cupo.
+Tres niveles obligatorios en rutas protegidas:
+
+1. **Autenticación:** `getServerSession` → 401 si no hay
+2. **Ownership:** recurso pertenece al usuario → 403 si no
+3. **Role check:** rol/estado necesario (`admin`, `taller.estado === 'aprobado'`) → 403
+
+```ts
+// Helper en lib/auth.ts
+export function requireAdmin(session: Session): void
+export function requireTallerAprobado(session: Session): void
+export function requireOwnership(session: Session, resourceOwnerId: string): void
+```
+
+Middleware (`src/middleware.ts`) protege:
+- `/tallerista/*` → require `taller.estado === 'aprobado'` (redirect a `/tallerista/onboarding` si pendiente)
+- `/admin/*` → require `role === 'admin'`
+- `/alumno/*` → require sesión válida
 
 ---
 
-## Imágenes — Cloudinary
+## Reglas de desarrollo
 
-- Signed upload (firma generada server-side). NUNCA exponer `CLOUDINARY_API_SECRET` al client.
-- URLs guardadas en `imagenes[]` (Workshop) o `logo` (Account).
-- Renderizar con `next/image`.
+### No tocar sin preguntar primero
+- `FinanceService`, `LiquidationService`, `PaymentBreakdown`, `FinanceAuditLog`, `Liquidation`
+- Webhook de MercadoPago (`/api/payments/webhook`)
+- Callbacks de NextAuth
+- Lógica del cron de caducidad
+- Máquina de estados del tallerista
+
+### Siempre preguntar antes de
+- Cambios de schema de MongoDB
+- Nuevos endpoints de API
+- Cambios en auth/middleware
+- Cualquier operación que toque dinero real
+- Migraciones de datos
+
+### AUTO-EJECUTAR (sin preguntar)
+- Fixes menores de CSS/UI
+- Actualización de un solo componente
+- Documentación
+- Texto/copy
 
 ---
 
-## Variables de entorno
+## Gate de QA — checklist antes de cada commit
 
+- [ ] ¿La query tiene `dbConnect()` al inicio?
+- [ ] ¿Las queries usan `.lean<IType>()` cuando es solo lectura?
+- [ ] ¿User se devuelve sin `password` ni `magicLinkToken`?
+- [ ] ¿La API route delega toda la lógica al Service?
+- [ ] ¿La comisión se obtiene vía `SiteConfigService.getComisionPct()` (NO hardcoded)?
+- [ ] ¿Los montos son enteros CLP validados?
+- [ ] ¿PaymentBreakdown pasa la cuadratura en pre-save?
+- [ ] ¿Las rutas protegidas verifican sesión + ownership + rol?
+- [ ] ¿Las operaciones de `taller.estado` registran entrada en `historial`?
+- [ ] ¿Cambios de Subscription/Booking consideran `periodoFin` y caducidad?
+- [ ] ¿Workshop declara `modeloAcceso` y cumple validación pre-save?
+- [ ] ¿El webhook MP retorna 200 siempre (incluso si falla internamente)?
+- [ ] ¿Se agregó entry a `FinanceAuditLog` en ops financieras?
+- [ ] ¿Las transacciones Mongoose envuelven writes múltiples relacionados?
+- [ ] ¿No hay `console.log` en código productivo?
+- [ ] ¿Todo el texto de UI está en español?
+- [ ] ¿Rutas con `params` las tratan como Promise en Next 15 o como objeto en Next 14?
+
+---
+
+## Prohibiciones absolutas
+
+- Pages Router (`/pages`). Solo App Router.
+- `getServerSideProps` / `getStaticProps`.
+- Hard-delete. Siempre soft delete.
+- Business logic en API routes.
+- Llamar APIs propias desde Server Components.
+- Hardcodear comisión, montos mínimos, URLs de MercadoPago.
+- Devolver `password`, `pagoRef`, `magicLinkToken` en endpoints públicos.
+- Crear usuarios con role `'admin'` vía API pública. Solo manualmente o vía seed.
+- Modificar `PaymentBreakdown` o `FinanceAuditLog` después de crear.
+- Usar `Account` o `AccountMember` en código nuevo (están deprecados).
+
+---
+
+## Deploy
+
+- Producción: `vercel --prod` desde `main`
+- Dominio: `tallerea.cl`
+- Cron jobs configurados en `vercel.json`
+- Variables críticas: `MONGODB_URI`, `NEXTAUTH_SECRET`, `MP_ACCESS_TOKEN`, `RESEND_API_KEY`, `CLOUDINARY_*`
+
+Antes de deploy a producción:
 ```bash
-MONGODB_URI=
-NEXTAUTH_SECRET=
-NEXTAUTH_URL=http://localhost:3000
-MP_ACCESS_TOKEN=
-NEXT_PUBLIC_MP_PUBLIC_KEY=
-CLOUDINARY_CLOUD_NAME=
-CLOUDINARY_API_KEY=
-CLOUDINARY_API_SECRET=
-RESEND_API_KEY=
-```
-
-Solo `NEXT_PUBLIC_*` se expone al client.
-
----
-
-## Prohibiciones
-
-- No usar Pages Router (`/pages`). Solo App Router.
-- No `getServerSideProps` / `getStaticProps`.
-- No hard-delete. Siempre soft delete.
-- No business logic en API routes.
-- No llamar APIs propias desde Server Components.
-- No hardcodear montos, URLs de MercadoPago, ni comisiones.
-- No devolver `password` ni `pagoRef` en endpoints públicos.
-
----
-
-## ⚠️ Configuración centralizada — SiteConfig (NO HARDCODEAR NUNCA)
-
-Todo parámetro de negocio (comisiones, montos mínimos, límites) se almacena en el modelo `SiteConfig` (singleton en MongoDB) y se gestiona **exclusivamente** desde el panel de administración (`/admin/configuracion`).
-
-**Reglas:**
-- **NUNCA** definir constantes como `DEFAULT_FEE_PCT`, `COMISION_PCT`, `LIQUIDACION_MINIMA` en código.
-- **NUNCA** usar números mágicos para porcentajes, montos o umbrales de negocio.
-- **SIEMPRE** leer valores de negocio vía `SiteConfigService.get()` o métodos específicos como `SiteConfigService.getComisionPct()`.
-- Si se necesita un nuevo parámetro configurable, agregarlo al modelo `SiteConfig` y exponerlo en `/admin/configuracion`.
-
-```typescript
-// ✅ CORRECTO
-const feePct = await SiteConfigService.getComisionPct()
-
-// ❌ PROHIBIDO
-const feePct = 15
-const DEFAULT_FEE_PCT = 15
+npx tsc --noEmit                  # type-check
+npm run build                     # build local
+# Revisar SiteConfig esté presente en DB
 ```
 
 ---
 
-## ⚠️ REGLAS FINANCIERAS — CRITICAL (NO SALTARSE NUNCA)
-
-Este marketplace maneja dinero real de profesores y alumnos. Las siguientes reglas son **inquebrantables**.
-
-### Principio #1: Solo enteros, jamás floats
-
-```typescript
-// ✅ CORRECTO — CLP no usa decimales
-montoBruto: { type: Number, required: true }  // 25000
-
-// ❌ PROHIBIDO — jamás usar float para dinero
-montoBruto: 25000.50  // NUNCA
-montoBruto: parseFloat(req.body.monto) // NUNCA
-```
-
-- CLP no tiene centavos. Todos los montos son **enteros positivos**.
-- Usar `Math.round()` solo como red de seguridad, nunca como lógica principal.
-- Validar en API route: `if (!Number.isInteger(monto) || monto <= 0) → 400`.
-
-### Principio #2: Ecuación fundamental — siempre debe cuadrar
+## Prompt de contexto (pegar al inicio de sesión nueva de Copilot/Claude)
 
 ```
-montoBruto = montoProfesor + feeTallerea
+Trabajo en Tallerea.cl, un MarketSaaS de talleres de arte en Chile.
+Stack: Next.js 14 App Router + TypeScript + Mongoose + MongoDB Atlas + NextAuth + MercadoPago + Cloudinary + Resend.
+Deploy en Vercel. Dominio tallerea.cl.
+
+Arquitectura MVP:
+- User con role 'user' | 'admin' + objeto opcional User.taller (estado: pendiente|aprobado|rechazado|suspendido)
+- Alumno nace de transacción (magic link post-pago), no se pre-registra
+- Tallerista se registra con password y pasa por aprobación admin
+- Workshop.ownerId → User directo (Account/AccountMember están deprecados)
+- Dos modelos de acceso: puntual (Enrollment) o recurrente (Subscription + Booking con ciclo mensual)
+- Reembolsos = crédito en User.creditoDisponible (nunca dinero)
+- Reviews por taller, elegibilidad validada en service
+- Comisión SIEMPRE leída desde SiteConfig singleton
+
+Reglas inquebrantables:
+1. Model → Service → Thin API Route → Component
+2. Business logic SOLO en services
+3. Montos CLP enteros, ecuación montoBruto = montoProfesor + feeTallerea
+4. PaymentBreakdown inmutable; correcciones = ajustes append-only
+5. Comisión NUNCA hardcoded (SiteConfigService.getComisionPct())
+6. Soft delete siempre; auth + ownership + role en rutas protegidas
+7. Todo el texto UI en español; code en inglés
+
+Antes de cambios de schema, endpoints nuevos, auth o pagos: PREGUNTAR.
+Antes de operaciones de >150 líneas: AVISAR y dividir en pasos.
+Doc de verdad: Docs/tallerea-proyecto.md + Docs/AUDITORIA_Y_ARQUITECTURA.md.
 ```
-
-- Esta ecuación se verifica en **cada creación** de PaymentBreakdown.
-- Si no cuadra → lanzar error, NO guardar, NO continuar.
-- Implementar como pre-save hook en Mongoose:
-
-```typescript
-PaymentBreakdownSchema.pre('save', function(next) {
-  if (this.montoBruto !== this.montoProfesor + this.feeTallerea) {
-    return next(new Error(
-      `[FINANCE ERROR] Cuadratura fallida: ${this.montoBruto} ≠ ${this.montoProfesor} + ${this.feeTallerea}`
-    ))
-  }
-  next()
-})
-```
-
-### Principio #3: PaymentBreakdown es inmutable
-
-- Una vez creado, un PaymentBreakdown **NUNCA se modifica**.
-- No existe `update` ni `delete` para PaymentBreakdown.
-- Correcciones se hacen creando un nuevo registro con `tipo: 'ajuste'` o `tipo: 'reembolso'`.
-- El Service NO debe exponer métodos `update` ni `delete` para esta entidad.
-
-### Principio #4: Cálculo de comisión centralizado
-
-```typescript
-// src/services/FinanceService.ts — ÚNICA fuente de cálculo
-export function calcularDesglose(montoBruto: number, comisionPct: number): {
-  montoBruto: number
-  feeTallerea: number
-  montoProfesor: number
-} {
-  if (!Number.isInteger(montoBruto) || montoBruto <= 0) {
-    throw new Error('[FINANCE] Monto bruto debe ser entero positivo')
-  }
-  if (comisionPct < 0 || comisionPct > 100) {
-    throw new Error('[FINANCE] Comisión fuera de rango')
-  }
-  const feeTallerea = Math.round(montoBruto * comisionPct / 100)
-  const montoProfesor = montoBruto - feeTallerea
-  return { montoBruto, feeTallerea, montoProfesor }
-}
-```
-
-- **NUNCA** calcular comisiones inline en controllers o componentes.
-- **NUNCA** duplicar esta lógica — siempre importar desde `FinanceService`.
-- Si un desarrollador necesita el desglose, usa `calcularDesglose()`.
-
-### Principio #5: Liquidaciones con doble verificación
-
-Antes de marcar una liquidación como `pagada`:
-
-1. **Recalcular** la suma de todos los PaymentBreakdown del período.
-2. **Comparar** con el total declarado en la liquidación.
-3. Si hay diferencia de **incluso $1** → bloquear y loguear alerta.
-
-```typescript
-// En LiquidationService.markAsPaid()
-const sumReal = breakdowns.reduce((acc, b) => acc + b.montoProfesor, 0)
-if (sumReal !== liquidacion.totalProfesor) {
-  throw new Error(
-    `[FINANCE ALERT] Descuadre en liquidación ${liquidacion._id}: ` +
-    `calculado=${sumReal} vs declarado=${liquidacion.totalProfesor}`
-  )
-}
-```
-
-### Principio #6: Audit trail obligatorio
-
-- Toda operación financiera debe quedar registrada en `FinanceAuditLog`:
-
-```typescript
-{
-  accion: 'pago_recibido' | 'liquidacion_creada' | 'liquidacion_pagada' | 'reembolso' | 'ajuste',
-  entidadTipo: 'PaymentBreakdown' | 'Liquidation',
-  entidadId: ObjectId,
-  montoAnterior: Number,  // 0 para creaciones
-  montoNuevo: Number,
-  userId: ObjectId,        // quién ejecutó la acción
-  metadata: Mixed,         // contexto adicional
-  createdAt: Date
-}
-```
-
-- El audit log es **append-only**. No se modifica ni se borra.
-- Cada Service financiero debe llamar `FinanceAuditService.log()` en cada operación.
-
-### Principio #7: Alertas en código
-
-Usar estos flags en comentarios y respuestas cuando se toque código financiero:
-
-| Flag | Significado |
-|---|---|
-| `[FINANCE RISK]` | Cambio que afecta cálculo de montos o comisiones |
-| `[CUADRATURA]` | Operación que requiere verificación de ecuación fundamental |
-| `[LIQUIDACION]` | Cambio que afecta el flujo de pago a profesores |
-| `[INMUTABLE]` | Intento de modificar registro financiero inmutable |
-
-### Principio #8: Validaciones en capas
-
-```
-API Route → valida tipos (entero, positivo, requerido)
-    ↓
-Service → valida reglas de negocio (comisión en rango, período válido)
-    ↓
-Model (pre-save) → valida cuadratura final (ecuación fundamental)
-```
-
-- Si alguna capa falla → **NO continuar**. Error explícito.
-- **NUNCA** confiar en que "la capa anterior ya validó".
-
-### Principio #9: Tests financieros obligatorios
-
-Para cada función de `FinanceService` y `LiquidationService`:
-
-- Test de cuadratura: `montoBruto === montoProfesor + feeTallerea`
-- Test de borde: comisión 0%, comisión 100%, monto mínimo ($1.000)
-- Test de inmutabilidad: intentar update/delete de PaymentBreakdown → debe fallar
-- Test de liquidación: verificar suma real vs declarada
-- Test de redondeo: verificar que `Math.round` no genera descuadre acumulativo
-
-### Principio #10: MercadoPago — flujo seguro
-
-```
-1. Alumno paga → MercadoPago webhook → validar x-signature
-2. Webhook OK → crear PaymentBreakdown con calcularDesglose()
-3. Verificar cuadratura (pre-save hook)
-4. Actualizar Enrollment.estado = 'pagado'
-5. Log en FinanceAuditLog
-```
-
-- Pasos 2-5 dentro de **Mongoose transaction**. Si cualquier paso falla → rollback completo.
-- El webhook SIEMPRE retorna 200 a MercadoPago (procesar async si es necesario).
-- **NUNCA** crear PaymentBreakdown sin confirmación de pago real de MercadoPago.
-
-### Resumen de prohibiciones financieras
-
-| Prohibición | Razón |
-|---|---|
-| `parseFloat` para montos | CLP son enteros |
-| Calcular comisión inline | Debe usar `calcularDesglose()` |
-| Modificar PaymentBreakdown | Es inmutable |
-| Borrar registros financieros | Solo soft-delete o ajuste |
-| Liquidar sin recalcular | Riesgo de descuadre |
-| Crear PaymentBreakdown sin pago confirmado | Dinero fantasma |
-| Omitir audit log en op. financiera | Pierde trazabilidad |
-| Hardcodear porcentaje de comisión | Debe venir de config de Account |
 
 ---
 
-## Comandos útiles
-
-```bash
-npm run dev               # Dev server
-npm run build             # Build producción
-npx tsx scripts/seed.ts   # Seed data
-npx tsc --noEmit          # Type-check
-```
+*Este archivo debe actualizarse cuando cambien reglas de negocio o arquitectura. En caso de conflicto con código existente, prevalecen estas instrucciones.*
