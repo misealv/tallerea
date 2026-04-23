@@ -2,6 +2,7 @@ import mongoose from 'mongoose'
 import dbConnect from '@/lib/db'
 import Enrollment, { IEnrollment } from '@/models/Enrollment'
 import Workshop from '@/models/Workshop'
+import { CreditService } from '@/services/CreditService'
 import '@/models/User'
 
 interface PaginatedResult<T> {
@@ -46,7 +47,7 @@ export const EnrollmentService = {
     return this.getAll({ workshopId }, page, limit)
   },
 
-  async create(data: { workshopId: string; studentId: string; monto: number; slotIndex?: number | null }): Promise<IEnrollment> {
+  async create(data: { workshopId: string; studentId: string; monto: number; slotIndex?: number | null; usarCredito?: boolean }): Promise<IEnrollment> {
     await dbConnect()
 
     const slotIndex = data.slotIndex ?? null
@@ -75,21 +76,33 @@ export const EnrollmentService = {
     })
     if (existing) throw new Error('Ya estás inscrito en este horario')
 
-    // Transacción: crear enrollment + decrementar cupo
+    // Transacción: crear enrollment + decrementar cupo + opcionalmente usar crédito
     const session = await mongoose.startSession()
     session.startTransaction()
     try {
+      // [FINANCE RISK] Usar crédito si el alumno lo solicitó
+      let creditoAplicado = 0
+      if (data.usarCredito && data.monto > 0) {
+        const resultado = await CreditService.usar({
+          userId:    data.studentId,
+          monto:     data.monto,
+          motivo:    `Checkout taller ${data.workshopId}`,
+          session,
+        })
+        creditoAplicado = resultado.montoUsado
+      }
+
       const [enrollment] = await Enrollment.create([{
-        workshopId: data.workshopId,
-        studentId: data.studentId,
+        workshopId:      data.workshopId,
+        studentId:       data.studentId,
         slotIndex,
-        monto: data.monto,
-        estado: 'pendiente',
-        activo: true,
+        monto:           data.monto,
+        creditoAplicado,
+        estado:          'pendiente',
+        activo:          true,
       }], { session })
 
       if (workshop.slots && workshop.slots.length > 0 && slotIndex !== null) {
-        // Decrementar cupo del slot específico
         await Workshop.findByIdAndUpdate(
           data.workshopId,
           { $inc: { [`slots.${slotIndex}.cupoDisponible`]: -1 } },
@@ -102,6 +115,10 @@ export const EnrollmentService = {
           { session }
         )
       }
+
+      // Al cancelar un enrollment con crédito aplicado, devolvemos el crédito al alumno
+      // (manejado en EnrollmentService.cancel)
+      enrollment.set('creditoAplicado', creditoAplicado)
 
       await session.commitTransaction()
       return enrollment
@@ -148,6 +165,19 @@ export const EnrollmentService = {
           { $inc: { cupoDisponible: 1 } },
           { session }
         )
+      }
+
+      // [FINANCE RISK] Devolver crédito si se había aplicado en el checkout
+      // Pasamos la session del cancel a otorgar para mantener atomicidad.
+      if (enrollment.creditoAplicado > 0) {
+        await CreditService.otorgar({
+          userId:       String(enrollment.studentId),
+          monto:        enrollment.creditoAplicado,
+          origenTipo:   'reembolso',
+          enrollmentId: String(enrollment._id),
+          motivo:       `Devolución de crédito por cancelación de inscripción`,
+          session,
+        })
       }
 
       await session.commitTransaction()

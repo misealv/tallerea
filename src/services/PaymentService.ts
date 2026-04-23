@@ -21,30 +21,42 @@ interface CreatePaymentResult {
 
 export const PaymentService = {
 
-  // Crea inscripción + preferencia de pago (o marca pagado si es gratis)
+  // Crea inscripción + preferencia de pago (o marca pagado si es gratis / cubierto 100% por crédito)
   async createEnrollmentWithPayment(
     workshopId: string,
     studentId: string,
     studentName: string,
     studentEmail: string,
-    slotIndex?: number | null
+    slotIndex?: number | null,
+    usarCredito = false,
   ): Promise<CreatePaymentResult> {
     const workshop = await WorkshopService.getById(workshopId)
     if (!workshop) throw new Error('Taller no encontrado')
 
-    // Crear enrollment pendiente con slotIndex
+    // Crear enrollment pendiente. Si usarCredito=true, EnrollmentService.create descuenta crédito
+    // dentro de su transacción y persiste el monto aplicado en enrollment.creditoAplicado.
     const enrollment = await EnrollmentService.create({
       workshopId,
       studentId,
       monto: workshop.precio,
       slotIndex: slotIndex ?? null,
+      usarCredito,
     })
 
     const enrollmentId = String(enrollment._id)
+    const creditoAplicado = enrollment.creditoAplicado ?? 0
+    // [FINANCE RISK] montoACobrar es lo que MP debe cobrar; el profesor cobra siempre el bruto completo
+    const montoACobrar = Math.max(0, workshop.precio - creditoAplicado)
 
-    // Taller gratuito: marcar pagado directamente
-    if (workshop.precio === 0) {
+    // Taller gratuito o crédito cubre 100%: marcar pagado directamente, sin preference MP
+    if (workshop.precio === 0 || montoACobrar === 0) {
       await EnrollmentService.update(enrollmentId, { estado: 'pagado' })
+
+      // [CUADRATURA] Si el taller no es gratuito (había precio pero crédito lo cubrió),
+      // crear PaymentBreakdown para que el profesor cobre su parte en la liquidación
+      if (workshop.precio > 0) {
+        await this._createBreakdownForEnrollment(enrollmentId, null)
+      }
 
       try {
         await sendEnrollmentConfirmation({
@@ -52,7 +64,7 @@ export const PaymentService = {
           studentEmail,
           workshopTitle: workshop.titulo,
           workshopSlug: workshop.slug,
-          monto: 0,
+          monto: workshop.precio,
         })
       } catch {
         // No bloquear inscripción por fallo de email
@@ -61,11 +73,11 @@ export const PaymentService = {
       return { free: true, enrollmentId }
     }
 
-    // Crear preferencia de pago en MercadoPago — prefijo 'enr:' identifica enrollment
+    // Crear preferencia de pago en MercadoPago por el monto restante tras aplicar crédito
     const preference = await createPaymentPreference({
       externalRef: `enr:${enrollmentId}`,
       workshopTitle: workshop.titulo,
-      amount: workshop.precio,
+      amount: montoACobrar,
       payerEmail: studentEmail,
     })
 
@@ -74,6 +86,49 @@ export const PaymentService = {
       preferenceId: preference.id,
       initPoint: preference.init_point,
     }
+  },
+
+  // [FINANCE RISK][CUADRATURA] Helper privado: crea PaymentBreakdown para un enrollment pagado.
+  // paymentId = null cuando el pago se cubrió 100% con crédito (sin transacción MP).
+  async _createBreakdownForEnrollment(enrollmentId: string, paymentId: string | null): Promise<void> {
+    const enrollment = await EnrollmentService.getById(enrollmentId)
+    if (!enrollment) return
+
+    const workshop = enrollment.workshopId as unknown as {
+      _id: string; titulo: string; slug: string; accountId: string; precio: number
+    }
+
+    const account = await Account.findById(workshop.accountId)
+    const feePct = await SiteConfigService.getComisionPct()
+    // montoBruto = precio completo (lo que debe cobrar el profesor).
+    // El crédito aplicado sale del margen de Tallerea, no descuenta al profesor.
+    const desglose = FinanceService.calcularDesglose(enrollment.monto, feePct)
+
+    const breakdown = await new PaymentBreakdown({
+      enrollmentId,
+      workshopId:      workshop._id,
+      accountId:       workshop.accountId,
+      studentId:       enrollment.studentId,
+      montoBruto:      desglose.montoBruto,
+      comisionMP:      0,
+      feeTallerea:     desglose.feeTallerea,
+      montoProfesor:   desglose.montoProfesor,
+      creditoAplicado: enrollment.creditoAplicado ?? 0,
+      porcentajeFee:   feePct,
+      precioModalidad: account?.precioModalidad ?? 'bruto',
+      tipo:            'pago',
+      estado:          'cobrado',
+      mercadoPagoId:   paymentId ?? undefined,
+      fechaCobro:      new Date(),
+    }).save()
+
+    await FinanceService.log(
+      'pago_recibido',
+      'PaymentBreakdown',
+      String(breakdown._id),
+      enrollment.monto,
+      String(enrollment.studentId)
+    )
   },
 
   // [FINANCE RISK] Procesa pago aprobado: crea PaymentBreakdown + actualiza enrollment + email
@@ -85,43 +140,15 @@ export const PaymentService = {
       pagoRef: String(paymentId),
     })
 
+    // Crear PaymentBreakdown (reutiliza helper)
+    await this._createBreakdownForEnrollment(enrollmentId, String(paymentId))
+
     const enrollment = await EnrollmentService.getById(enrollmentId)
     if (!enrollment) return
 
     const workshop = enrollment.workshopId as unknown as {
       _id: string; titulo: string; slug: string; accountId: string; precio: number
     }
-
-    // [CUADRATURA] Crear PaymentBreakdown con desglose
-    const account = await Account.findById(workshop.accountId)
-    const feePct = await SiteConfigService.getComisionPct()
-    const desglose = FinanceService.calcularDesglose(enrollment.monto, feePct)
-
-    const breakdown = await new PaymentBreakdown({
-      enrollmentId,
-      workshopId: workshop._id,
-      accountId: workshop.accountId,
-      studentId: enrollment.studentId,
-      montoBruto: desglose.montoBruto,
-      comisionMP: 0,
-      feeTallerea: desglose.feeTallerea,
-      montoProfesor: desglose.montoProfesor,
-      porcentajeFee: feePct,
-      precioModalidad: account?.precioModalidad ?? 'bruto',
-      tipo: 'pago',
-      estado: 'cobrado',
-      mercadoPagoId: String(paymentId),
-      fechaCobro: new Date(),
-    }).save()
-
-    // Audit log
-    await FinanceService.log(
-      'pago_recibido',
-      'PaymentBreakdown',
-      String(breakdown._id),
-      enrollment.monto,
-      String(enrollment.studentId)
-    )
 
     // Enviar email de confirmación
     try {

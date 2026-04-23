@@ -25,6 +25,9 @@ export default async function AlumnoLayout({ children }: { children: React.React
             <Link href="/alumno/credito" className="text-gray-600 hover:text-purple-700">
               Crédito
             </Link>
+            <Link href="/alumno/reviews" className="text-gray-600 hover:text-purple-700">
+              Reseñas
+            </Link>
             <Link href="/talleres" className="text-gray-600 hover:text-purple-700">
               Explorar
             </Link>

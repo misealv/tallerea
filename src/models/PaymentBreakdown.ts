@@ -12,6 +12,7 @@ export interface IPaymentBreakdown extends Document {
   comisionMP: number;
   feeTallerea: number;
   montoProfesor: number;
+  creditoAplicado: number;  // crédito del alumno usado en el checkout (informativo; no entra en la cuadratura)
   // Porcentajes
   porcentajeFee: number;
   precioModalidad: 'neto' | 'bruto';
@@ -37,6 +38,7 @@ const PaymentBreakdownSchema = new Schema<IPaymentBreakdown>({
   comisionMP: { type: Number, required: true, default: 0, min: 0 },
   feeTallerea: { type: Number, required: true, min: 0 },
   montoProfesor: { type: Number, required: true, min: 0 },
+  creditoAplicado: { type: Number, required: true, default: 0, min: 0 },
   // Porcentajes
   porcentajeFee: { type: Number, required: true, min: 0, max: 100 },
   precioModalidad: { type: String, enum: ['neto', 'bruto'], required: true },

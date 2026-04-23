@@ -93,6 +93,9 @@ export interface IWorkshop extends Document {
   imagenes: string[];
   activo: boolean;
   deletedAt: Date | null;
+  // Métricas denormalizadas de reviews
+  reviewsCount: number;
+  reviewsAvg: number;
   createdAt: Date;
 }
 
@@ -183,6 +186,8 @@ const WorkshopSchema = new Schema<IWorkshop>({
   imagenes: [{ type: String }],
   activo: { type: Boolean, default: true },
   deletedAt: { type: Date, default: null },
+  reviewsCount: { type: Number, default: 0 },
+  reviewsAvg:   { type: Number, default: 0 },
 }, { timestamps: true });
 
 WorkshopSchema.pre('save', function(next) {

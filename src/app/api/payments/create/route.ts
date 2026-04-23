@@ -31,6 +31,9 @@ export async function POST(req: NextRequest) {
     const { workshopId, slotIndex } = body
     if (!workshopId) return NextResponse.json({ error: 'workshopId es requerido' }, { status: 400 })
 
+    // usarCredito: solo permitido para usuarios autenticados (guests no tienen saldo)
+    const usarCredito = Boolean(body.usarCredito) && !!session?.user?.id
+
     let studentId: string
     let studentName: string
     let studentEmail: string
@@ -63,6 +66,7 @@ export async function POST(req: NextRequest) {
       studentName,
       studentEmail,
       slotIndex ?? null,
+      usarCredito,
     )
 
     return NextResponse.json(result)

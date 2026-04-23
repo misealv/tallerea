@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { AccountService } from '@/services/AccountService'
 import { WorkshopService } from '@/services/WorkshopService'
 import { LocationService } from '@/services/LocationService'
+import { ReviewService } from '@/services/ReviewService'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import WorkshopCard from '@/components/WorkshopCard'
@@ -43,6 +44,9 @@ export default async function EspacioPage({ params }: PageProps) {
     LocationService.getByAccountId(String(account._id)),
   ])
   const locations = locationsResult.data
+  const reviews = await ReviewService.getByAccount(
+    workshops.data.map(w => String(w._id))
+  )
 
   return (
     <>
@@ -147,6 +151,43 @@ export default async function EspacioPage({ params }: PageProps) {
             ← Volver a la búsqueda
           </Link>
         </div>
+
+        {/* Reseñas */}
+        {reviews.length > 0 && (
+          <div className="mt-10">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Reseñas ({reviews.length})
+            </h2>
+            <ul className="space-y-4">
+              {reviews.map(r => {
+                const author   = r.studentId  as unknown as { name?: string } | null
+                const workshop = r.workshopId as unknown as { titulo?: string; slug?: string } | null
+                return (
+                  <li key={String(r._id)} className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-gray-800 text-sm">{author?.name ?? 'Alumno'}</span>
+                      <span className="text-yellow-400 text-sm">
+                        {'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}
+                      </span>
+                    </div>
+                    {workshop?.titulo && (
+                      <p className="text-xs text-gray-400">
+                        Taller:{' '}
+                        <a href={`/talleres/${workshop.slug}`} className="hover:underline text-indigo-500">
+                          {workshop.titulo}
+                        </a>
+                      </p>
+                    )}
+                    <p className="text-sm text-gray-700">{r.comentario}</p>
+                    <p className="text-xs text-gray-400">
+                      {new Date(r.createdAt).toLocaleDateString('es-CL')}
+                    </p>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
       </main>
       <Footer />
     </>
