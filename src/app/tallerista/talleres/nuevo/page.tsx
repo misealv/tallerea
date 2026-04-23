@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 // ── Tipos locales ────────────────────────────────────────────────────────────
 
@@ -24,9 +25,17 @@ interface Paso2Data {
   duracionSesion: string
   cupoPorSesion: string
   fechaInicio: string
+  locationId: string
   // Plan (solo recurrente)
   sesionesIncluidas: string
   vigencia: 'mensual' | 'por_ciclo' | 'sin_vencimiento'
+}
+
+interface LocationOption {
+  _id: string
+  nombre: string
+  direccion: string
+  comuna: string
 }
 
 // ── Constantes ───────────────────────────────────────────────────────────────
@@ -74,9 +83,20 @@ export default function NuevoTallerPage() {
     duracionSesion:   '90',
     cupoPorSesion:    '10',
     fechaInicio:      '',
+    locationId:       '',
     sesionesIncluidas:'8',
     vigencia:         'mensual',
   })
+
+  const [locations, setLocations] = useState<LocationOption[]>([])
+  useEffect(() => {
+    if (session?.user?.id) {
+      fetch(`/api/locations?ownerId=${session.user.id}`)
+        .then(r => r.json())
+        .then(d => setLocations(d.data ?? []))
+        .catch(() => {})
+    }
+  }, [session?.user?.id])
 
   function up1<K extends keyof Paso1Data>(k: K, v: Paso1Data[K]) {
     setP1(prev => ({ ...prev, [k]: v }))
@@ -140,6 +160,11 @@ export default function NuevoTallerPage() {
         politicaNoShow: 'pierde',
         precioSesionSuelta: null,
       }
+    }
+
+    // Incluir locationId solo para presencial/hibrido
+    if (p2.locationId && (p1.modalidad === 'presencial' || p1.modalidad === 'hibrido')) {
+      body.locationId = p2.locationId
     }
 
     // Incluir ownerId desde sesión
@@ -284,6 +309,27 @@ export default function NuevoTallerPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               placeholder="¿De qué trata el taller? ¿Qué aprenderán los alumnos?" />
           </div>
+
+          {/* Espacio / ubicación — solo presencial o híbrido */}
+          {(p1.modalidad === 'presencial' || p1.modalidad === 'hibrido') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Espacio / ubicación</label>
+              {locations.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No tienes espacios registrados.{' '}
+                  <Link href="/tallerista/espacios" className="text-purple-600 hover:underline">Crear espacio</Link>
+                </p>
+              ) : (
+                <select value={p2.locationId} onChange={e => up2('locationId', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500">
+                  <option value="">Sin espacio asignado</option>
+                  {locations.map(l => (
+                    <option key={l._id} value={l._id}>{l.nombre} — {l.comuna}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
