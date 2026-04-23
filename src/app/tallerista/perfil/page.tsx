@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import Image from 'next/image'
+import { useSession } from 'next-auth/react'
 
 const ESPECIALIDADES = [
   { value: 'visual', label: 'Artes visuales' },
@@ -17,21 +19,26 @@ const ESPECIALIDADES = [
 ]
 
 interface PerfilForm {
+  name: string
   bio: string
   credenciales: string
   especialidades: string[]
   entregaMateriales: string
+  logo: string
   instagram: string
   web: string
   facebook: string
 }
 
 export default function TalleristaPerfilPage() {
+  const { data: session } = useSession()
   const [form, setForm] = useState<PerfilForm>({
+    name: '',
     bio: '',
     credenciales: '',
     especialidades: [],
     entregaMateriales: '',
+    logo: '',
     instagram: '',
     web: '',
     facebook: '',
@@ -40,6 +47,8 @@ export default function TalleristaPerfilPage() {
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch('/api/taller/perfil')
@@ -48,10 +57,12 @@ export default function TalleristaPerfilPage() {
         if (data.taller) {
           const t = data.taller
           setForm({
+            name: data.name ?? '',
             bio: t.bio ?? '',
             credenciales: t.credenciales ?? '',
             especialidades: t.especialidades ?? [],
             entregaMateriales: t.entregaMateriales ?? '',
+            logo: t.logo ?? '',
             instagram: t.redesSociales?.instagram ?? '',
             web: t.redesSociales?.web ?? '',
             facebook: t.redesSociales?.facebook ?? '',
@@ -75,6 +86,40 @@ export default function TalleristaPerfilPage() {
     }))
   }
 
+  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) { setError('La imagen no puede superar 5 MB'); return }
+
+    setUploading(true)
+    setError('')
+    try {
+      // Obtener firma del servidor
+      const signRes = await fetch('/api/upload/sign?folder=tallerea/logos')
+      const { signature, timestamp, folder, cloudName, apiKey } = await signRes.json()
+
+      // Subir directamente a Cloudinary
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('signature', signature)
+      formData.append('timestamp', String(timestamp))
+      formData.append('folder', folder)
+      formData.append('api_key', apiKey)
+
+      const uploadRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        { method: 'POST', body: formData }
+      )
+      const uploadData = await uploadRes.json()
+      if (!uploadRes.ok) throw new Error(uploadData.error?.message ?? 'Error al subir imagen')
+      update('logo', uploadData.secure_url)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al subir imagen')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
@@ -85,10 +130,12 @@ export default function TalleristaPerfilPage() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        name: form.name,
         bio: form.bio,
         credenciales: form.credenciales,
         especialidades: form.especialidades,
         entregaMateriales: form.entregaMateriales,
+        logo: form.logo,
         redesSociales: {
           instagram: form.instagram,
           web: form.web,
@@ -122,6 +169,61 @@ export default function TalleristaPerfilPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Foto de perfil + Nombre */}
+        <div className="flex items-center gap-5 p-4 bg-gray-50 rounded-xl border border-gray-200">
+          {/* Avatar */}
+          <div className="relative flex-shrink-0">
+            {form.logo ? (
+              <Image
+                src={form.logo}
+                alt="Foto de perfil"
+                width={80}
+                height={80}
+                className="w-20 h-20 rounded-full object-cover border-2 border-purple-200"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-purple-100 flex items-center justify-center text-purple-500 text-2xl font-bold border-2 border-purple-200">
+                {form.name ? form.name.charAt(0).toUpperCase() : '?'}
+              </div>
+            )}
+            {/* Botón cambiar foto */}
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="absolute -bottom-1 -right-1 w-7 h-7 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-full flex items-center justify-center text-xs shadow transition-colors"
+              title="Cambiar foto"
+            >
+              {uploading ? '…' : '✎'}
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handlePhotoChange}
+            />
+          </div>
+
+          {/* Nombre */}
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre público</label>
+            <input
+              type="text"
+              required
+              minLength={2}
+              maxLength={100}
+              value={form.name}
+              onChange={e => update('name', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="Tu nombre o nombre artístico"
+            />
+            {uploading && (
+              <p className="text-xs text-purple-500 mt-1">Subiendo imagen...</p>
+            )}
+          </div>
+        </div>
+
         {/* Biografía */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">

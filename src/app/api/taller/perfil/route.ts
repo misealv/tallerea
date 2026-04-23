@@ -5,6 +5,7 @@ import { TallerService } from '@/services/TallerService'
 import { z } from 'zod'
 
 const PerfilUpdateSchema = z.object({
+  name: z.string().min(2, 'Mínimo 2 caracteres').max(100),
   bio: z.string().min(20, 'Mínimo 20 caracteres').max(2000),
   credenciales: z.string().min(10, 'Mínimo 10 caracteres').max(2000),
   especialidades: z.array(z.string()).min(1, 'Selecciona al menos una').max(5),

@@ -288,7 +288,7 @@ export const TallerService = {
    */
   async actualizarPerfil(
     userId: string,
-    data: Pick<SolicitudTallerData, 'bio' | 'credenciales' | 'especialidades' | 'entregaMateriales' | 'logo' | 'redesSociales'>
+    data: Pick<SolicitudTallerData, 'bio' | 'credenciales' | 'especialidades' | 'entregaMateriales' | 'logo' | 'redesSociales'> & { name?: string }
   ): Promise<IUser> {
     await connectDB()
 
@@ -301,6 +301,7 @@ export const TallerService = {
       'taller.especialidades': data.especialidades,
       'taller.entregaMateriales': data.entregaMateriales,
     }
+    if (data.name) $set['name'] = data.name
     if (data.logo !== undefined) $set['taller.logo'] = data.logo
     if (data.redesSociales !== undefined) $set['taller.redesSociales'] = data.redesSociales
 
