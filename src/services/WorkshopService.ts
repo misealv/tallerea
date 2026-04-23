@@ -1,6 +1,7 @@
 import dbConnect from '@/lib/db'
 import Workshop, { IWorkshop } from '@/models/Workshop'
 import Location from '@/models/Location'
+import '@/models/User' // Registrar modelo para populate de ownerId
 
 interface PaginatedResult<T> {
   data: T[]
