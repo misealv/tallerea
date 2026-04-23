@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
-import { useSession } from 'next-auth/react'
 
 const ESPECIALIDADES = [
   { value: 'visual', label: 'Artes visuales' },
@@ -31,7 +30,6 @@ interface PerfilForm {
 }
 
 export default function TalleristaPerfilPage() {
-  const { data: session } = useSession()
   const [form, setForm] = useState<PerfilForm>({
     name: '',
     bio: '',
