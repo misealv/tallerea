@@ -25,7 +25,11 @@ const EnrollmentSchema = new Schema<IEnrollment>({
 
 EnrollmentSchema.index({ workshopId: 1 });
 EnrollmentSchema.index({ studentId: 1 });
-// Unique por workshop + student + slotIndex (permite múltiples slots del mismo taller)
-EnrollmentSchema.index({ workshopId: 1, studentId: 1, slotIndex: 1 }, { unique: true });
+// Índice parcial: bloquea duplicados solo para enrollments activos (pendiente/pagado)
+// Las canceladas no entran → permite re-inscribirse tras cancelar
+EnrollmentSchema.index(
+  { workshopId: 1, studentId: 1, slotIndex: 1 },
+  { unique: true, partialFilterExpression: { estado: { $in: ['pendiente', 'pagado'] } } }
+);
 
 export default mongoose.models.Enrollment || mongoose.model<IEnrollment>('Enrollment', EnrollmentSchema);
