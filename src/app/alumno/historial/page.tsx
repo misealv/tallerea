@@ -15,7 +15,7 @@ interface EnrollmentLean {
   _id: Types.ObjectId
   workshopId: WorkshopRef
   estado: string
-  montoPagado: number
+  monto: number
   createdAt: Date
 }
 
@@ -26,7 +26,7 @@ interface SubscriptionLean {
   sesionesUsadas: number
   sesionesTotales: number
   fechaVencimiento: Date
-  montoMensual: number
+  monto: number
   createdAt: Date
 }
 
@@ -90,7 +90,7 @@ export default async function HistorialPage() {
                       )}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      ${s.montoMensual.toLocaleString('es-CL')} / mes · Desde {new Date(s.createdAt).toLocaleDateString('es-CL')}
+                      ${s.monto.toLocaleString('es-CL')} / mes · Desde {new Date(s.createdAt).toLocaleDateString('es-CL')}
                     </p>
                   </div>
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${ESTADO_COLOR[s.estado] ?? 'bg-gray-100 text-gray-500'}`}>
@@ -118,7 +118,7 @@ export default async function HistorialPage() {
                       {(e.workshopId as WorkshopRef).titulo}
                     </Link>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      ${e.montoPagado.toLocaleString('es-CL')} · {new Date(e.createdAt).toLocaleDateString('es-CL')}
+                      ${e.monto.toLocaleString('es-CL')} · {new Date(e.createdAt).toLocaleDateString('es-CL')}
                     </p>
                   </div>
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${ESTADO_COLOR[e.estado] ?? 'bg-gray-100 text-gray-500'}`}>

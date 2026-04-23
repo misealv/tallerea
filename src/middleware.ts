@@ -31,5 +31,6 @@ export default withAuth(
 )
 
 export const config = {
-  matcher: ['/admin/:path*', '/tallerista/:path*', '/alumno/:path*'],
+  // /alumno/acceso queda público para permitir solicitar magic link sin sesión
+  matcher: ['/admin/:path*', '/tallerista/:path*', '/alumno/((?!acceso).*)'],
 }
