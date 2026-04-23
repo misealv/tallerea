@@ -1,6 +1,6 @@
 import dbConnect from '@/lib/db'
 import Account, { IAccount } from '@/models/Account'
-import AccountMember from '@/models/AccountMember'
+// AccountMember diferido post-MVP (Fase 11)
 
 interface PaginatedResult<T> {
   data: T[]
@@ -40,15 +40,21 @@ export const AccountService = {
   // Las escrituras se realizan vía TallerService sobre el modelo User.
   // Estos métodos lanzarán un error hasta que Account sea eliminado en Fase 11.
 
-  async create(_data: Partial<IAccount>, _userId: string): Promise<IAccount> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async create(data: Partial<IAccount>, userId: string): Promise<IAccount> {
+    void data; void userId
     throw new Error('[DEPRECATED] AccountService.create está deshabilitado. Usar TallerService.solicitar.')
   },
 
-  async update(_id: string, _data: Partial<IAccount>): Promise<IAccount | null> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async update(id: string, data: Partial<IAccount>): Promise<IAccount | null> {
+    void id; void data
     throw new Error('[DEPRECATED] AccountService.update está deshabilitado. Usar TallerService para modificar estado.')
   },
 
-  async delete(_id: string): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async delete(id: string): Promise<void> {
+    void id
     throw new Error('[DEPRECATED] AccountService.delete está deshabilitado.')
   },
 }
