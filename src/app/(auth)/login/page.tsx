@@ -36,11 +36,13 @@ export default function LoginPage() {
 
     if (session?.user?.role === 'admin') {
       router.push('/admin')
-    } else if (!tallerEstado || tallerEstado === 'pendiente') {
-      // Tallerista recién registrado o pendiente de aprobación
+    } else if (tallerEstado === 'aprobado') {
+      router.push('/tallerista')
+    } else if (tallerEstado === 'pendiente' || tallerEstado === 'rechazado') {
       router.push('/tallerista/onboarding')
     } else {
-      router.push('/dashboard')
+      // Alumno sin taller
+      router.push('/mis-talleres')
     }
     router.refresh()
   }
