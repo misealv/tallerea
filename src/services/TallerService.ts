@@ -2,6 +2,7 @@ import 'server-only'
 import { Types } from 'mongoose'
 import connectDB from '@/lib/db'
 import User, { IUser, ITaller } from '@/models/User'
+import { sendTallerSolicitudAdmin, sendTallerAprobado, sendTallerRechazado } from '@/lib/resend'
 
 // Payload mínimo para solicitar ser tallerista
 export interface SolicitudTallerData {
@@ -81,6 +82,15 @@ export const TallerService = {
 
     const updated = await User.findById(userId).lean<IUser>()
     if (!updated) throw new Error('Error al recuperar usuario actualizado')
+
+    // Email al admin sobre nueva solicitud
+    await sendTallerSolicitudAdmin({
+      userId,
+      userName: updated.name,
+      userEmail: updated.email,
+      bio: data.bio,
+    }).catch(() => null) // no bloquear si falla el email
+
     return updated
   },
 
@@ -113,6 +123,9 @@ export const TallerService = {
 
     const updated = await User.findById(userId).lean<IUser>()
     if (!updated) throw new Error('Error al recuperar usuario actualizado')
+
+    await sendTallerAprobado({ email: updated.email, name: updated.name }).catch(() => null)
+
     return updated
   },
 
@@ -153,6 +166,9 @@ export const TallerService = {
 
     const updated = await User.findById(userId).lean<IUser>()
     if (!updated) throw new Error('Error al recuperar usuario actualizado')
+
+    await sendTallerRechazado({ email: updated.email, name: updated.name, razon }).catch(() => null)
+
     return updated
   },
 
@@ -220,5 +236,22 @@ export const TallerService = {
     const updated = await User.findById(userId).lean<IUser>()
     if (!updated) throw new Error('Error al recuperar usuario actualizado')
     return updated
+  },
+
+  /** Lista todos los talleristas con estado dado (o todos si no se pasa filtro) */
+  async listar(estado?: ITaller['estado']): Promise<IUser[]> {
+    await connectDB()
+    const filter = estado ? { 'taller.estado': estado } : { 'taller.estado': { $exists: true } }
+    return User.find({ ...filter, activo: true })
+      .select('-password -magicLinkToken -magicLinkExpiresAt')
+      .lean<IUser[]>()
+  },
+
+  /** Devuelve un tallerista por su userId */
+  async getById(userId: string): Promise<IUser | null> {
+    await connectDB()
+    return User.findOne({ _id: userId, 'taller.estado': { $exists: true }, activo: true })
+      .select('-password -magicLinkToken -magicLinkExpiresAt')
+      .lean<IUser>()
   },
 }
