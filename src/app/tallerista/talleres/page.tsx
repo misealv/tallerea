@@ -7,6 +7,7 @@ import Workshop from '@/models/Workshop'
 import Enrollment from '@/models/Enrollment'
 import Subscription from '@/models/Subscription'
 import { Types } from 'mongoose'
+import EliminarTallerBtn from '@/components/EliminarTallerBtn'
 
 export const dynamic = 'force-dynamic'
 
@@ -117,12 +118,19 @@ export default async function MisTalleresPage() {
                       ? `${suscriptores} suscriptor${suscriptores !== 1 ? 'es' : ''} activo${suscriptores !== 1 ? 's' : ''}`
                       : `${inscritos} inscripción${inscritos !== 1 ? 'es' : ''} pagada${inscritos !== 1 ? 's' : ''}`}
                   </p>
-                  <div className="flex gap-2 pt-2 border-t border-gray-100 mt-3">
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100 mt-3">
+                    <Link
+                      href={`/tallerista/talleres/${String(w._id)}/editar`}
+                      className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                    >
+                      Editar
+                    </Link>
+                    <span className="text-gray-300">·</span>
                     <Link
                       href={`/tallerista/talleres/${String(w._id)}/inscritos`}
                       className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
                     >
-                      Ver inscritos
+                      Inscritos
                     </Link>
                     <span className="text-gray-300">·</span>
                     <Link
@@ -130,8 +138,10 @@ export default async function MisTalleresPage() {
                       className="text-xs text-gray-500 hover:text-gray-700"
                       target="_blank"
                     >
-                      Ver página pública ↗
+                      Ver ↗
                     </Link>
+                    <span className="text-gray-300">·</span>
+                    <EliminarTallerBtn id={String(w._id)} titulo={w.titulo} />
                   </div>
                 </div>
               </div>
