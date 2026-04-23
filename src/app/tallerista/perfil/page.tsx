@@ -20,7 +20,9 @@ const ESPECIALIDADES = [
 interface PerfilForm {
   name: string
   bio: string
+  formacion: string
   credenciales: string
+  documentosCredenciales: string[]
   especialidades: string[]
   entregaMateriales: string
   logo: string
@@ -29,11 +31,82 @@ interface PerfilForm {
   facebook: string
 }
 
+// Botón IA reutilizable para completar texto con IA
+function AiButton({
+  campo,
+  valorActual,
+  especialidades,
+  onResult,
+}: {
+  campo: 'bio' | 'formacion' | 'credenciales'
+  valorActual: string
+  especialidades: string[]
+  onResult: (texto: string) => void
+}) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function completar() {
+    if (valorActual.trim().length < 10) {
+      setError('Escribe al menos 10 caracteres antes de usar la IA')
+      setTimeout(() => setError(''), 3000)
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/taller/ai-perfil', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campo,
+          datos: valorActual,
+          especialidades: especialidades.join(', '),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Error al generar')
+      onResult(data.texto)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al generar')
+      setTimeout(() => setError(''), 4000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={completar}
+        disabled={loading}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 disabled:opacity-50 transition-colors"
+      >
+        {loading ? (
+          <>
+            <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Generando...
+          </>
+        ) : (
+          <>✦ Completar con IA</>
+        )}
+      </button>
+      {error && <span className="text-xs text-red-500">{error}</span>}
+    </div>
+  )
+}
+
 export default function TalleristaPerfilPage() {
   const [form, setForm] = useState<PerfilForm>({
     name: '',
     bio: '',
+    formacion: '',
     credenciales: '',
+    documentosCredenciales: [],
     especialidades: [],
     entregaMateriales: '',
     logo: '',
@@ -46,7 +119,9 @@ export default function TalleristaPerfilPage() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [uploadingDoc, setUploadingDoc] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const docRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch('/api/taller/perfil')
@@ -57,7 +132,9 @@ export default function TalleristaPerfilPage() {
           setForm({
             name: data.name ?? '',
             bio: t.bio ?? '',
+            formacion: t.formacion ?? '',
             credenciales: t.credenciales ?? '',
+            documentosCredenciales: t.documentosCredenciales ?? [],
             especialidades: t.especialidades ?? [],
             entregaMateriales: t.entregaMateriales ?? '',
             logo: t.logo ?? '',
@@ -84,6 +161,13 @@ export default function TalleristaPerfilPage() {
     }))
   }
 
+  function removeDoc(url: string) {
+    setForm(prev => ({
+      ...prev,
+      documentosCredenciales: prev.documentosCredenciales.filter(d => d !== url),
+    }))
+  }
+
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -92,11 +176,9 @@ export default function TalleristaPerfilPage() {
     setUploading(true)
     setError('')
     try {
-      // Obtener firma del servidor
       const signRes = await fetch('/api/upload/sign?folder=tallerea/logos')
       const { signature, timestamp, folder, cloudName, apiKey } = await signRes.json()
 
-      // Subir directamente a Cloudinary
       const formData = new FormData()
       formData.append('file', file)
       formData.append('signature', signature)
@@ -118,6 +200,55 @@ export default function TalleristaPerfilPage() {
     }
   }
 
+  async function handleDocChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (form.documentosCredenciales.length >= 10) {
+      setError('Máximo 10 documentos permitidos')
+      return
+    }
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+    if (!allowedTypes.includes(file.type)) {
+      setError('Solo se permiten PDF, JPG, PNG o WEBP')
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) { setError('El documento no puede superar 10 MB'); return }
+
+    setUploadingDoc(true)
+    setError('')
+    try {
+      // Para PDFs usamos resource_type=raw en Cloudinary
+      const isPdf = file.type === 'application/pdf'
+      const signRes = await fetch(`/api/upload/sign?folder=tallerea/credenciales&resource_type=${isPdf ? 'raw' : 'image'}`)
+      const { signature, timestamp, folder, cloudName, apiKey } = await signRes.json()
+
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('signature', signature)
+      formData.append('timestamp', String(timestamp))
+      formData.append('folder', folder)
+      formData.append('api_key', apiKey)
+
+      const resourceType = isPdf ? 'raw' : 'image'
+      const uploadRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+        { method: 'POST', body: formData }
+      )
+      const uploadData = await uploadRes.json()
+      if (!uploadRes.ok) throw new Error(uploadData.error?.message ?? 'Error al subir documento')
+
+      setForm(prev => ({
+        ...prev,
+        documentosCredenciales: [...prev.documentosCredenciales, uploadData.secure_url],
+      }))
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al subir documento')
+    } finally {
+      setUploadingDoc(false)
+      if (docRef.current) docRef.current.value = ''
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
@@ -130,7 +261,9 @@ export default function TalleristaPerfilPage() {
       body: JSON.stringify({
         name: form.name,
         bio: form.bio,
+        formacion: form.formacion,
         credenciales: form.credenciales,
+        documentosCredenciales: form.documentosCredenciales,
         especialidades: form.especialidades,
         entregaMateriales: form.entregaMateriales,
         logo: form.logo,
@@ -153,6 +286,19 @@ export default function TalleristaPerfilPage() {
     }
   }
 
+  function getDocName(url: string) {
+    try {
+      const parts = new URL(url).pathname.split('/')
+      return decodeURIComponent(parts[parts.length - 1])
+    } catch {
+      return 'Documento'
+    }
+  }
+
+  function isImage(url: string) {
+    return /\.(jpg|jpeg|png|webp)$/i.test(url)
+  }
+
   if (loading) {
     return <div className="text-gray-500 text-sm">Cargando...</div>
   }
@@ -169,7 +315,6 @@ export default function TalleristaPerfilPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Foto de perfil + Nombre */}
         <div className="flex items-center gap-5 p-4 bg-gray-50 rounded-xl border border-gray-200">
-          {/* Avatar */}
           <div className="relative flex-shrink-0">
             {form.logo ? (
               <Image
@@ -184,7 +329,6 @@ export default function TalleristaPerfilPage() {
                 {form.name ? form.name.charAt(0).toUpperCase() : '?'}
               </div>
             )}
-            {/* Botón cambiar foto */}
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
@@ -203,7 +347,6 @@ export default function TalleristaPerfilPage() {
             />
           </div>
 
-          {/* Nombre */}
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">Nombre público</label>
             <input
@@ -216,45 +359,8 @@ export default function TalleristaPerfilPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
               placeholder="Tu nombre o nombre artístico"
             />
-            {uploading && (
-              <p className="text-xs text-purple-500 mt-1">Subiendo imagen...</p>
-            )}
+            {uploading && <p className="text-xs text-purple-500 mt-1">Subiendo imagen...</p>}
           </div>
-        </div>
-
-        {/* Biografía */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Biografía <span className="text-gray-400 font-normal">(mín. 20 caracteres)</span>
-          </label>
-          <textarea
-            rows={5}
-            required
-            minLength={20}
-            maxLength={2000}
-            value={form.bio}
-            onChange={e => update('bio', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-vertical"
-            placeholder="Cuéntanos sobre ti, tu experiencia artística y tu metodología de enseñanza..."
-          />
-          <p className="text-xs text-gray-400 mt-1 text-right">{form.bio.length}/2000</p>
-        </div>
-
-        {/* Credenciales */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Formación y credenciales <span className="text-gray-400 font-normal">(mín. 10 caracteres)</span>
-          </label>
-          <textarea
-            rows={4}
-            required
-            minLength={10}
-            maxLength={2000}
-            value={form.credenciales}
-            onChange={e => update('credenciales', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-vertical"
-            placeholder="Estudios, certificaciones, años de experiencia..."
-          />
         </div>
 
         {/* Especialidades */}
@@ -283,6 +389,164 @@ export default function TalleristaPerfilPage() {
           )}
         </div>
 
+        {/* Biografía */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-sm font-medium text-gray-700">
+              Biografía <span className="text-gray-400 font-normal">(mín. 20 caracteres)</span>
+            </label>
+            <AiButton
+              campo="bio"
+              valorActual={form.bio}
+              especialidades={form.especialidades}
+              onResult={texto => update('bio', texto)}
+            />
+          </div>
+          <p className="text-xs text-gray-400 mb-1.5">
+            Escribe algunos datos sobre ti y pulsa <strong>Completar con IA</strong> para obtener una biografía profesional.
+          </p>
+          <textarea
+            rows={5}
+            required
+            minLength={20}
+            maxLength={2000}
+            value={form.bio}
+            onChange={e => update('bio', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-vertical"
+            placeholder="Ej: Soy pintora con 10 años de experiencia, especializada en acuarela. Estudié en la Universidad de Chile y he expuesto en galerías de Santiago y Valparaíso..."
+          />
+          <p className="text-xs text-gray-400 mt-1 text-right">{form.bio.length}/2000</p>
+        </div>
+
+        {/* Formación */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-sm font-medium text-gray-700">
+              Formación <span className="text-gray-400 font-normal">(opcional)</span>
+            </label>
+            <AiButton
+              campo="formacion"
+              valorActual={form.formacion}
+              especialidades={form.especialidades}
+              onResult={texto => update('formacion', texto)}
+            />
+          </div>
+          <p className="text-xs text-gray-400 mb-1.5">
+            Describe tu formación académica o autodidacta y la IA la redactará de forma profesional.
+          </p>
+          <textarea
+            rows={3}
+            maxLength={2000}
+            value={form.formacion}
+            onChange={e => update('formacion', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-vertical"
+            placeholder="Ej: Licenciada en Artes USACH, talleres de cerámica en Italia, 15 años enseñando en espacios comunitarios..."
+          />
+          <p className="text-xs text-gray-400 mt-1 text-right">{form.formacion.length}/2000</p>
+        </div>
+
+        {/* Credenciales + Documentos */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-sm font-medium text-gray-700">
+              Credenciales <span className="text-gray-400 font-normal">(mín. 10 caracteres)</span>
+            </label>
+            <AiButton
+              campo="credenciales"
+              valorActual={form.credenciales}
+              especialidades={form.especialidades}
+              onResult={texto => update('credenciales', texto)}
+            />
+          </div>
+          <p className="text-xs text-gray-400 mb-1.5">
+            Enumera tus certificaciones, premios y experiencia docente; la IA los redactará de forma clara.
+          </p>
+          <textarea
+            rows={3}
+            required
+            minLength={10}
+            maxLength={2000}
+            value={form.credenciales}
+            onChange={e => update('credenciales', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-vertical"
+            placeholder="Ej: Título Licenciada en Artes, certificado de técnica Shibori, 5 años docente en Fundación Artística..."
+          />
+          <p className="text-xs text-gray-400 text-right">{form.credenciales.length}/2000</p>
+
+          {/* Documentos acreditadores */}
+          <div className="mt-3 p-4 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-sm font-medium text-gray-700">Documentos acreditadores</p>
+                <p className="text-xs text-gray-400">Diplomas, títulos, certificados (PDF, JPG, PNG · máx. 10 MB por archivo)</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => docRef.current?.click()}
+                disabled={uploadingDoc || form.documentosCredenciales.length >= 10}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white text-gray-700 border border-gray-300 hover:border-purple-400 disabled:opacity-50 transition-colors"
+              >
+                {uploadingDoc ? (
+                  <>
+                    <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Subiendo...
+                  </>
+                ) : (
+                  <>↑ Subir documento</>
+                )}
+              </button>
+              <input
+                ref={docRef}
+                type="file"
+                accept=".pdf,image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleDocChange}
+              />
+            </div>
+
+            {form.documentosCredenciales.length > 0 ? (
+              <ul className="space-y-2 mt-3">
+                {form.documentosCredenciales.map((url, i) => (
+                  <li key={i} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-gray-200">
+                    {isImage(url) ? (
+                      <Image src={url} alt="doc" width={32} height={32} className="w-8 h-8 object-cover rounded" />
+                    ) : (
+                      <span className="text-red-500 text-lg">📄</span>
+                    )}
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 text-xs text-blue-600 hover:underline truncate"
+                    >
+                      {getDocName(url)}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => removeDoc(url)}
+                      className="text-gray-400 hover:text-red-500 transition-colors text-sm"
+                      title="Eliminar"
+                    >
+                      ✕
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-gray-400 text-center py-2">
+                No hay documentos adjuntos aún
+              </p>
+            )}
+
+            <p className="text-xs text-gray-400 mt-2">
+              {form.documentosCredenciales.length}/10 documentos
+            </p>
+          </div>
+        </div>
+
         {/* Entrega de materiales */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -303,42 +567,27 @@ export default function TalleristaPerfilPage() {
           <label className="block text-sm font-medium text-gray-700">
             Redes sociales <span className="text-gray-400 font-normal">(opcionales)</span>
           </label>
-          <div className="flex items-center gap-3">
-            <span className="text-gray-400 text-sm w-24">Instagram</span>
-            <input
-              type="url"
-              value={form.instagram}
-              onChange={e => update('instagram', e.target.value)}
-              placeholder="https://instagram.com/..."
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-gray-400 text-sm w-24">Sitio web</span>
-            <input
-              type="url"
-              value={form.web}
-              onChange={e => update('web', e.target.value)}
-              placeholder="https://..."
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-gray-400 text-sm w-24">Facebook</span>
-            <input
-              type="url"
-              value={form.facebook}
-              onChange={e => update('facebook', e.target.value)}
-              placeholder="https://facebook.com/..."
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-            />
-          </div>
+          {[
+            { field: 'instagram' as const, label: 'Instagram', placeholder: 'https://instagram.com/...' },
+            { field: 'web' as const, label: 'Sitio web', placeholder: 'https://...' },
+            { field: 'facebook' as const, label: 'Facebook', placeholder: 'https://facebook.com/...' },
+          ].map(({ field, label, placeholder }) => (
+            <div key={field} className="flex items-center gap-3">
+              <span className="text-gray-400 text-sm w-24">{label}</span>
+              <input
+                type="url"
+                value={form[field]}
+                onChange={e => update(field, e.target.value)}
+                placeholder={placeholder}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+          ))}
         </div>
 
         {error && (
           <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded">{error}</p>
         )}
-
         {success && (
           <p className="text-sm text-green-700 bg-green-50 px-3 py-2 rounded">
             ✓ Perfil actualizado correctamente

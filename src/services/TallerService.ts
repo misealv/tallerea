@@ -288,7 +288,7 @@ export const TallerService = {
    */
   async actualizarPerfil(
     userId: string,
-    data: Pick<SolicitudTallerData, 'bio' | 'credenciales' | 'especialidades' | 'entregaMateriales' | 'logo' | 'redesSociales'> & { name?: string }
+    data: Pick<SolicitudTallerData, 'bio' | 'credenciales' | 'especialidades' | 'entregaMateriales' | 'logo' | 'redesSociales'> & { name?: string; formacion?: string; documentosCredenciales?: string[] }
   ): Promise<IUser> {
     await connectDB()
 
@@ -297,9 +297,11 @@ export const TallerService = {
 
     const $set: Record<string, unknown> = {
       'taller.bio': data.bio,
+      'taller.formacion': data.formacion ?? '',
       'taller.credenciales': data.credenciales,
       'taller.especialidades': data.especialidades,
       'taller.entregaMateriales': data.entregaMateriales,
+      'taller.documentosCredenciales': data.documentosCredenciales ?? [],
     }
     if (data.name) $set['name'] = data.name
     if (data.logo !== undefined) $set['taller.logo'] = data.logo

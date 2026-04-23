@@ -21,7 +21,9 @@ export interface ITaller {
   estado: 'pendiente' | 'aprobado' | 'rechazado' | 'suspendido'
   slug: string
   bio: string
+  formacion: string
   credenciales: string
+  documentosCredenciales: string[]
   especialidades: string[]
   entregaMateriales: string
   logo?: string
@@ -88,7 +90,9 @@ const TallerSchema = new Schema({
   },
   slug: { type: String, required: true },
   bio: { type: String, default: '', maxlength: 2000 },
+  formacion: { type: String, default: '', maxlength: 2000 },
   credenciales: { type: String, default: '', maxlength: 2000 },
+  documentosCredenciales: [{ type: String }],
   especialidades: [{ type: String }],
   entregaMateriales: { type: String, default: '', maxlength: 500 },
   logo: { type: String },

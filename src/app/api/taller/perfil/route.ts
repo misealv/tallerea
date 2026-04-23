@@ -7,7 +7,9 @@ import { z } from 'zod'
 const PerfilUpdateSchema = z.object({
   name: z.string().min(2, 'Mínimo 2 caracteres').max(100),
   bio: z.string().min(20, 'Mínimo 20 caracteres').max(2000),
+  formacion: z.string().max(2000).optional().default(''),
   credenciales: z.string().min(10, 'Mínimo 10 caracteres').max(2000),
+  documentosCredenciales: z.array(z.string().url()).max(10).optional().default([]),
   especialidades: z.array(z.string()).min(1, 'Selecciona al menos una').max(5),
   entregaMateriales: z.string().max(500),
   logo: z.string().url().optional().or(z.literal('')),
