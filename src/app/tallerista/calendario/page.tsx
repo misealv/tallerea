@@ -127,15 +127,15 @@ export default function CalendarioTallerista() {
         <h1 className="text-2xl font-bold text-gray-900">Calendario</h1>
         <div className="flex items-center gap-2">
           <button onClick={() => setWeekStart(getMonday(new Date()))}
-            className="text-sm px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50">Hoy</button>
+            className="text-sm px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:text-gray-200">Hoy</button>
           <button onClick={() => setWeekStart(w => { const d = new Date(w); d.setDate(d.getDate() - 7); return d })}
-            className="p-2 rounded-lg hover:bg-gray-100">←</button>
-          <span className="text-sm font-medium text-gray-700 min-w-[200px] text-center">
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-200">←</button>
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-200 min-w-[200px] text-center">
             {weekStart.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })} –{' '}
             {weekDays[6].toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}
           </span>
           <button onClick={() => setWeekStart(w => { const d = new Date(w); d.setDate(d.getDate() + 7); return d })}
-            className="p-2 rounded-lg hover:bg-gray-100">→</button>
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-200">→</button>
         </div>
       </div>
 
@@ -151,17 +151,17 @@ export default function CalendarioTallerista() {
       )}
 
       {/* Grilla */}
-      <div className="overflow-x-auto border border-gray-200 rounded-xl">
+      <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-xl">
         <div className="min-w-[640px]">
           {/* Header */}
-          <div className="grid grid-cols-[48px_repeat(7,1fr)] border-b bg-gray-50 sticky top-0 z-10">
+          <div className="grid grid-cols-[48px_repeat(7,1fr)] border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
             <div />
             {weekDays.map((d, i) => {
               const isToday = d.toDateString() === today.toDateString()
               return (
-                <div key={i} className={`py-2 text-center text-xs font-medium ${isToday ? 'text-purple-700' : 'text-gray-600'}`}>
+                <div key={i} className={`py-2 text-center text-xs font-medium ${isToday ? 'text-purple-700 dark:text-purple-400' : 'text-gray-600 dark:text-gray-400'}`}>
                   <div>{DIAS_SHORT[i]}</div>
-                  <div className={`mt-0.5 w-7 h-7 mx-auto flex items-center justify-center rounded-full text-sm font-semibold ${isToday ? 'bg-purple-600 text-white' : 'text-gray-800'}`}>
+                  <div className={`mt-0.5 w-7 h-7 mx-auto flex items-center justify-center rounded-full text-sm font-semibold ${isToday ? 'bg-purple-600 text-white' : 'text-gray-800 dark:text-gray-200'}`}>
                     {d.getDate()}
                   </div>
                 </div>
@@ -170,24 +170,24 @@ export default function CalendarioTallerista() {
           </div>
 
           {/* Celdas */}
-          <div className="relative" style={{ height: (HORA_FIN - HORA_INI) * 2 * CELL_H }}>
+          <div className="relative bg-white dark:bg-gray-900" style={{ height: (HORA_FIN - HORA_INI) * 2 * CELL_H }}>
             {loading && (
-              <div className="absolute inset-0 bg-white/70 flex items-center justify-center z-20">
-                <span className="text-sm text-gray-500">Cargando…</span>
+              <div className="absolute inset-0 bg-white/70 dark:bg-gray-900/70 flex items-center justify-center z-20">
+                <span className="text-sm text-gray-500 dark:text-gray-400">Cargando…</span>
               </div>
             )}
 
             {Array.from({ length: HORA_FIN - HORA_INI }, (_, i) => (
-              <div key={i} className="absolute left-0 right-0 border-t border-gray-100 flex"
+              <div key={i} className="absolute left-0 right-0 border-t border-gray-100 dark:border-gray-800 flex"
                 style={{ top: i * 2 * CELL_H }}>
-                <span className="text-[10px] text-gray-400 w-12 text-right pr-1 -mt-2 select-none">
+                <span className="text-[10px] text-gray-400 dark:text-gray-600 w-12 text-right pr-1 -mt-2 select-none">
                   {String(HORA_INI + i).padStart(2, '0')}:00
                 </span>
               </div>
             ))}
 
             {weekDays.map((_, colIdx) => (
-              <div key={colIdx} className="absolute top-0 bottom-0 border-l border-gray-100"
+              <div key={colIdx} className="absolute top-0 bottom-0 border-l border-gray-100 dark:border-gray-800"
                 style={{ left: `calc(48px + ${colIdx} * ((100% - 48px) / 7))`, width: `calc((100% - 48px) / 7)` }} />
             ))}
 
@@ -223,39 +223,39 @@ export default function CalendarioTallerista() {
       </div>
 
       {slots.length === 0 && !loading && (
-        <p className="text-sm text-gray-400 text-center py-8">
+        <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">
           No hay sesiones programadas esta semana.{' '}
-          <a href="/tallerista/talleres/nuevo" className="text-purple-600 hover:underline">Crear taller →</a>
+          <a href="/tallerista/talleres/nuevo" className="text-purple-600 dark:text-purple-400 hover:underline">Crear taller →</a>
         </p>
       )}
 
       {/* Modal detalle de slot */}
       {detail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setDetail(null)}>
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 space-y-3" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/60" onClick={() => setDetail(null)}>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 w-80 space-y-3 border border-transparent dark:border-gray-700" onClick={e => e.stopPropagation()}>
             <div className={`text-xs text-white px-2 py-0.5 rounded-full w-fit ${COLORS[colorMap.get(detail.workshopId) ?? 0]}`}>
               {detail.workshopTitulo}
             </div>
-            <h3 className="font-bold text-gray-900">
+            <h3 className="font-bold text-gray-900 dark:text-white">
               {new Date(detail.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}
             </h3>
-            <p className="text-sm text-gray-700">{detail.horaInicio} – {detail.horaFin}</p>
+            <p className="text-sm text-gray-700 dark:text-gray-300">{detail.horaInicio} – {detail.horaFin}</p>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Inscritos</span>
-              <span className={`font-semibold ${detail.reservas >= detail.cupo ? 'text-red-600' : 'text-green-700'}`}>
+              <span className="text-gray-500 dark:text-gray-400">Inscritos</span>
+              <span className={`font-semibold ${detail.reservas >= detail.cupo ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>
                 {detail.reservas} / {detail.cupo}
               </span>
             </div>
             {detail.cancelado && (
-              <p className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">Sesión cancelada</p>
+              <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">Sesión cancelada</p>
             )}
             <div className="flex gap-2 pt-2">
               <a href={`/tallerista/talleres/${detail.workshopId}/inscritos`}
-                className="flex-1 text-center text-sm bg-purple-50 text-purple-700 py-2 rounded-lg hover:bg-purple-100">
+                className="flex-1 text-center text-sm bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 py-2 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/50">
                 Ver inscritos
               </a>
               <button onClick={() => setDetail(null)}
-                className="flex-1 text-sm bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200">
+                className="flex-1 text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
                 Cerrar
               </button>
             </div>
