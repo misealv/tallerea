@@ -31,6 +31,11 @@ export const TallerService = {
       throw new Error('El usuario ya es tallerista aprobado')
     }
 
+    // Un suspendido solo puede ser reactivado por un admin, no re-postular
+    if (user.taller?.estado === 'suspendido') {
+      throw new Error('Tu cuenta de tallerista está suspendida. Contacta a soporte para reactivarla.')
+    }
+
     // Validar cooldown post-rechazo (30 días por defecto)
     if (user.taller?.estado === 'rechazado' && user.taller.ultimoRechazoEn) {
       const diasDesdeRechazo = Math.floor(
