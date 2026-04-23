@@ -76,6 +76,7 @@ export const WorkshopService = {
     await dbConnect()
     return Workshop.findOne({ slug, activo: true, deletedAt: null })
       .populate('locationId', 'nombre direccion comuna ciudad coordenadas')
+      .populate('ownerId', 'name taller')
       .lean<IWorkshop>()
   },
 

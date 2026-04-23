@@ -47,11 +47,11 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
   const loc = workshop.locationId as unknown as {
     nombre: string; direccion: string; comuna: string; ciudad: string
   } | null
-  const acc = workshop.accountId as unknown as {
-    nombre: string; slug: string; tipo: string; verificado: boolean; precioModalidad?: string
+  const owner = workshop.ownerId as unknown as {
+    name: string; taller?: { slug?: string; bio?: string }
   } | null
 
-  const precioPublico = (acc?.precioModalidad === 'neto' || workshop.precioModalidad === 'neto')
+  const precioPublico = workshop.precioModalidad === 'neto'
     ? Math.round(workshop.precio * 100 / (100 - comisionPct))
     : workshop.precio
 
@@ -182,25 +182,35 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               })()}
             </div>
 
-            {/* Espacio */}
-            {acc && (
-              <Link
-                href={`/espacios/${acc.slug}`}
-                className="block bg-white rounded-xl border border-gray-200 p-4 hover:shadow transition-shadow"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-700 font-bold">
-                    {acc.nombre.charAt(0)}
+            {/* Tallerista */}
+            {owner && (
+              owner.taller?.slug
+                ? (
+                  <Link
+                    href={`/talleristas/${owner.taller.slug}`}
+                    className="block bg-white rounded-xl border border-gray-200 p-4 hover:shadow transition-shadow"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-700 font-bold">
+                        {owner.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{owner.name}</p>
+                        <p className="text-xs text-gray-500">Ver perfil del tallerista</p>
+                      </div>
+                    </div>
+                  </Link>
+                )
+                : (
+                  <div className="bg-white rounded-xl border border-gray-200 p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-700 font-bold">
+                        {owner.name.charAt(0)}
+                      </div>
+                      <p className="font-medium text-gray-900">{owner.name}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium text-gray-900 flex items-center gap-1">
-                      {acc.nombre}
-                      {acc.verificado && <span className="text-blue-500" title="Verificado">✓</span>}
-                    </p>
-                    <p className="text-xs text-gray-500 capitalize">{acc.tipo}</p>
-                  </div>
-                </div>
-              </Link>
+                )
             )}
           </div>
         </div>
