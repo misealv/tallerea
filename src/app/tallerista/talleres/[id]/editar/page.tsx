@@ -200,19 +200,35 @@ export default function EditarTallerPage() {
         </div>
 
         {/* Precio */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Precio (CLP)</label>
-            <input type="number" min="0" step="1" value={form.precio} onChange={e => up('precio', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            {(['bruto', 'neto'] as const).map(m => (
+              <button key={m} type="button" onClick={() => up('precioModalidad', m)}
+                className={`border-2 rounded-xl p-3 text-left transition-colors ${
+                  form.precioModalidad === m ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300'
+                }`}>
+                <p className="font-semibold text-gray-800 text-sm">{m === 'bruto' ? 'Precio bruto' : 'Precio neto'}</p>
+                <p className="text-xs text-gray-500 mt-0.5 leading-snug">
+                  {m === 'bruto'
+                    ? 'El alumno paga este monto. La comisión de Tallerea se descuenta de lo que recibes tú.'
+                    : 'Tú recibes este monto. La comisión se suma al precio que ve el alumno.'}
+                </p>
+              </button>
+            ))}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Modalidad precio</label>
-            <select value={form.precioModalidad} onChange={e => up('precioModalidad', e.target.value as FormData['precioModalidad'])}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500">
-              <option value="bruto">Bruto (lo paga el alumno)</option>
-              <option value="neto">Neto (lo recibo yo)</option>
-            </select>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {form.precioModalidad === 'bruto' ? 'Precio que paga el alumno (CLP)' : 'Monto que recibes tú (CLP)'}
+            </label>
+            <input type="number" min="0" step="1" value={form.precio} onChange={e => up('precio', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
+            {form.precio && !isNaN(parseInt(form.precio)) && parseInt(form.precio) > 0 && (
+              <p className="text-xs text-gray-400 mt-1">
+                {form.precioModalidad === 'bruto'
+                  ? `El alumno paga $${parseInt(form.precio).toLocaleString('es-CL')} — la comisión de Tallerea se descuenta de ese total.`
+                  : `El alumno verá un precio mayor al incluirse la comisión de Tallerea.`}
+              </p>
+            )}
           </div>
         </div>
 
