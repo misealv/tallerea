@@ -45,14 +45,21 @@ export default function RegistroTalleristePage() {
     }
 
     // Auto-login y redirigir a onboarding
-    await signIn('credentials', {
+    const signInResult = await signIn('credentials', {
       email: form.email,
       password: form.password,
       redirect: false,
     })
 
     setLoading(false)
-    // Recién registrado → siempre al onboarding
+
+    if (signInResult?.error) {
+      // Cuenta creada pero login automático falló — redirigir a login manual
+      router.push('/login?registered=1')
+      return
+    }
+
+    // Login exitoso → al onboarding
     router.push('/tallerista/onboarding')
     router.refresh()
   }

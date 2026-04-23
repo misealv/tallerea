@@ -1,16 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { signIn, getSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('registered') === '1') {
+      setInfo('¡Cuenta creada! Inicia sesión para continuar con tu solicitud.')
+    }
+  }, [searchParams])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -53,6 +61,12 @@ export default function LoginPage() {
         <h1 className="text-2xl font-bold text-center text-gray-900 mb-6">
           Iniciar sesión
         </h1>
+
+        {info && (
+          <div className="bg-green-50 text-green-700 text-sm rounded-lg p-3 mb-4">
+            {info}
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-50 text-red-600 text-sm rounded-lg p-3 mb-4">
