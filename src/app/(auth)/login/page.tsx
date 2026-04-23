@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { signIn } from 'next-auth/react'
+import { signIn, getSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -30,7 +30,18 @@ export default function LoginPage() {
       return
     }
 
-    router.push('/dashboard')
+    // Redirigir según estado del taller
+    const session = await getSession()
+    const tallerEstado = session?.user?.tallerEstado
+
+    if (session?.user?.role === 'admin') {
+      router.push('/admin')
+    } else if (!tallerEstado || tallerEstado === 'pendiente') {
+      // Tallerista recién registrado o pendiente de aprobación
+      router.push('/tallerista/onboarding')
+    } else {
+      router.push('/dashboard')
+    }
     router.refresh()
   }
 
@@ -82,14 +93,20 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-purple-600 text-white py-2.5 rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50 transition"
           >
-            {loading ? 'Entrando...' : 'Entrar'}
+            {loading ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
 
         <p className="text-center text-sm text-gray-500 mt-6">
-          ¿No tienes cuenta?{' '}
-          <Link href="/registro" className="text-purple-600 font-medium hover:underline">
-            Regístrate
+          ¿Quieres publicar talleres?{' '}
+          <Link href="/registro-tallerista" className="text-purple-600 font-medium hover:underline">
+            Regístrate como tallerista
+          </Link>
+        </p>
+        <p className="text-center text-sm text-gray-500 mt-2">
+          ¿Eres alumno?{' '}
+          <Link href="/alumno/acceso" className="text-purple-600 font-medium hover:underline">
+            Acceder con enlace al correo
           </Link>
         </p>
       </div>
