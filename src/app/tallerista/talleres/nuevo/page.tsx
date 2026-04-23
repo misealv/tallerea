@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import AIDescriptionHelper from '@/components/AIDescriptionHelper'
+import StockImagePicker from '@/components/StockImagePicker'
+import ImageUpload from '@/components/ImageUpload'
 
 // ── Tipos locales ────────────────────────────────────────────────────────────
 
@@ -26,6 +29,7 @@ interface Paso2Data {
   cupoPorSesion: string
   fechaInicio: string
   locationId: string
+  imagenes: string[]
   // Plan (solo recurrente)
   sesionesIncluidas: string
   vigencia: 'mensual' | 'por_ciclo' | 'sin_vencimiento'
@@ -84,6 +88,7 @@ export default function NuevoTallerPage() {
     cupoPorSesion:    '10',
     fechaInicio:      '',
     locationId:       '',
+    imagenes:         [],
     sesionesIncluidas:'8',
     vigencia:         'mensual',
   })
@@ -166,6 +171,9 @@ export default function NuevoTallerPage() {
     if (p2.locationId && (p1.modalidad === 'presencial' || p1.modalidad === 'hibrido')) {
       body.locationId = p2.locationId
     }
+
+    // Imágenes del taller
+    if (p2.imagenes.length > 0) body.imagenes = p2.imagenes
 
     // Incluir ownerId desde sesión
     if (session?.user?.id) body.ownerId = session.user.id
@@ -324,6 +332,32 @@ export default function NuevoTallerPage() {
             <textarea required rows={4} value={p2.descripcion} onChange={e => up2('descripcion', e.target.value)} maxLength={2000}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               placeholder="¿De qué trata el taller? ¿Qué aprenderán los alumnos?" />
+            <div className="mt-2">
+              <AIDescriptionHelper
+                titulo={p1.titulo} tipo={p1.tipo} modalidad={p1.modalidad}
+                descripcion={p2.descripcion}
+                onApply={text => up2('descripcion', text)}
+              />
+            </div>
+          </div>
+
+          {/* Fotos del taller */}
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-gray-700">Fotos del taller</label>
+            <ImageUpload
+              folder="tallerea/workshops"
+              images={p2.imagenes}
+              onChange={imgs => up2('imagenes', imgs)}
+              max={10}
+              label="Subir fotos"
+            />
+            <StockImagePicker
+              tipo={p1.tipo}
+              titulo={p1.titulo}
+              currentCount={p2.imagenes.length}
+              max={10}
+              onImport={url => up2('imagenes', [...p2.imagenes, url])}
+            />
           </div>
 
           {/* Espacio / ubicación — solo presencial o híbrido */}

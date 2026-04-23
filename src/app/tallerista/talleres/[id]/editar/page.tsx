@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import AIDescriptionHelper from '@/components/AIDescriptionHelper'
+import StockImagePicker from '@/components/StockImagePicker'
+import ImageUpload from '@/components/ImageUpload'
 
 const TIPOS = [
   { value: 'visual', label: 'Artes visuales' },
@@ -37,6 +40,7 @@ interface FormData {
   locationId: string
   horasAntesCancelacion: string
   permitirReagendamiento: boolean
+  imagenes: string[]
   // recurrente
   sesionesIncluidas: string
   vigencia: 'mensual' | 'por_ciclo' | 'sin_vencimiento'
@@ -53,6 +57,7 @@ export default function EditarTallerPage() {
     precioModalidad: 'bruto', descripcion: '', duracionSesion: '90',
     cupoPorSesion: '10', fechaInicio: '', locationId: '',
     horasAntesCancelacion: '24', permitirReagendamiento: true,
+    imagenes: [],
     sesionesIncluidas: '8', vigencia: 'mensual', modeloAcceso: 'puntual',
   })
   const [locations, setLocations] = useState<LocationOption[]>([])
@@ -83,6 +88,7 @@ export default function EditarTallerPage() {
           : '',
           horasAntesCancelacion: String(w.politica?.horasAntesCancelacion ?? 24),
           permitirReagendamiento: w.politica?.permitirReagendamiento ?? true,
+          imagenes: Array.isArray(w.imagenes) ? w.imagenes : [],
           sesionesIncluidas: String(w.plan?.sesionesIncluidas ?? w.plan?.sesionesPorPeriodo ?? 8),
           vigencia: w.plan?.vigencia ?? 'mensual',
           modeloAcceso: w.modeloAcceso ?? (w.plan ? 'recurrente' : 'puntual'),
@@ -143,6 +149,8 @@ export default function EditarTallerPage() {
     } else {
       body.locationId = null
     }
+
+    body.imagenes = form.imagenes
 
     const res = await fetch(`/api/workshops/${id}`, {
       method: 'PUT',
@@ -239,6 +247,32 @@ export default function EditarTallerPage() {
           </label>
           <textarea required rows={4} value={form.descripcion} onChange={e => up('descripcion', e.target.value)} maxLength={2000}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
+          <div className="mt-2">
+            <AIDescriptionHelper
+              titulo={form.titulo} tipo={form.tipo} modalidad={form.modalidad}
+              descripcion={form.descripcion}
+              onApply={text => up('descripcion', text)}
+            />
+          </div>
+        </div>
+
+        {/* Fotos del taller */}
+        <div className="space-y-3">
+          <label className="block text-sm font-medium text-gray-700">Fotos del taller</label>
+          <ImageUpload
+            folder="tallerea/workshops"
+            images={form.imagenes}
+            onChange={imgs => up('imagenes', imgs)}
+            max={10}
+            label="Subir fotos"
+          />
+          <StockImagePicker
+            tipo={form.tipo}
+            titulo={form.titulo}
+            currentCount={form.imagenes.length}
+            max={10}
+            onImport={url => up('imagenes', [...form.imagenes, url])}
+          />
         </div>
 
         {/* Espacio — presencial/híbrido */}
