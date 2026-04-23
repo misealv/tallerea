@@ -1,7 +1,8 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
 export interface ILiquidation extends Document {
-  accountId: Types.ObjectId;
+  accountId: Types.ObjectId;  // legacy
+  ownerId?: Types.ObjectId;   // User tallerista directo
   periodo: {
     desde: Date;
     hasta: Date;
@@ -22,6 +23,7 @@ export interface ILiquidation extends Document {
 
 const LiquidationSchema = new Schema<ILiquidation>({
   accountId: { type: Schema.Types.ObjectId, ref: 'Account', required: true },
+  ownerId: { type: Schema.Types.ObjectId, ref: 'User' },
   periodo: {
     desde: { type: Date, required: true },
     hasta: { type: Date, required: true },
@@ -49,6 +51,7 @@ LiquidationSchema.pre('save', function(next) {
 });
 
 LiquidationSchema.index({ accountId: 1, estado: 1 });
+LiquidationSchema.index({ ownerId: 1, estado: 1 });
 LiquidationSchema.index({ 'periodo.desde': 1, 'periodo.hasta': 1 });
 
 export default mongoose.models.Liquidation || mongoose.model<ILiquidation>('Liquidation', LiquidationSchema);

@@ -13,12 +13,14 @@ interface PaginatedResult<T> {
 interface WorkshopFilters {
   tipo?: string
   modalidad?: string
+  modeloAcceso?: 'puntual' | 'recurrente'
   comuna?: string
   ciudad?: string
   dia?: string
   precioMin?: number
   precioMax?: number
   accountId?: string
+  ownerId?: string
   includeInactive?: boolean
 }
 
@@ -32,7 +34,9 @@ export const WorkshopService = {
 
     if (filters?.tipo) query.tipo = filters.tipo
     if (filters?.modalidad) query.modalidad = filters.modalidad
+    if (filters?.modeloAcceso) query.modeloAcceso = filters.modeloAcceso
     if (filters?.accountId) query.accountId = filters.accountId
+    if (filters?.ownerId) query.ownerId = filters.ownerId
     if (filters?.dia) query['slots.dia'] = filters.dia
     if (filters?.precioMin || filters?.precioMax) {
       query.precio = {}
@@ -85,13 +89,20 @@ export const WorkshopService = {
     return this.getAll({ accountId }, page, limit)
   },
 
+  async getByOwnerId(ownerId: string, page = 1, limit = 20): Promise<PaginatedResult<IWorkshop>> {
+    return this.getAll({ ownerId }, page, limit)
+  },
+
   async create(data: Partial<IWorkshop>): Promise<IWorkshop> {
     await dbConnect()
-    // Inicializar cupoDisponible en cada slot
+    // Inicializar cupoDisponible en cada slot (campo unificado)
     if (data.slots && data.slots.length > 0) {
-      data.slots = data.slots.map(s => ({ ...s, cupoDisponible: s.cupoMax }))
+      data.slots = data.slots.map(s => ({
+        ...s,
+        cupoDisponible: s.cupoDisponible ?? s.cupoMax ?? (data.cupoPorSesion ?? 10),
+      }))
     }
-    return new Workshop({ ...data, cupoDisponible: data.cupoMax }).save()
+    return new Workshop(data).save()
   },
 
   async update(id: string, data: Partial<IWorkshop>): Promise<IWorkshop | null> {
@@ -110,11 +121,11 @@ export const WorkshopService = {
     await Workshop.findByIdAndUpdate(id, { deletedAt: new Date() })
   },
 
-  // Obtener cupo disponible total (suma de slots o cupo raíz)
+  // Obtener cupo disponible total (suma de cupoDisponible por slot)
   getTotalCupoDisponible(workshop: IWorkshop): number {
     if (workshop.slots && workshop.slots.length > 0) {
       return workshop.slots.reduce((sum, s) => sum + (s.cupoDisponible ?? 0), 0)
     }
-    return workshop.cupoDisponible
+    return 0
   },
 }

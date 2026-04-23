@@ -95,9 +95,9 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-3">Horarios</h2>
                 <div className="space-y-2">
-                  {workshop.slots.map((s: { dia: string; horaInicio: string; horaFin: string }, i: number) => (
+                  {workshop.slots.map((s: { dia?: string; horaInicio: string; horaFin: string }, i: number) => (
                     <div key={i} className="flex items-center gap-3 rounded-lg px-4 py-2 bg-gray-50">
-                      <span className="font-medium text-gray-700 w-24">{diaLabel[s.dia] || s.dia}</span>
+                      <span className="font-medium text-gray-700 w-24">{diaLabel[s.dia ?? ''] || s.dia}</span>
                       <span className="text-gray-600">{s.horaInicio} — {s.horaFin}</span>
                     </div>
                   ))}

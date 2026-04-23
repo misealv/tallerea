@@ -10,8 +10,8 @@ interface WorkshopCardProps {
   cupoPorSesion: number
   comuna?: string
   imagen?: string
-  horarios?: { dia: string; horaInicio: string }[]
-  slots?: { dia: string; horaInicio: string }[]
+  horarios?: { dia?: string; horaInicio: string }[]
+  slots?: { dia?: string; horaInicio: string }[]
   espacioNombre?: string
   espacioSlug?: string
 }

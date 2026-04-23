@@ -4,7 +4,8 @@ export interface IPaymentBreakdown extends Document {
   subscriptionId?: Types.ObjectId;
   enrollmentId?: Types.ObjectId;
   workshopId: Types.ObjectId;
-  accountId: Types.ObjectId;
+  accountId: Types.ObjectId;  // legacy
+  ownerId?: Types.ObjectId;   // User tallerista directo
   studentId: Types.ObjectId;
   // Montos en enteros CLP ($25.000 = 25000)
   montoBruto: number;
@@ -29,6 +30,7 @@ const PaymentBreakdownSchema = new Schema<IPaymentBreakdown>({
   enrollmentId: { type: Schema.Types.ObjectId, ref: 'Enrollment' },
   workshopId: { type: Schema.Types.ObjectId, ref: 'Workshop', required: true },
   accountId: { type: Schema.Types.ObjectId, ref: 'Account', required: true },
+  ownerId: { type: Schema.Types.ObjectId, ref: 'User' },
   studentId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   // Montos — enteros CLP
   montoBruto: { type: Number, required: true },

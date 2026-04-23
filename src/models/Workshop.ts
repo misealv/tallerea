@@ -9,15 +9,15 @@ const TIPOS_ENUM = [
 export type TipoTaller = typeof TIPOS_ENUM[number];
 
 export interface ISlot {
-  dia: string;
+  dia?: string;               // opcional en nuevos slots con fecha concreta
   horaInicio: string;
   horaFin: string;
   fecha?: Date;
+  cupoDisponible?: number;    // campo unificado de cupo por slot
   reservas: number;
   cancelado: boolean;
-  // Campos legacy (solo talleres sin recurrencia)
+  // Campos legacy
   cupoMax?: number;
-  cupoDisponible?: number;
 }
 
 export interface IPlan {
@@ -44,8 +44,14 @@ export interface IPlantillaMensual {
   horaFin: string;
 }
 
+export interface IPolitica {
+  horasAntesCancelacion: number;
+  permitirReagendamiento: boolean;
+}
+
 export interface IWorkshop extends Document {
-  accountId: Types.ObjectId;
+  accountId: Types.ObjectId;   // legacy — usar ownerId en nuevos workshops
+  ownerId?: Types.ObjectId;    // User tallerista directo (sin Account)
   locationId?: Types.ObjectId;
   instructorId?: Types.ObjectId;
   slug: string;
@@ -68,6 +74,8 @@ export interface IWorkshop extends Document {
   // --- Plan ---
   plan?: IPlan;
   precioModalidad: 'neto' | 'bruto';
+  modeloAcceso: 'puntual' | 'recurrente';
+  politica: IPolitica;
   // --- Plantillas ---
   plantillaSemanal?: IPlantillaSemanal[];
   plantillaMensual?: IPlantillaMensual;
@@ -90,7 +98,7 @@ export interface IWorkshop extends Document {
 const DIAS_ENUM = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
 
 const SlotSchema = new Schema({
-  dia: { type: String, enum: DIAS_ENUM, required: true },
+  dia: { type: String, enum: DIAS_ENUM },   // opcional en slots con fecha concreta
   horaInicio: { type: String, required: true },
   horaFin: { type: String, required: true },
   fecha: { type: Date },
@@ -125,8 +133,14 @@ const PlantillaMensualSchema = new Schema({
   horaFin: { type: String, required: true },
 }, { _id: false });
 
+const PoliticaSchema = new Schema({
+  horasAntesCancelacion: { type: Number, default: 24, min: 0 },
+  permitirReagendamiento: { type: Boolean, default: true },
+}, { _id: false });
+
 const WorkshopSchema = new Schema<IWorkshop>({
   accountId: { type: Schema.Types.ObjectId, ref: 'Account', required: true },
+  ownerId: { type: Schema.Types.ObjectId, ref: 'User' },
   locationId: { type: Schema.Types.ObjectId, ref: 'Location' },
   instructorId: { type: Schema.Types.ObjectId, ref: 'AccountMember' },
   slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
@@ -149,6 +163,8 @@ const WorkshopSchema = new Schema<IWorkshop>({
   // Plan
   plan: { type: PlanSchema },
   precioModalidad: { type: String, enum: ['neto', 'bruto'], default: 'bruto' },
+  modeloAcceso: { type: String, enum: ['puntual', 'recurrente'] },
+  politica: { type: PoliticaSchema, default: () => ({ horasAntesCancelacion: 24, permitirReagendamiento: true }) },
   // Plantillas
   plantillaSemanal: [PlantillaSemanalSchema],
   plantillaMensual: { type: PlantillaMensualSchema },
@@ -167,20 +183,34 @@ const WorkshopSchema = new Schema<IWorkshop>({
   deletedAt: { type: Date, default: null },
 }, { timestamps: true });
 
-// tipoPersonalizado solo se guarda si tipo === 'otro'
 WorkshopSchema.pre('save', function(next) {
+  // tipoPersonalizado solo se guarda si tipo === 'otro'
   if (this.tipo !== 'otro') {
     this.tipoPersonalizado = null;
+  }
+  // Inferir modeloAcceso si no está definido (compat con docs existentes)
+  if (!this.modeloAcceso) {
+    this.modeloAcceso = this.plan ? 'recurrente' : 'puntual';
+  }
+  // [BREAKING] Validar coherencia modeloAcceso ↔ plan
+  if (this.modeloAcceso === 'recurrente' && !this.plan) {
+    return next(new Error('[WORKSHOP] Taller recurrente requiere campo "plan" definido'));
+  }
+  if (this.modeloAcceso === 'puntual' && this.plan) {
+    this.plan = undefined;
   }
   next();
 });
 
 // slug index already created by unique: true on field definition
 WorkshopSchema.index({ accountId: 1 });
+WorkshopSchema.index({ ownerId: 1, activo: 1 });
 WorkshopSchema.index({ tipo: 1 });
 WorkshopSchema.index({ modalidad: 1 });
+WorkshopSchema.index({ modeloAcceso: 1, activo: 1 });
 WorkshopSchema.index({ activo: 1 });
 WorkshopSchema.index({ precio: 1 });
 WorkshopSchema.index({ 'slots.dia': 1 });
+WorkshopSchema.index({ 'slots.fecha': 1 });
 
 export default mongoose.models.Workshop || mongoose.model<IWorkshop>('Workshop', WorkshopSchema);
