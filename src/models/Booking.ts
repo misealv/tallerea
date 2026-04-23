@@ -16,6 +16,7 @@ export interface IBooking extends Document {
   fecha: Date;
   estado: 'reservada' | 'asistio' | 'no_asistio' | 'cancelada';
   canceladaEn: Date | null;
+  canceladaRazon?: 'alumno_dentro_plazo' | 'alumno_fuera_plazo' | 'tallerista' | 'ciclo_vencido' | null;
   reagendamiento?: IReagendamiento;
   activo: boolean;
   createdAt: Date;
@@ -37,6 +38,11 @@ const BookingSchema = new Schema<IBooking>({
   fecha: { type: Date, required: true },
   estado: { type: String, enum: ['reservada', 'asistio', 'no_asistio', 'cancelada'], default: 'reservada' },
   canceladaEn: { type: Date, default: null },
+  canceladaRazon: {
+    type: String,
+    enum: ['alumno_dentro_plazo', 'alumno_fuera_plazo', 'tallerista', 'ciclo_vencido', null],
+    default: null,
+  },
   reagendamiento: { type: ReagendamientoSchema },
   activo: { type: Boolean, default: true },
 }, { timestamps: true });

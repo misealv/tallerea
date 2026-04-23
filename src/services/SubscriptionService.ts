@@ -307,22 +307,29 @@ export const SubscriptionService = {
     let procesadas = 0
     let errores = 0
     const BATCH = 100
-    let skip = 0
+    // IDs ya intentados en este run — evita loop infinito si cerrarCiclo falla siempre
+    const intentados = new Set<string>()
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      const lote = await Subscription.find({
+      // Sin skip: cada cerrarCiclo exitoso saca a la suscripción del filtro.
+      // Excluimos también los que ya fallaron en este run.
+      const excluidos = Array.from(intentados)
+      const query: Record<string, unknown> = {
         estado: 'activa',
         fechaVencimiento: { $lt: now },
         activo: true,
-      })
-        .skip(skip)
+      }
+      if (excluidos.length > 0) query._id = { $nin: excluidos }
+
+      const lote = await Subscription.find(query)
         .limit(BATCH)
         .lean<ISubscription[]>()
 
       if (lote.length === 0) break
 
       for (const sub of lote) {
+        intentados.add(String(sub._id))
         try {
           await this.cerrarCiclo(sub)
           procesadas++
@@ -330,9 +337,6 @@ export const SubscriptionService = {
           errores++
         }
       }
-
-      if (lote.length < BATCH) break
-      skip += BATCH
     }
 
     return { procesadas, errores }
