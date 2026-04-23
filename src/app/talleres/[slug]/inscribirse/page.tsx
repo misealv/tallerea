@@ -35,6 +35,9 @@ export default function InscribirsePage({ params }: { params: Promise<{ slug: st
   const [slug, setSlug] = useState('')
   const [selectedSlots, setSelectedSlots] = useState<number[]>([])
   const [currentSlotIdx, setCurrentSlotIdx] = useState(0)
+  // Datos del invitado (solo cuando no hay sesión)
+  const [guestName, setGuestName] = useState('')
+  const [guestEmail, setGuestEmail] = useState('')
 
   useEffect(() => {
     params.then(p => setSlug(p.slug))
@@ -53,18 +56,30 @@ export default function InscribirsePage({ params }: { params: Promise<{ slug: st
       .catch(() => setLoading(false))
   }, [slug])
 
-  useEffect(() => {
-    if (status === 'unauthenticated') router.push(`/login?callbackUrl=/talleres/${slug}/inscribirse`)
-  }, [status, router, slug])
+  // Sin redirect forzado a /login — el alumno puede comprar como invitado y recibir magic link tras pago
+
+  const isGuest = status === 'unauthenticated'
 
   const handleInscribirse = async () => {
-    if (!workshop || !session) return
+    if (!workshop) return
     const hasSlots = workshop.slots && workshop.slots.length > 0
 
     // Si tiene slots, validar selección
     if (hasSlots && selectedSlots.length === 0) {
       setError('Selecciona al menos un horario')
       return
+    }
+
+    // Validar datos de invitado
+    if (isGuest) {
+      if (!guestName.trim() || !guestEmail.trim()) {
+        setError('Ingresa tu nombre y email para continuar')
+        return
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail.trim())) {
+        setError('Email inválido')
+        return
+      }
     }
 
     setSubmitting(true)
@@ -82,6 +97,7 @@ export default function InscribirsePage({ params }: { params: Promise<{ slug: st
           body: JSON.stringify({
             workshopId: workshop._id,
             slotIndex: slotsToEnroll[i],
+            ...(isGuest ? { name: guestName.trim(), email: guestEmail.trim() } : {}),
           }),
         })
         const data = await res.json()
@@ -94,7 +110,7 @@ export default function InscribirsePage({ params }: { params: Promise<{ slug: st
 
         // Si es gratis y es el último, redirigir
         if (data.free && i === slotsToEnroll.length - 1) {
-          router.push('/mis-talleres?pago=ok')
+          router.push(session ? '/alumno?pago=ok' : '/?pago=ok&revisa=email')
           return
         }
 
@@ -105,7 +121,7 @@ export default function InscribirsePage({ params }: { params: Promise<{ slug: st
         }
       }
 
-      router.push('/mis-talleres?pago=ok')
+      router.push(session ? '/alumno?pago=ok' : '/?pago=ok&revisa=email')
     } catch {
       setError('Error de conexión')
       setSubmitting(false)
@@ -148,6 +164,39 @@ export default function InscribirsePage({ params }: { params: Promise<{ slug: st
             </div>
           </div>
         </div>
+
+        {isGuest && (
+          <div className="space-y-3 border-t border-gray-100 pt-4">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Tus datos</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Te enviaremos un enlace mágico al correo para activar tu cuenta tras el pago.
+              </p>
+            </div>
+            <input
+              type="text"
+              placeholder="Nombre completo"
+              value={guestName}
+              onChange={e => setGuestName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              autoComplete="name"
+            />
+            <input
+              type="email"
+              placeholder="tu@email.cl"
+              value={guestEmail}
+              onChange={e => setGuestEmail(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              autoComplete="email"
+            />
+            <p className="text-xs text-gray-400">
+              ¿Ya tienes cuenta?{' '}
+              <a href={`/login?callbackUrl=/talleres/${slug}/inscribirse`} className="text-purple-600 hover:underline">
+                Inicia sesión
+              </a>
+            </p>
+          </div>
+        )}
 
         {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded">{error}</p>}
 

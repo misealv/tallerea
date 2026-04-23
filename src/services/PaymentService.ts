@@ -4,8 +4,10 @@ import { WorkshopService } from '@/services/WorkshopService'
 import { FinanceService } from '@/services/FinanceService'
 import { createPaymentPreference } from '@/lib/mercadopago'
 import { sendEnrollmentConfirmation } from '@/lib/resend'
+import { issueMagicLink } from '@/lib/issueMagicLink'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
 import Account from '@/models/Account'
+import User from '@/models/User'
 import { SiteConfigService } from '@/services/SiteConfigService'
 
 interface CreatePaymentResult {
@@ -121,13 +123,28 @@ export const PaymentService = {
 
     // Enviar email de confirmación
     try {
-      const student = enrollment.studentId as unknown as { name: string; email: string }
+      const student = enrollment.studentId as unknown as { _id: string; name: string; email: string }
+
+      // Si el alumno no tiene password (es invitado), emitir magic link para activar cuenta
+      let magicUrl: string | undefined
+      const fullStudent = await User.findById(student._id).select('password').lean<{ password?: string }>()
+      const isGuest = !fullStudent?.password
+      if (isGuest) {
+        try {
+          const result = await issueMagicLink(String(student._id))
+          magicUrl = result.magicUrl
+        } catch {
+          // Si falla emisión, enviar email igual sin magic link
+        }
+      }
+
       await sendEnrollmentConfirmation({
         studentName: student.name,
         studentEmail: student.email,
         workshopTitle: workshop.titulo,
         workshopSlug: workshop.slug,
         monto: enrollment.monto,
+        magicUrl,
       })
     } catch {
       // No bloquear el flujo por fallo de email

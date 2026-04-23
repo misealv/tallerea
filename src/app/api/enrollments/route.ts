@@ -4,6 +4,9 @@ import { authOptions } from '@/lib/auth'
 import { EnrollmentService } from '@/services/EnrollmentService'
 import { WorkshopService } from '@/services/WorkshopService'
 import { validateRequired, validateObjectId } from '@/lib/validate'
+import { findOrCreateGuestUser } from '@/lib/guestUser'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export const dynamic = 'force-dynamic'
 
@@ -48,7 +51,6 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   try {
     const body = await req.json()
@@ -60,9 +62,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'workshopId inválido' }, { status: 400 })
     }
 
+    // Resolver studentId: sesión activa O checkout invitado (name + email)
+    let studentId: string
+    if (session?.user?.id) {
+      studentId = session.user.id
+    } else {
+      const name = typeof body.name === 'string' ? body.name : ''
+      const email = typeof body.email === 'string' ? body.email : ''
+      if (!name.trim() || !email.trim()) {
+        return NextResponse.json(
+          { error: 'Debes ingresar nombre y email para inscribirte' },
+          { status: 400 }
+        )
+      }
+      if (!EMAIL_RE.test(email.trim())) {
+        return NextResponse.json({ error: 'Email inválido' }, { status: 400 })
+      }
+      const guest = await findOrCreateGuestUser(name, email)
+      studentId = guest.userId
+    }
+
     const enrollment = await EnrollmentService.create({
       workshopId: body.workshopId,
-      studentId: session.user.id,
+      studentId,
       monto: body.monto,
       slotIndex: body.slotIndex ?? null,
     })

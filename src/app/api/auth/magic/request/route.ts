@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { randomBytes, createHash } from 'crypto'
 import dbConnect from '@/lib/db'
 import User from '@/models/User'
 import { sendMagicLink } from '@/lib/resend'
+import { issueMagicLink } from '@/lib/issueMagicLink'
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
@@ -24,18 +24,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  const rawToken = randomBytes(32).toString('hex')
-  const tokenHash = createHash('sha256').update(rawToken).digest('hex')
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000) // 15 min
-
-  await User.updateOne({ _id: user._id }, {
-    magicLinkToken: tokenHash,
-    magicLinkExpiresAt: expiresAt,
-  })
-
-  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
-  const magicUrl = `${baseUrl}/magic?token=${rawToken}`
-
+  const { magicUrl } = await issueMagicLink(String(user._id))
   await sendMagicLink({ email, magicUrl })
 
   return NextResponse.json({

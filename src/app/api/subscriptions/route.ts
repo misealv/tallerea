@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { SubscriptionService } from '@/services/SubscriptionService'
 import { validateRequired, validateObjectId } from '@/lib/validate'
+import { findOrCreateGuestUser } from '@/lib/guestUser'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export async function GET(req: NextRequest) {
   try {
@@ -31,7 +34,6 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   try {
     const body = await req.json()
@@ -41,10 +43,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'workshopId inválido' }, { status: 400 })
     }
 
+    // Resolver studentId + email: sesión activa O checkout invitado
+    let studentId: string
+    let studentEmail: string
+    if (session?.user?.id && session.user.email) {
+      studentId = session.user.id
+      studentEmail = session.user.email
+    } else {
+      const name = typeof body.name === 'string' ? body.name : ''
+      const email = typeof body.email === 'string' ? body.email : ''
+      if (!name.trim() || !email.trim()) {
+        return NextResponse.json(
+          { error: 'Debes ingresar nombre y email para suscribirte' },
+          { status: 400 }
+        )
+      }
+      if (!EMAIL_RE.test(email.trim())) {
+        return NextResponse.json({ error: 'Email inválido' }, { status: 400 })
+      }
+      const guest = await findOrCreateGuestUser(name, email)
+      studentId = guest.userId
+      studentEmail = guest.email
+    }
+
     const result = await SubscriptionService.createWithPayment(
       body.workshopId,
-      session.user.id,
-      session.user.email!
+      studentId,
+      studentEmail
     )
 
     return NextResponse.json(result, { status: 201 })

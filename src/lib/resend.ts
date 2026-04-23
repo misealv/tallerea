@@ -19,6 +19,8 @@ interface EnrollmentConfirmationInput {
   monto: number
   fechaInicio?: string
   horarios?: { dia: string; horaInicio: string; horaFin: string }[]
+  // Si presente, el alumno es invitado: incluir CTA con magic link para activar cuenta
+  magicUrl?: string
 }
 
 export async function sendEnrollmentConfirmation(input: EnrollmentConfirmationInput) {
@@ -30,6 +32,22 @@ export async function sendEnrollmentConfirmation(input: EnrollmentConfirmationIn
   const horariosText = input.horarios?.length
     ? input.horarios.map(h => `${h.dia} ${h.horaInicio} - ${h.horaFin}`).join(', ')
     : ''
+
+  // Bloque CTA: magic link tiene prioridad si existe (alumno recién creado)
+  const accessBlock = input.magicUrl
+    ? `
+        <p>Te creamos una cuenta. Ingresa con este enlace seguro (válido <strong>15 minutos</strong>, un solo uso):</p>
+        <a href="${input.magicUrl}" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; margin-top: 8px; font-size: 16px;">
+          Activar mi cuenta
+        </a>
+        <p style="color: #6b7280; font-size: 13px; margin-top: 12px;">Si el enlace expira, puedes solicitar otro desde la página de inicio de sesión.</p>
+      `
+    : `
+        <p>Puedes ver tus inscripciones en:</p>
+        <a href="${baseUrl}/alumno" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin-top: 8px;">
+          Mis talleres
+        </a>
+      `
 
   await resend.emails.send({
     from: FROM_EMAIL,
@@ -46,10 +64,7 @@ export async function sendEnrollmentConfirmation(input: EnrollmentConfirmationIn
           ${input.fechaInicio ? `<p style="margin: 4px 0;"><strong>Inicio:</strong> ${input.fechaInicio}</p>` : ''}
           ${horariosText ? `<p style="margin: 4px 0;"><strong>Horarios:</strong> ${horariosText}</p>` : ''}
         </div>
-        <p>Puedes ver tus inscripciones en:</p>
-        <a href="${baseUrl}/mis-talleres" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin-top: 8px;">
-          Mis talleres
-        </a>
+        ${accessBlock}
         <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
       </div>
     `,
