@@ -4,6 +4,10 @@ import { authOptions } from '@/lib/auth'
 import { TallerService } from '@/services/TallerService'
 import TalleristaAcciones from './TalleristaAcciones'
 import Link from 'next/link'
+import dbConnect from '@/lib/db'
+import Booking from '@/models/Booking'
+import Subscription from '@/models/Subscription'
+import Workshop from '@/models/Workshop'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +28,22 @@ export default async function TalleristaDetallePage({
 
   const user = await TallerService.getById(params.id)
   if (!user || !user.taller) notFound()
+
+  // Calcular strikes desde Bookings (sin cambio de schema)
+  await dbConnect()
+  const workshops = await Workshop.find({ ownerId: params.id, activo: true }).select('_id').lean()
+  const workshopIds = workshops.map(w => w._id)
+  let noShows = 0
+  let totalBookings = 0
+  if (workshopIds.length > 0) {
+    const subs = await Subscription.find({ workshopId: { $in: workshopIds } }).select('_id').lean()
+    const subIds = subs.map(s => s._id)
+    ;[noShows, totalBookings] = await Promise.all([
+      Booking.countDocuments({ subscriptionId: { $in: subIds }, estado: 'no_asistio' }),
+      Booking.countDocuments({ subscriptionId: { $in: subIds }, estado: { $ne: 'cancelada' } }),
+    ])
+  }
+  const noShowPct = totalBookings > 0 ? Math.round((noShows / totalBookings) * 100) : 0
 
   const t = user.taller
   const estado = t.estado ?? 'pendiente'
@@ -106,6 +126,39 @@ export default async function TalleristaDetallePage({
           </ol>
         </div>
       )}
+
+      {/* Strikes / No-shows */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
+        <h3 className="font-semibold text-gray-900">Registro de no-shows</h3>
+        <div className="flex gap-8">
+          <div className="text-center">
+            <p className={`text-3xl font-bold ${noShows >= 5 ? 'text-red-600' : noShows >= 3 ? 'text-orange-500' : 'text-gray-900'}`}>
+              {noShows}
+            </p>
+            <p className="text-xs text-gray-400">No-shows</p>
+          </div>
+          <div className="text-center">
+            <p className="text-3xl font-bold text-gray-700">{totalBookings}</p>
+            <p className="text-xs text-gray-400">Reservas totales</p>
+          </div>
+          <div className="text-center">
+            <p className={`text-3xl font-bold ${noShowPct >= 20 ? 'text-red-600' : noShowPct >= 10 ? 'text-orange-500' : 'text-gray-700'}`}>
+              {noShowPct}%
+            </p>
+            <p className="text-xs text-gray-400">Tasa no-show</p>
+          </div>
+        </div>
+        {noShows >= 5 && (
+          <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">
+            ⚠️ Alta tasa de no-shows. Considera suspender la cuenta si el patrón continúa.
+          </p>
+        )}
+        {noShows >= 3 && noShows < 5 && (
+          <p className="text-xs text-orange-600 bg-orange-50 rounded-lg px-3 py-2">
+            Atención: {noShows} no-shows registrados. Monitorear.
+          </p>
+        )}
+      </div>
 
       {/* Acciones */}
       <TalleristaAcciones userId={String(user._id)} estado={estado} />

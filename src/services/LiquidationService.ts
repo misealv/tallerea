@@ -2,6 +2,7 @@ import dbConnect from '@/lib/db'
 import Liquidation, { ILiquidation } from '@/models/Liquidation'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
 import Account from '@/models/Account'
+import User from '@/models/User'
 import { FinanceService } from '@/services/FinanceService'
 
 interface PaginatedResult<T> {
@@ -51,22 +52,29 @@ export const LiquidationService = {
       .lean<ILiquidation>()
   },
 
-  // Generar liquidación para un Account en un período
+  // Generar liquidación para un profesor (ownerId o accountId legacy)
   async generate(
-    accountId: string,
+    subjectId: string,
     desde: Date,
     hasta: Date,
-    userId: string
+    userId: string,
+    mode: 'ownerId' | 'accountId' = 'ownerId'
   ): Promise<ILiquidation> {
     await dbConnect()
 
-    // Buscar breakdowns cobrados no liquidados del período
-    const breakdowns = await PaymentBreakdown.find({
-      accountId,
+    // Construir filtro de breakdowns según modo
+    const breakdownFilter: Record<string, unknown> = {
       estado: 'cobrado',
       liquidationId: { $exists: false },
       fechaCobro: { $gte: desde, $lte: hasta },
-    })
+    }
+    if (mode === 'ownerId') {
+      breakdownFilter.ownerId = subjectId
+    } else {
+      breakdownFilter.accountId = subjectId
+    }
+
+    const breakdowns = await PaymentBreakdown.find(breakdownFilter)
 
     if (breakdowns.length === 0) {
       throw new Error('No hay pagos cobrados para liquidar en este período')
@@ -84,16 +92,9 @@ export const LiquidationService = {
       )
     }
 
-    // Verificar mínimo de liquidación
-    const account = await Account.findById(accountId)
-    if (account && totalProfesor < account.liquidacionMinima) {
-      throw new Error(
-        `Monto a liquidar ($${totalProfesor}) inferior al mínimo ($${account.liquidacionMinima})`
-      )
-    }
-
-    const liquidation = await new Liquidation({
-      accountId,
+    // Verificar mínimo de liquidación según modo
+    let liquidacionMinima = 0
+    const liquidationData: Record<string, unknown> = {
       periodo: { desde, hasta },
       breakdowns: breakdowns.map(b => b._id),
       totalBruto,
@@ -101,7 +102,26 @@ export const LiquidationService = {
       totalProfesor,
       cantidadPagos: breakdowns.length,
       estado: 'pendiente',
-    }).save()
+    }
+
+    if (mode === 'ownerId') {
+      const user = await User.findById(subjectId).select('taller.liquidacionMinima').lean<{ taller?: { liquidacionMinima?: number } }>()
+      liquidacionMinima = user?.taller?.liquidacionMinima ?? 0
+      liquidationData.ownerId = subjectId
+      liquidationData.accountId = subjectId  // mantener legacy por compatibilidad con Liquidation model
+    } else {
+      const account = await Account.findById(subjectId)
+      liquidacionMinima = account?.liquidacionMinima ?? 0
+      liquidationData.accountId = subjectId
+    }
+
+    if (totalProfesor < liquidacionMinima) {
+      throw new Error(
+        `Monto a liquidar ($${totalProfesor}) inferior al mínimo ($${liquidacionMinima})`
+      )
+    }
+
+    const liquidation = await new Liquidation(liquidationData).save()
 
     // Marcar breakdowns como liquidados
     await PaymentBreakdown.updateMany(
@@ -170,35 +190,38 @@ export const LiquidationService = {
     const rows: CsvRow[] = []
 
     for (const id of liquidationIds) {
-      const liq = await Liquidation.findById(id).populate('accountId')
+      const liq = await Liquidation.findById(id)
+        .populate('accountId')
+        .lean<{ estado: string; ownerId?: string; accountId?: unknown; totalProfesor: number; periodo: { desde: Date | string } }>()
       if (!liq) continue
       if (liq.estado === 'pagada') continue
 
-      const account = liq.accountId as unknown as {
-        nombre: string
-        datosBancarios?: {
-          rutTitular: string
-          nombreTitular: string
-          banco: string
-          tipoCuenta: string
-          numeroCuenta: string
-        }
+      let db: { rutTitular: string; nombreTitular: string; banco: string; tipoCuenta: string; numeroCuenta: string } | undefined
+
+      // Flujo nuevo: buscar datos bancarios en User.taller
+      if (liq.ownerId) {
+        const user = await User.findById(liq.ownerId).select('taller.datosBancarios').lean<{ taller?: { datosBancarios?: { rutTitular: string; nombreTitular: string; banco: string; tipoCuenta: string; numeroCuenta: string } } }>()
+        db = user?.taller?.datosBancarios
+      } else {
+        // Flujo legacy: Account.datosBancarios
+        const account = liq.accountId as unknown as { datosBancarios?: typeof db }
+        db = account?.datosBancarios
       }
 
-      if (!account.datosBancarios) continue
+      if (!db) continue
 
       rows.push({
-        rut: account.datosBancarios.rutTitular,
-        nombre: account.datosBancarios.nombreTitular,
-        banco: account.datosBancarios.banco,
-        tipoCuenta: account.datosBancarios.tipoCuenta,
-        numeroCuenta: account.datosBancarios.numeroCuenta,
+        rut: db.rutTitular,
+        nombre: db.nombreTitular,
+        banco: db.banco,
+        tipoCuenta: db.tipoCuenta,
+        numeroCuenta: db.numeroCuenta,
         monto: liq.totalProfesor,
-        glosa: `Tallerea liquidación ${liq.periodo.desde.toISOString().slice(0, 10)}`,
+        glosa: `Tallerea liquidación ${liq.periodo.desde instanceof Date ? liq.periodo.desde.toISOString().slice(0, 10) : String(liq.periodo.desde).slice(0, 10)}`,
       })
     }
 
-    if (rows.length === 0) throw new Error('No hay liquidaciones válidas para exportar')
+    if (rows.length === 0) throw new Error('No hay liquidaciones válidas para exportar (verifique datos bancarios)')
 
     const header = 'RUT;Nombre;Banco;TipoCuenta;NroCuenta;Monto;Glosa'
     const lines = rows.map(r =>

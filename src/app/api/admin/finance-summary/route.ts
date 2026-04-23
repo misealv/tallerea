@@ -14,8 +14,43 @@ export async function GET() {
 
   await dbConnect()
 
-  const pipeline = await PaymentBreakdown.aggregate([
-    { $match: { tipo: 'pago' } },
+  // Agrega por ownerId (tallerista directo — flujo nuevo)
+  const byOwner = await PaymentBreakdown.aggregate([
+    { $match: { tipo: 'pago', ownerId: { $exists: true, $ne: null } } },
+    {
+      $group: {
+        _id: '$ownerId',
+        totalBruto: { $sum: '$montoBruto' },
+        totalFee: { $sum: '$feeTallerea' },
+        totalProfesor: { $sum: '$montoProfesor' },
+        count: { $sum: 1 },
+      },
+    },
+    {
+      $lookup: {
+        from: 'users',
+        localField: '_id',
+        foreignField: '_id',
+        as: 'user',
+      },
+    },
+    { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+    {
+      $project: {
+        ownerId: '$_id',
+        ownerName: { $ifNull: ['$user.name', 'Sin nombre'] },
+        totalBruto: 1,
+        totalFee: 1,
+        totalProfesor: 1,
+        count: 1,
+      },
+    },
+    { $sort: { totalBruto: -1 } },
+  ])
+
+  // Agrega por accountId (flujo legacy)
+  const byAccount = await PaymentBreakdown.aggregate([
+    { $match: { tipo: 'pago', ownerId: { $exists: false } } },
     {
       $group: {
         _id: '$accountId',
@@ -36,8 +71,8 @@ export async function GET() {
     { $unwind: { path: '$account', preserveNullAndEmptyArrays: true } },
     {
       $project: {
-        accountId: '$_id',
-        accountName: { $ifNull: ['$account.nombre', 'Sin nombre'] },
+        ownerId: '$_id',
+        ownerName: { $concat: [{ $ifNull: ['$account.nombre', 'Sin nombre'] }, ' (legacy)'] },
         totalBruto: 1,
         totalFee: 1,
         totalProfesor: 1,
@@ -47,7 +82,9 @@ export async function GET() {
     { $sort: { totalBruto: -1 } },
   ])
 
-  const totals = pipeline.reduce(
+  const owners = [...byOwner, ...byAccount]
+
+  const totals = owners.reduce(
     (acc, row) => ({
       bruto: acc.bruto + row.totalBruto,
       fee: acc.fee + row.totalFee,
@@ -57,5 +94,6 @@ export async function GET() {
     { bruto: 0, fee: 0, profesor: 0, count: 0 }
   )
 
-  return NextResponse.json({ accounts: pipeline, totals })
+  return NextResponse.json({ owners, totals })
 }
+
