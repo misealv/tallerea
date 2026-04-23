@@ -1,22 +1,25 @@
-import 'next-auth';
+import 'next-auth'
 
 declare module 'next-auth' {
   interface User {
-    role?: string;
+    role?: string
+    tallerEstado?: string | null
   }
   interface Session {
     user: {
-      id: string;
-      name: string;
-      email: string;
-      role: string;
-    };
+      id: string
+      name: string
+      email: string
+      role: 'user' | 'admin'
+      tallerEstado: string | null  // 'pendiente' | 'aprobado' | 'rechazado' | 'suspendido' | null
+    }
   }
 }
 
 declare module 'next-auth/jwt' {
   interface JWT {
-    role?: string;
-    id?: string;
+    id?: string
+    role?: 'user' | 'admin'
+    tallerEstado?: string | null
   }
 }

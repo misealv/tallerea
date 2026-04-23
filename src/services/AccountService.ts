@@ -36,36 +36,19 @@ export const AccountService = {
     return Account.findOne({ ownerId, activo: true }).lean<IAccount>()
   },
 
-  async create(data: Partial<IAccount>, userId: string): Promise<IAccount> {
-    await dbConnect()
-    const account = await new Account({ ...data, ownerId: userId }).save()
+  // [DEPRECATED — Fase 1] Account es read-only durante la transición a User.taller.
+  // Las escrituras se realizan vía TallerService sobre el modelo User.
+  // Estos métodos lanzarán un error hasta que Account sea eliminado en Fase 11.
 
-    // Crear AccountMember automático con rol owner
-    await new AccountMember({
-      accountId: account._id,
-      userId,
-      rol: 'owner',
-      nombre: account.nombre,
-      aceptado: true,
-      activo: true,
-    }).save()
-
-    return account
+  async create(_data: Partial<IAccount>, _userId: string): Promise<IAccount> {
+    throw new Error('[DEPRECATED] AccountService.create está deshabilitado. Usar TallerService.solicitar.')
   },
 
-  async update(id: string, data: Partial<IAccount>): Promise<IAccount | null> {
-    await dbConnect()
-    const doc = await Account.findOneAndUpdate(
-      { _id: id, activo: true },
-      data,
-      { new: true, runValidators: true }
-    )
-    if (!doc) throw new Error(`Account ${id} no encontrado`)
-    return doc
+  async update(_id: string, _data: Partial<IAccount>): Promise<IAccount | null> {
+    throw new Error('[DEPRECATED] AccountService.update está deshabilitado. Usar TallerService para modificar estado.')
   },
 
-  async delete(id: string): Promise<void> {
-    await dbConnect()
-    await Account.findByIdAndUpdate(id, { activo: false })
+  async delete(_id: string): Promise<void> {
+    throw new Error('[DEPRECATED] AccountService.delete está deshabilitado.')
   },
 }

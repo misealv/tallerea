@@ -1,8 +1,8 @@
-import { NextAuthOptions } from 'next-auth';
-import CredentialsProvider from 'next-auth/providers/credentials';
-import bcrypt from 'bcryptjs';
-import dbConnect from './db';
-import User from '@/models/User';
+import { NextAuthOptions } from 'next-auth'
+import CredentialsProvider from 'next-auth/providers/credentials'
+import bcrypt from 'bcryptjs'
+import dbConnect from './db'
+import User from '@/models/User'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -13,44 +13,49 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.email || !credentials?.password) return null
 
-        await dbConnect();
-        const user = await User.findOne({ email: credentials.email.toLowerCase() });
-        if (!user) return null;
+        await dbConnect()
+        // password está con select:false — recuperarlo explícitamente
+        const user = await User.findOne({ email: credentials.email.toLowerCase() }).select('+password')
+        if (!user || !user.password) return null
 
-        const isValid = await bcrypt.compare(credentials.password, user.password);
-        if (!isValid) return null;
+        const isValid = await bcrypt.compare(credentials.password, user.password)
+        if (!isValid) return null
+        if (!user.activo) return null
 
         return {
           id: user._id.toString(),
           name: user.name,
           email: user.email,
           role: user.role,
-        };
+          tallerEstado: user.taller?.estado ?? null,
+        }
       },
     }),
   ],
   session: { strategy: 'jwt' },
   pages: {
     signIn: '/login',
-    newUser: '/registro',
   },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = user.role;
-        token.id = user.id;
+        token.id = user.id
+        token.role = user.role
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        token.tallerEstado = (user as any).tallerEstado ?? null
       }
-      return token;
+      return token
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.role = token.role as string;
-        session.user.id = token.id as string;
+        session.user.id = token.id as string
+        session.user.role = token.role as 'user' | 'admin'
+        session.user.tallerEstado = (token.tallerEstado ?? null) as string | null
       }
-      return session;
+      return session
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
-};
+}
