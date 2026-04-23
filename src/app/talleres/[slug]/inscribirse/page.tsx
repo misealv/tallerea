@@ -25,23 +25,19 @@ interface Workshop {
   slots: Slot[]
 }
 
-export default function InscribirsePage({ params }: { params: Promise<{ slug: string }> }) {
+export default function InscribirsePage({ params }: { params: { slug: string } }) {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [workshop, setWorkshop] = useState<Workshop | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const [slug, setSlug] = useState('')
+  const slug = params.slug
   const [selectedSlots, setSelectedSlots] = useState<number[]>([])
   const [currentSlotIdx, setCurrentSlotIdx] = useState(0)
   // Datos del invitado (solo cuando no hay sesión)
   const [guestName, setGuestName] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
-
-  useEffect(() => {
-    params.then(p => setSlug(p.slug))
-  }, [params])
 
   useEffect(() => {
     if (!slug) return
