@@ -1,5 +1,13 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
+export interface IReagendamiento {
+  solicitadoEn: Date;
+  estado: 'pendiente' | 'aprobado' | 'rechazado';
+  slotDestinoIndex?: number;
+  decididoEn?: Date;
+  razonRechazo?: string;
+}
+
 export interface IBooking extends Document {
   subscriptionId: Types.ObjectId;
   workshopId: Types.ObjectId;
@@ -8,9 +16,18 @@ export interface IBooking extends Document {
   fecha: Date;
   estado: 'reservada' | 'asistio' | 'no_asistio' | 'cancelada';
   canceladaEn: Date | null;
+  reagendamiento?: IReagendamiento;
   activo: boolean;
   createdAt: Date;
 }
+
+const ReagendamientoSchema = new Schema<IReagendamiento>({
+  solicitadoEn: { type: Date, required: true },
+  estado: { type: String, enum: ['pendiente', 'aprobado', 'rechazado'], default: 'pendiente' },
+  slotDestinoIndex: { type: Number },
+  decididoEn: { type: Date },
+  razonRechazo: { type: String },
+}, { _id: false });
 
 const BookingSchema = new Schema<IBooking>({
   subscriptionId: { type: Schema.Types.ObjectId, ref: 'Subscription', required: true },
@@ -20,6 +37,7 @@ const BookingSchema = new Schema<IBooking>({
   fecha: { type: Date, required: true },
   estado: { type: String, enum: ['reservada', 'asistio', 'no_asistio', 'cancelada'], default: 'reservada' },
   canceladaEn: { type: Date, default: null },
+  reagendamiento: { type: ReagendamientoSchema },
   activo: { type: Boolean, default: true },
 }, { timestamps: true });
 

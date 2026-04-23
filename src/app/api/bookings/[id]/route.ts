@@ -60,10 +60,23 @@ export async function PUT(
   try {
     const body = await req.json()
 
-    // Marcar asistencia (solo admin por ahora — ownership del tallerista se agrega en Fase 7)
+    // Marcar asistencia: admin o tallerista dueño del taller
     if (body.estado && ['asistio', 'no_asistio'].includes(body.estado)) {
-      if (session.user.role !== 'admin') {
-        return NextResponse.json({ error: 'Solo profesores pueden marcar asistencia' }, { status: 403 })
+      const isAdmin = session.user.role === 'admin'
+      const isTallerista = session.user.tallerEstado === 'aprobado'
+      if (!isAdmin && !isTallerista) {
+        return NextResponse.json({ error: 'Solo el tallerista puede marcar asistencia' }, { status: 403 })
+      }
+      // Si es tallerista, verificar que el booking pertenece a uno de sus talleres
+      if (isTallerista && !isAdmin) {
+        const booking = await BookingService.getById(params.id)
+        if (!booking) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+        const Workshop = (await import('@/models/Workshop')).default
+        const workshop = await Workshop.findById(booking.workshopId).select('ownerId accountId').lean<{ ownerId?: unknown; accountId?: unknown }>()
+        const ownerId = String(workshop?.ownerId ?? workshop?.accountId ?? '')
+        if (ownerId !== session.user.id) {
+          return NextResponse.json({ error: 'Prohibido' }, { status: 403 })
+        }
       }
       const updated = await BookingService.markAttendance(params.id, body.estado)
       return NextResponse.json(updated)
