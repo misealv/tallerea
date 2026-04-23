@@ -6,6 +6,7 @@ const TIPOS_ENUM = [
   'tecnologia', 'idiomas', 'infantil', 'otro'
 ] as const;
 
+export const WORKSHOP_TIPOS = TIPOS_ENUM;
 export type TipoTaller = typeof TIPOS_ENUM[number];
 
 export interface ISlot {
