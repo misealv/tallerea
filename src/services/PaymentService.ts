@@ -6,7 +6,6 @@ import { createPaymentPreference } from '@/lib/mercadopago'
 import { sendEnrollmentConfirmation } from '@/lib/resend'
 import { issueMagicLink } from '@/lib/issueMagicLink'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
-import Account from '@/models/Account'
 import User from '@/models/User'
 import Subscription from '@/models/Subscription'
 import Workshop from '@/models/Workshop'
@@ -95,10 +94,9 @@ export const PaymentService = {
     if (!enrollment) return
 
     const workshop = enrollment.workshopId as unknown as {
-      _id: string; titulo: string; slug: string; accountId: string; precio: number
+      _id: string; titulo: string; slug: string; ownerId: string; precio: number; precioModalidad: string
     }
 
-    const account = await Account.findById(workshop.accountId)
     const feePct = await SiteConfigService.getComisionPct()
     // montoBruto = precio completo (lo que debe cobrar el profesor).
     // El crédito aplicado sale del margen de Tallerea, no descuenta al profesor.
@@ -107,7 +105,7 @@ export const PaymentService = {
     const breakdown = await new PaymentBreakdown({
       enrollmentId,
       workshopId:      workshop._id,
-      accountId:       workshop.accountId,
+      ownerId:         workshop.ownerId,
       studentId:       enrollment.studentId,
       montoBruto:      desglose.montoBruto,
       comisionMP:      0,
@@ -115,7 +113,7 @@ export const PaymentService = {
       montoProfesor:   desglose.montoProfesor,
       creditoAplicado: enrollment.creditoAplicado ?? 0,
       porcentajeFee:   feePct,
-      precioModalidad: account?.precioModalidad ?? 'bruto',
+      precioModalidad: workshop.precioModalidad ?? 'bruto',
       tipo:            'pago',
       estado:          'cobrado',
       mercadoPagoId:   paymentId ?? undefined,
@@ -147,7 +145,7 @@ export const PaymentService = {
     if (!enrollment) return
 
     const workshop = enrollment.workshopId as unknown as {
-      _id: string; titulo: string; slug: string; accountId: string; precio: number
+      _id: string; titulo: string; slug: string; ownerId: string; precio: number
     }
 
     // Enviar email de confirmación

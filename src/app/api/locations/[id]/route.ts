@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { LocationService } from '@/services/LocationService'
-import { AccountService } from '@/services/AccountService'
 import { validateObjectId } from '@/lib/validate'
 
 export const dynamic = 'force-dynamic'
@@ -35,18 +34,17 @@ export async function PUT(
     return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
   }
 
-  // Ownership check vía account
   const location = await LocationService.getById(params.id)
   if (!location) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
 
-  const account = await AccountService.getById(location.accountId.toString())
-  if (!account || (account.ownerId.toString() !== session.user.id && session.user.role !== 'admin')) {
+  // Ownership: verificar que el usuario es dueño de la location
+  if (location.ownerId.toString() !== session.user.id && session.user.role !== 'admin') {
     return NextResponse.json({ error: 'No tienes permiso' }, { status: 403 })
   }
 
   try {
     const body = await req.json()
-    delete body.accountId // No permitir cambiar de account
+    delete body.ownerId // No permitir cambiar de propietario
     const updated = await LocationService.update(params.id, body)
     return NextResponse.json(updated)
   } catch (error: unknown) {
@@ -70,8 +68,7 @@ export async function DELETE(
   const location = await LocationService.getById(params.id)
   if (!location) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
 
-  const account = await AccountService.getById(location.accountId.toString())
-  if (!account || (account.ownerId.toString() !== session.user.id && session.user.role !== 'admin')) {
+  if (location.ownerId.toString() !== session.user.id && session.user.role !== 'admin') {
     return NextResponse.json({ error: 'No tienes permiso' }, { status: 403 })
   }
 

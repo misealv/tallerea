@@ -14,7 +14,6 @@ interface WorkshopLean {
   titulo: string
   slug: string
   imagenes: string[]
-  accountId?: mongoose.Types.ObjectId
   ownerId?: mongoose.Types.ObjectId
   slots?: { fecha?: Date }[]
 }
@@ -92,7 +91,7 @@ export const ReviewService = {
       estado: 'pagado',
       activo: true,
     })
-      .populate('workshopId', 'titulo slug imagenes accountId ownerId slots')
+      .populate('workshopId', 'titulo slug imagenes ownerId slots')
       .lean<EnrollmentLean[]>()
 
     const elegibles: WorkshopLean[] = []
@@ -123,7 +122,7 @@ export const ReviewService = {
       activo: true,
       createdAt: { $lte: umbraldias },
     })
-      .populate('workshopId', 'titulo slug imagenes accountId ownerId')
+      .populate('workshopId', 'titulo slug imagenes ownerId')
       .lean<SubscriptionLean[]>()
 
     for (const s of subscriptions) {
@@ -170,14 +169,13 @@ export const ReviewService = {
     const origen = (elegibles as unknown as { _origen?: OrigenMap })._origen?.get(String(wid)) ?? {}
 
     // Obtener ownerId del workshop
-    const workshop = await Workshop.findById(wid).select('ownerId accountId').lean<{
+    const workshop = await Workshop.findById(wid).select('ownerId').lean<{
       _id: mongoose.Types.ObjectId
       ownerId?: mongoose.Types.ObjectId
-      accountId?: mongoose.Types.ObjectId
     }>()
     if (!workshop) throw new Error('Taller no encontrado')
 
-    const ownerId = workshop.ownerId ?? workshop.accountId
+    const ownerId = workshop.ownerId
     if (!ownerId) throw new Error('El taller no tiene propietario asignado')
 
     const review = await new Review({

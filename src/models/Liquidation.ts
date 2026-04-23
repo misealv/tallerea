@@ -1,8 +1,7 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
 export interface ILiquidation extends Document {
-  accountId: Types.ObjectId;  // legacy
-  ownerId?: Types.ObjectId;   // User tallerista directo
+  ownerId: Types.ObjectId;    // User tallerista directo
   periodo: {
     desde: Date;
     hasta: Date;
@@ -22,8 +21,7 @@ export interface ILiquidation extends Document {
 }
 
 const LiquidationSchema = new Schema<ILiquidation>({
-  accountId: { type: Schema.Types.ObjectId, ref: 'Account', required: true },
-  ownerId: { type: Schema.Types.ObjectId, ref: 'User' },
+  ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   periodo: {
     desde: { type: Date, required: true },
     hasta: { type: Date, required: true },
@@ -41,7 +39,7 @@ const LiquidationSchema = new Schema<ILiquidation>({
 }, { timestamps: true });
 
 // [CUADRATURA] Verificar ecuación fundamental antes de guardar
-LiquidationSchema.pre('save', function(next) {
+LiquidationSchema.pre('save', function(this: ILiquidation, next) {
   if (this.totalBruto !== this.totalProfesor + this.totalFeeTallerea) {
     return next(new Error(
       `[FINANCE ERROR] Cuadratura de liquidación fallida: ${this.totalBruto} ≠ ${this.totalProfesor} + ${this.totalFeeTallerea}`
@@ -50,7 +48,6 @@ LiquidationSchema.pre('save', function(next) {
   next();
 });
 
-LiquidationSchema.index({ accountId: 1, estado: 1 });
 LiquidationSchema.index({ ownerId: 1, estado: 1 });
 LiquidationSchema.index({ 'periodo.desde': 1, 'periodo.hasta': 1 });
 

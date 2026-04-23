@@ -48,7 +48,6 @@ export async function POST(req: NextRequest) {
     // [INMUTABLE] Crear nuevo breakdown tipo:'reembolso' con montos negativos
     const reembolso = await new PaymentBreakdown({
       workshopId: original.workshopId,
-      accountId: original.accountId,
       ownerId: original.ownerId,
       studentId: original.studentId,
       subscriptionId: original.subscriptionId,

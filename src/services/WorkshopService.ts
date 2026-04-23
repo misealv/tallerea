@@ -1,7 +1,6 @@
 import dbConnect from '@/lib/db'
 import Workshop, { IWorkshop } from '@/models/Workshop'
 import Location from '@/models/Location'
-import '@/models/Account'
 
 interface PaginatedResult<T> {
   data: T[]
@@ -19,7 +18,6 @@ interface WorkshopFilters {
   dia?: string
   precioMin?: number
   precioMax?: number
-  accountId?: string
   ownerId?: string
   includeInactive?: boolean
 }
@@ -35,7 +33,6 @@ export const WorkshopService = {
     if (filters?.tipo) query.tipo = filters.tipo
     if (filters?.modalidad) query.modalidad = filters.modalidad
     if (filters?.modeloAcceso) query.modeloAcceso = filters.modeloAcceso
-    if (filters?.accountId) query.accountId = filters.accountId
     if (filters?.ownerId) query.ownerId = filters.ownerId
     if (filters?.dia) query['slots.dia'] = filters.dia
     if (filters?.precioMin || filters?.precioMax) {
@@ -54,7 +51,6 @@ export const WorkshopService = {
     const [data, total] = await Promise.all([
       Workshop.find(query)
         .populate('locationId', 'nombre comuna ciudad')
-        .populate('accountId', 'nombre slug precioModalidad')
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
@@ -68,7 +64,6 @@ export const WorkshopService = {
     await dbConnect()
     return Workshop.findOne({ _id: id, activo: true, deletedAt: null })
       .populate('locationId', 'nombre direccion comuna ciudad')
-      .populate('accountId', 'nombre slug logo tipo precioModalidad')
       .lean<IWorkshop>()
   },
 
@@ -81,12 +76,7 @@ export const WorkshopService = {
     await dbConnect()
     return Workshop.findOne({ slug, activo: true, deletedAt: null })
       .populate('locationId', 'nombre direccion comuna ciudad coordenadas')
-      .populate('accountId', 'nombre slug logo tipo verificado precioModalidad')
       .lean<IWorkshop>()
-  },
-
-  async getByAccountId(accountId: string, page = 1, limit = 20): Promise<PaginatedResult<IWorkshop>> {
-    return this.getAll({ accountId }, page, limit)
   },
 
   async getByOwnerId(ownerId: string, page = 1, limit = 20): Promise<PaginatedResult<IWorkshop>> {

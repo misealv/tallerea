@@ -3,7 +3,6 @@ import dbConnect from '@/lib/db'
 import Subscription, { ISubscription } from '@/models/Subscription'
 import Booking from '@/models/Booking'
 import Workshop from '@/models/Workshop'
-import Account from '@/models/Account'
 import User from '@/models/User'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
 import { FinanceService } from '@/services/FinanceService'
@@ -132,7 +131,6 @@ export const SubscriptionService = {
     }
 
     // [CUADRATURA] Calcular desglose financiero
-    const account = await Account.findById(workshop.accountId)
     const feePct = await SiteConfigService.getComisionPct()
     const desglose = FinanceService.calcularDesglose(monto, feePct)
 
@@ -140,14 +138,14 @@ export const SubscriptionService = {
     const breakdown = await new PaymentBreakdown({
       subscriptionId: subscription._id,
       workshopId,
-      accountId: workshop.accountId,
+      ownerId: workshop.ownerId,
       studentId,
       montoBruto: desglose.montoBruto,
       comisionMP: 0,
       feeTallerea: desglose.feeTallerea,
       montoProfesor: desglose.montoProfesor,
       porcentajeFee: feePct,
-      precioModalidad: account?.precioModalidad ?? 'bruto',
+      precioModalidad: workshop.precioModalidad ?? 'bruto',
       tipo: 'pago',
       estado: 'pendiente',
     }).save()

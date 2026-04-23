@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { WorkshopService } from '@/services/WorkshopService'
-import { AccountService } from '@/services/AccountService'
 import { validateObjectId } from '@/lib/validate'
 
 export const dynamic = 'force-dynamic'
@@ -39,31 +38,22 @@ export async function PUT(
     const workshop = await WorkshopService.getByIdIncludingInactive(params.id)
     if (!workshop) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-    // Ownership: admin, o dueño directo (ownerId), o owner del Account legacy
+    // Ownership: admin o dueño directo
     const isAdmin = session.user.role === 'admin'
-    const isDirectOwner = workshop.ownerId?.toString() === session.user.id
-    let isAccountOwner = false
-    if (!isDirectOwner && workshop.accountId) {
-      const account = await AccountService.getById(workshop.accountId.toString())
-      isAccountOwner = !!account && account.ownerId.toString() === session.user.id
-    }
-    if (!isAdmin && !isDirectOwner && !isAccountOwner) {
+    const isOwner = workshop.ownerId?.toString() === session.user.id
+    if (!isAdmin && !isOwner) {
       return NextResponse.json({ error: 'No tienes permiso' }, { status: 403 })
     }
 
     const body = await req.json()
-    delete body.accountId
+    delete body.ownerId
     delete body.slug
-
-    // Limpiar campos vacíos que Mongoose no puede castear a ObjectId
     if (!body.locationId) delete body.locationId
-    if (!body.instructorId) delete body.instructorId
 
     const updated = await WorkshopService.update(params.id, body)
     return NextResponse.json(updated)
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error interno'
-    console.error('[workshops/PUT]', message)
     const status = message.includes('no encontrado') ? 404 : 500
     return NextResponse.json({ error: message }, { status })
   }
@@ -84,15 +74,9 @@ export async function DELETE(
     const workshop = await WorkshopService.getByIdIncludingInactive(params.id)
     if (!workshop) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-    // Ownership: admin, o dueño directo (ownerId), o owner del Account legacy
     const isAdmin = session.user.role === 'admin'
-    const isDirectOwner = workshop.ownerId?.toString() === session.user.id
-    let isAccountOwner = false
-    if (!isDirectOwner && workshop.accountId) {
-      const account = await AccountService.getById(workshop.accountId.toString())
-      isAccountOwner = !!account && account.ownerId.toString() === session.user.id
-    }
-    if (!isAdmin && !isDirectOwner && !isAccountOwner) {
+    const isOwner = workshop.ownerId?.toString() === session.user.id
+    if (!isAdmin && !isOwner) {
       return NextResponse.json({ error: 'No tienes permiso' }, { status: 403 })
     }
 
@@ -100,7 +84,7 @@ export async function DELETE(
     return NextResponse.json({ success: true })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error interno'
-    console.error('[workshops/DELETE]', message)
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
+

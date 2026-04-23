@@ -3,7 +3,6 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import dbConnect from '@/lib/db'
 import User from '@/models/User'
-import Account from '@/models/Account'
 import Workshop from '@/models/Workshop'
 import Enrollment from '@/models/Enrollment'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
@@ -19,9 +18,9 @@ export async function GET() {
 
   await dbConnect()
 
-  const [users, accounts, workshops, enrollments, revenue, feeTotal] = await Promise.all([
+  const [users, talleristas, workshops, enrollments, revenue, feeTotal] = await Promise.all([
     User.countDocuments(),
-    Account.countDocuments({ activo: true }),
+    User.countDocuments({ 'taller.estado': 'aprobado' }),
     Workshop.countDocuments({ activo: true }),
     Enrollment.countDocuments({ activo: true }),
     Enrollment.aggregate([
@@ -35,8 +34,9 @@ export async function GET() {
   ])
 
   return NextResponse.json({
-    users, accounts, workshops, enrollments,
+    users, talleristas, workshops, enrollments,
     revenue: revenue[0]?.total || 0,
     feeTallerea: feeTotal[0]?.fee || 0,
   })
 }
+

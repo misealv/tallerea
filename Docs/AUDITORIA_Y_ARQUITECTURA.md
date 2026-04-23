@@ -922,7 +922,10 @@ Todo lo que no contribuya a ese flujo se pospone. Se construye en capas funciona
 #### Fase 8 — Cron mensual [ALTA]
 1. `api/cron/vencer-suscripciones` con Vercel Cron diario
 2. Lógica cerrarCiclo: bookings futuras → canceladas, auto-renovación si aplica
-3. Email post-renovación o post-vencimiento
+3. Email post-renovación o post-vencimien#### Fase 8 — Cron mensual [ALTA]
+1. `api/cron/vencer-suscripciones` con Vercel Cron diario
+2. Lógica cerrarCiclo: bookings futuras → canceladas, auto-renovación si aplica
+3. Email post-renovación o post-vencimientoto
 
 #### Fase 9 — Reviews [MEDIA]
 1. Modelo + service con validación de elegibilidad
@@ -935,10 +938,10 @@ Todo lo que no contribuya a ese flujo se pospone. Se construye en capas funciona
 2. `POST /api/refunds` (admin inicial, usuario post-MVP)
 3. Aplicar crédito en checkout (Enrollment.creditoAplicado)
 
-#### Fase 11 — Limpieza [BAJA]
-1. Eliminar `Account` y `AccountMember` del código
-2. Eliminar rutas legacy `/dashboard/*` y `/espacios/[slug]`
-3. Tests financieros exhaustivos
+#### Fase 11 — Limpieza [COMPLETADA ✅]
+1. ✅ Eliminar `Account` y `AccountMember` del código
+2. ✅ Eliminar rutas legacy `/dashboard/*` y `/espacios/[slug]`
+3. ✅ Tests financieros exhaustivos (29/29 passing)
 
 ### 3.3 Hito MVP definido
 

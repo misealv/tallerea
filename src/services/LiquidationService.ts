@@ -1,7 +1,6 @@
 import dbConnect from '@/lib/db'
 import Liquidation, { ILiquidation } from '@/models/Liquidation'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
-import Account from '@/models/Account'
 import User from '@/models/User'
 import { FinanceService } from '@/services/FinanceService'
 
@@ -34,7 +33,6 @@ export const LiquidationService = {
     const query = { ...filters }
     const [data, total] = await Promise.all([
       Liquidation.find(query)
-        .populate('accountId', 'nombre slug datosBancarios')
         .skip((page - 1) * limit)
         .limit(limit)
         .sort({ createdAt: -1 })
@@ -47,31 +45,24 @@ export const LiquidationService = {
   async getById(id: string): Promise<ILiquidation | null> {
     await dbConnect()
     return Liquidation.findById(id)
-      .populate('accountId', 'nombre slug datosBancarios liquidacionMinima')
       .populate('breakdowns')
       .lean<ILiquidation>()
   },
 
-  // Generar liquidación para un profesor (ownerId o accountId legacy)
+  // Generar liquidación para un profesor (ownerId)
   async generate(
-    subjectId: string,
+    ownerId: string,
     desde: Date,
     hasta: Date,
-    userId: string,
-    mode: 'ownerId' | 'accountId' = 'ownerId'
+    userId: string
   ): Promise<ILiquidation> {
     await dbConnect()
 
-    // Construir filtro de breakdowns según modo
     const breakdownFilter: Record<string, unknown> = {
+      ownerId,
       estado: 'cobrado',
       liquidationId: { $exists: false },
       fechaCobro: { $gte: desde, $lte: hasta },
-    }
-    if (mode === 'ownerId') {
-      breakdownFilter.ownerId = subjectId
-    } else {
-      breakdownFilter.accountId = subjectId
     }
 
     const breakdowns = await PaymentBreakdown.find(breakdownFilter)
@@ -92,28 +83,9 @@ export const LiquidationService = {
       )
     }
 
-    // Verificar mínimo de liquidación según modo
-    let liquidacionMinima = 0
-    const liquidationData: Record<string, unknown> = {
-      periodo: { desde, hasta },
-      breakdowns: breakdowns.map(b => b._id),
-      totalBruto,
-      totalFeeTallerea,
-      totalProfesor,
-      cantidadPagos: breakdowns.length,
-      estado: 'pendiente',
-    }
-
-    if (mode === 'ownerId') {
-      const user = await User.findById(subjectId).select('taller.liquidacionMinima').lean<{ taller?: { liquidacionMinima?: number } }>()
-      liquidacionMinima = user?.taller?.liquidacionMinima ?? 0
-      liquidationData.ownerId = subjectId
-      liquidationData.accountId = subjectId  // mantener legacy por compatibilidad con Liquidation model
-    } else {
-      const account = await Account.findById(subjectId)
-      liquidacionMinima = account?.liquidacionMinima ?? 0
-      liquidationData.accountId = subjectId
-    }
+    // Verificar mínimo de liquidación
+    const user = await User.findById(ownerId).select('taller.liquidacionMinima').lean<{ taller?: { liquidacionMinima?: number } }>()
+    const liquidacionMinima = user?.taller?.liquidacionMinima ?? 0
 
     if (totalProfesor < liquidacionMinima) {
       throw new Error(
@@ -121,7 +93,16 @@ export const LiquidationService = {
       )
     }
 
-    const liquidation = await new Liquidation(liquidationData).save()
+    const liquidation = await new Liquidation({
+      ownerId,
+      periodo: { desde, hasta },
+      breakdowns: breakdowns.map(b => b._id),
+      totalBruto,
+      totalFeeTallerea,
+      totalProfesor,
+      cantidadPagos: breakdowns.length,
+      estado: 'pendiente',
+    }).save()
 
     // Marcar breakdowns como liquidados
     await PaymentBreakdown.updateMany(
@@ -191,23 +172,13 @@ export const LiquidationService = {
 
     for (const id of liquidationIds) {
       const liq = await Liquidation.findById(id)
-        .populate('accountId')
-        .lean<{ estado: string; ownerId?: string; accountId?: unknown; totalProfesor: number; periodo: { desde: Date | string } }>()
+        .lean<{ estado: string; ownerId?: string; totalProfesor: number; periodo: { desde: Date | string } }>()
       if (!liq) continue
       if (liq.estado === 'pagada') continue
 
-      let db: { rutTitular: string; nombreTitular: string; banco: string; tipoCuenta: string; numeroCuenta: string } | undefined
-
-      // Flujo nuevo: buscar datos bancarios en User.taller
-      if (liq.ownerId) {
-        const user = await User.findById(liq.ownerId).select('taller.datosBancarios').lean<{ taller?: { datosBancarios?: { rutTitular: string; nombreTitular: string; banco: string; tipoCuenta: string; numeroCuenta: string } } }>()
-        db = user?.taller?.datosBancarios
-      } else {
-        // Flujo legacy: Account.datosBancarios
-        const account = liq.accountId as unknown as { datosBancarios?: typeof db }
-        db = account?.datosBancarios
-      }
-
+      if (!liq.ownerId) continue
+      const user = await User.findById(liq.ownerId).select('taller.datosBancarios').lean<{ taller?: { datosBancarios?: { rutTitular: string; nombreTitular: string; banco: string; tipoCuenta: string; numeroCuenta: string } } }>()
+      const db = user?.taller?.datosBancarios
       if (!db) continue
 
       rows.push({

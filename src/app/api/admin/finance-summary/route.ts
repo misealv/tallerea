@@ -16,7 +16,7 @@ export async function GET() {
 
   // Agrega por ownerId (tallerista directo — flujo nuevo)
   const byOwner = await PaymentBreakdown.aggregate([
-    { $match: { tipo: 'pago', ownerId: { $exists: true, $ne: null } } },
+    { $match: { tipo: 'pago' } },
     {
       $group: {
         _id: '$ownerId',
@@ -48,41 +48,7 @@ export async function GET() {
     { $sort: { totalBruto: -1 } },
   ])
 
-  // Agrega por accountId (flujo legacy)
-  const byAccount = await PaymentBreakdown.aggregate([
-    { $match: { tipo: 'pago', ownerId: { $exists: false } } },
-    {
-      $group: {
-        _id: '$accountId',
-        totalBruto: { $sum: '$montoBruto' },
-        totalFee: { $sum: '$feeTallerea' },
-        totalProfesor: { $sum: '$montoProfesor' },
-        count: { $sum: 1 },
-      },
-    },
-    {
-      $lookup: {
-        from: 'accounts',
-        localField: '_id',
-        foreignField: '_id',
-        as: 'account',
-      },
-    },
-    { $unwind: { path: '$account', preserveNullAndEmptyArrays: true } },
-    {
-      $project: {
-        ownerId: '$_id',
-        ownerName: { $concat: [{ $ifNull: ['$account.nombre', 'Sin nombre'] }, ' (legacy)'] },
-        totalBruto: 1,
-        totalFee: 1,
-        totalProfesor: 1,
-        count: 1,
-      },
-    },
-    { $sort: { totalBruto: -1 } },
-  ])
-
-  const owners = [...byOwner, ...byAccount]
+  const owners = byOwner
 
   const totals = owners.reduce(
     (acc, row) => ({

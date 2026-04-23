@@ -1,8 +1,7 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
 export interface ILocation extends Document {
-  accountId: Types.ObjectId;  // legacy
-  ownerId?: Types.ObjectId;   // User tallerista directo
+  ownerId: Types.ObjectId;    // User tallerista directo
   nombre: string;
   direccion: string;
   comuna: string;
@@ -17,8 +16,7 @@ export interface ILocation extends Document {
 }
 
 const LocationSchema = new Schema<ILocation>({
-  accountId: { type: Schema.Types.ObjectId, ref: 'Account', required: true },
-  ownerId: { type: Schema.Types.ObjectId, ref: 'User' },
+  ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   nombre: { type: String, required: true, trim: true },
   direccion: { type: String, required: true, trim: true },
   comuna: { type: String, required: true, trim: true },
@@ -31,7 +29,6 @@ const LocationSchema = new Schema<ILocation>({
   activo: { type: Boolean, default: true },
 }, { timestamps: true });
 
-LocationSchema.index({ accountId: 1 });
 LocationSchema.index({ ownerId: 1, activo: 1 });
 LocationSchema.index({ comuna: 1 });
 LocationSchema.index({ ciudad: 1 });

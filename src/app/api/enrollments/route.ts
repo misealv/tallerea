@@ -24,15 +24,12 @@ export async function GET(req: NextRequest) {
       if (!validateObjectId(workshopId)) {
         return NextResponse.json({ error: 'workshopId inválido' }, { status: 400 })
       }
-      // Verificar ownership: solo el dueño del espacio o admin puede ver inscripciones
+      // Verificar ownership: solo el dueño del taller o admin puede ver inscripciones
       if (session.user.role !== 'admin') {
         const workshop = await WorkshopService.getById(workshopId)
         if (!workshop) return NextResponse.json({ error: 'Taller no encontrado' }, { status: 404 })
-        const accountId = typeof workshop.accountId === 'object' && workshop.accountId !== null && '_id' in workshop.accountId
-          ? String((workshop.accountId as { _id: unknown })._id) : String(workshop.accountId)
-        const { AccountService } = await import('@/services/AccountService')
-        const account = await AccountService.getById(accountId)
-        if (!account || String(account.ownerId) !== session.user.id) {
+        const ownerIdStr = workshop.ownerId ? String(workshop.ownerId) : null
+        if (!ownerIdStr || ownerIdStr !== session.user.id) {
           return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
         }
       }

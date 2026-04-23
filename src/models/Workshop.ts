@@ -51,10 +51,10 @@ export interface IPolitica {
 }
 
 export interface IWorkshop extends Document {
-  accountId?: Types.ObjectId;  // legacy — usar ownerId en nuevos workshops
-  ownerId?: Types.ObjectId;    // User tallerista directo (sin Account)
+  accountId?: Types.ObjectId;  // legacy — se mantiene para compatibilidad con datos existentes
+  ownerId: Types.ObjectId;     // User tallerista directo
   locationId?: Types.ObjectId;
-  instructorId?: Types.ObjectId;
+  instructorId?: Types.ObjectId;  // legacy
   slug: string;
   titulo: string;
   descripcion: string;
@@ -143,11 +143,12 @@ const PoliticaSchema = new Schema({
 }, { _id: false });
 
 const WorkshopSchema = new Schema<IWorkshop>({
-  // accountId queda opcional durante la transición a ownerId-only (Fase 4 plan)
-  accountId: { type: Schema.Types.ObjectId, ref: 'Account' },
-  ownerId: { type: Schema.Types.ObjectId, ref: 'User' },
+  // accountId e instructorId mantenidos como campos opcionales sin ref para compat con datos legacy
+  // (Account y AccountMember fueron eliminados en Fase 11)
+  accountId: { type: Schema.Types.ObjectId },
+  ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   locationId: { type: Schema.Types.ObjectId, ref: 'Location' },
-  instructorId: { type: Schema.Types.ObjectId, ref: 'AccountMember' },
+  instructorId: { type: Schema.Types.ObjectId },
   slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
   titulo: { type: String, required: true, trim: true },
   descripcion: { type: String, required: true },
@@ -191,9 +192,9 @@ const WorkshopSchema = new Schema<IWorkshop>({
 }, { timestamps: true });
 
 WorkshopSchema.pre('save', function(next) {
-  // Validar que exista al menos uno: ownerId (flujo nuevo) o accountId (legacy)
+  // Validar que exista ownerId
   if (!this.ownerId && !this.accountId) {
-    return next(new Error('[WORKSHOP] Debe especificar ownerId o accountId'));
+    return next(new Error('[WORKSHOP] Debe especificar ownerId'));
   }
   // tipoPersonalizado solo se guarda si tipo === 'otro'
   if (this.tipo !== 'otro') {
@@ -214,7 +215,6 @@ WorkshopSchema.pre('save', function(next) {
 });
 
 // slug index already created by unique: true on field definition
-WorkshopSchema.index({ accountId: 1 });
 WorkshopSchema.index({ ownerId: 1, activo: 1 });
 WorkshopSchema.index({ tipo: 1 });
 WorkshopSchema.index({ modalidad: 1 });

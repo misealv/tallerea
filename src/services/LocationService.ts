@@ -20,8 +20,8 @@ export const LocationService = {
     return { data, total, page, limit }
   },
 
-  async getByAccountId(accountId: string, page = 1, limit = 20): Promise<PaginatedResult<ILocation>> {
-    return this.getAll({ accountId }, page, limit)
+  async getByOwnerId(ownerId: string, page = 1, limit = 20): Promise<PaginatedResult<ILocation>> {
+    return this.getAll({ ownerId }, page, limit)
   },
 
   async getById(id: string): Promise<ILocation | null> {

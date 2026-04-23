@@ -4,8 +4,7 @@ export interface IPaymentBreakdown extends Document {
   subscriptionId?: Types.ObjectId;
   enrollmentId?: Types.ObjectId;
   workshopId: Types.ObjectId;
-  accountId: Types.ObjectId;  // legacy
-  ownerId?: Types.ObjectId;   // User tallerista directo
+  ownerId: Types.ObjectId;    // User tallerista directo
   studentId: Types.ObjectId;
   // Montos en enteros CLP ($25.000 = 25000)
   montoBruto: number;
@@ -30,8 +29,7 @@ const PaymentBreakdownSchema = new Schema<IPaymentBreakdown>({
   subscriptionId: { type: Schema.Types.ObjectId, ref: 'Subscription' },
   enrollmentId: { type: Schema.Types.ObjectId, ref: 'Enrollment' },
   workshopId: { type: Schema.Types.ObjectId, ref: 'Workshop', required: true },
-  accountId: { type: Schema.Types.ObjectId, ref: 'Account', required: true },
-  ownerId: { type: Schema.Types.ObjectId, ref: 'User' },
+  ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   studentId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   // Montos — enteros CLP
   montoBruto: { type: Number, required: true },
@@ -52,7 +50,7 @@ const PaymentBreakdownSchema = new Schema<IPaymentBreakdown>({
 }, { timestamps: true });
 
 // [CUADRATURA] Verificar ecuación fundamental antes de guardar
-PaymentBreakdownSchema.pre('save', function(next) {
+PaymentBreakdownSchema.pre('save', function(this: IPaymentBreakdown, next) {
   // Validar enteros positivos (reembolsos pueden tener montos negativos)
   if (this.tipo === 'pago') {
     if (!Number.isInteger(this.montoBruto) || this.montoBruto <= 0) {
@@ -75,7 +73,7 @@ PaymentBreakdownSchema.pre('save', function(next) {
 });
 
 PaymentBreakdownSchema.index({ workshopId: 1 });
-PaymentBreakdownSchema.index({ accountId: 1, estado: 1 });
+PaymentBreakdownSchema.index({ ownerId: 1, estado: 1 });
 PaymentBreakdownSchema.index({ studentId: 1 });
 PaymentBreakdownSchema.index({ liquidationId: 1 });
 PaymentBreakdownSchema.index({ estado: 1, fechaCobro: 1 });
