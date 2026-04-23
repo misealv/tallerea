@@ -205,35 +205,41 @@ export const SubscriptionService = {
     return sub
   },
 
-  // Consumir 1 sesión (llamado por BookingService)
+  // Consumir 1 sesión (llamado por BookingService) — [RACE] atómico
   async consumeSesion(subscriptionId: string): Promise<ISubscription> {
     await dbConnect()
-    const sub = await Subscription.findById(subscriptionId)
-    if (!sub) throw new Error('Suscripción no encontrada')
-    if (sub.estado !== 'activa') throw new Error('Suscripción no activa')
-    if (sub.sesionesDisponibles <= 0) throw new Error('No quedan sesiones disponibles')
-    if (sub.fechaVencimiento < new Date()) {
-      sub.estado = 'vencida'
-      await sub.save()
-      throw new Error('Suscripción vencida')
+    const now = new Date()
+    const updated = await Subscription.findOneAndUpdate(
+      {
+        _id: subscriptionId,
+        estado: 'activa',
+        sesionesDisponibles: { $gt: 0 },
+        fechaVencimiento: { $gt: now },
+      },
+      { $inc: { sesionesUsadas: 1, sesionesDisponibles: -1 } },
+      { new: true }
+    ).lean<ISubscription>()
+    if (!updated) {
+      // Distinguir causa
+      const sub = await Subscription.findById(subscriptionId).lean<ISubscription>()
+      if (!sub) throw new Error('Suscripción no encontrada')
+      if (sub.estado !== 'activa') throw new Error('Suscripción no activa')
+      if (sub.fechaVencimiento < now) throw new Error('Suscripción vencida')
+      throw new Error('No quedan sesiones disponibles')
     }
-
-    sub.sesionesUsadas += 1
-    sub.sesionesDisponibles -= 1
-    await sub.save()
-    return sub
+    return updated
   },
 
-  // Devolver 1 sesión (cancelación de booking)
+  // Devolver 1 sesión (cancelación de booking) — [RACE] atómico
   async devolverSesion(subscriptionId: string): Promise<ISubscription> {
     await dbConnect()
-    const sub = await Subscription.findById(subscriptionId)
-    if (!sub) throw new Error('Suscripción no encontrada')
-
-    sub.sesionesUsadas = Math.max(0, sub.sesionesUsadas - 1)
-    sub.sesionesDisponibles += 1
-    await sub.save()
-    return sub
+    const updated = await Subscription.findByIdAndUpdate(
+      subscriptionId,
+      { $inc: { sesionesUsadas: -1, sesionesDisponibles: 1 } },
+      { new: true }
+    ).lean<ISubscription>()
+    if (!updated) throw new Error('Suscripción no encontrada')
+    return updated
   },
 
   /**
@@ -247,25 +253,22 @@ export const SubscriptionService = {
 
     const now = new Date()
 
-    // 1. Cancelar todas las bookings futuras en estado 'reservada' de esta suscripción
-    await Booking.updateMany(
-      {
-        subscriptionId: sub._id,
-        estado: 'reservada',
-        fecha: { $gte: now },
-        activo: true,
-      },
-      {
-        $set: {
-          estado: 'cancelada',
-          canceladaEn: now,
-          canceladaRazon: 'ciclo_vencido',
-        },
-      }
-    )
-
-    // 2. Marcar suscripción como vencida
-    await Subscription.findByIdAndUpdate(sub._id, { estado: 'vencida' })
+    // [CICLO] Operaciones de escritura envueltas en transacción
+    const session = await mongoose.startSession()
+    try {
+      await session.withTransaction(async () => {
+        // 1. Cancelar todas las bookings futuras en estado 'reservada'
+        await Booking.updateMany(
+          { subscriptionId: sub._id, estado: 'reservada', fecha: { $gte: now }, activo: true },
+          { $set: { estado: 'cancelada', canceladaEn: now, canceladaRazon: 'ciclo_vencido' } },
+          { session }
+        )
+        // 2. Marcar suscripción como vencida
+        await Subscription.findByIdAndUpdate(sub._id, { estado: 'vencida' }, { session })
+      })
+    } finally {
+      await session.endSession()
+    }
 
     // 3. Obtener datos del alumno y el taller para el email
     const [student, workshop] = await Promise.all([
@@ -275,7 +278,20 @@ export const SubscriptionService = {
 
     if (!student?.email || !workshop) return
 
-    // 4. Enviar email según preferencia del alumno
+    // 4. Extender slots si la ventana futura es < 4 semanas
+    const workshopFull = await Workshop.findById(sub.workshopId)
+      .select('slots tipoRecurrencia plantillaSemanal recurrencia activo modeloAcceso').lean()
+    const wf = workshopFull as unknown as { activo: boolean; tipoRecurrencia?: string; slots: { fecha?: Date }[] } | null
+    if (wf && wf.activo && wf.tipoRecurrencia === 'semanal') {
+      const futureSlotsN = (wf.slots ?? []).filter(s => s.fecha && new Date(s.fecha) > now).length
+      if (futureSlotsN < 4) {
+        import('@/services/SlotGeneratorService').then(({ SlotGeneratorService }) =>
+          SlotGeneratorService.applyGeneratedSlots(String(sub.workshopId)).catch(() => null)
+        )
+      }
+    }
+
+    // 5. Enviar email según preferencia del alumno
     if (sub.autoRenovar) {
       await sendSubscriptionRenovar({
         email: student.email,

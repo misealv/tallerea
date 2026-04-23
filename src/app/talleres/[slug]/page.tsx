@@ -5,6 +5,7 @@ import { WorkshopService } from '@/services/WorkshopService'
 import { SiteConfigService } from '@/services/SiteConfigService'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import SuscribirseButton from '@/components/SuscribirseButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +36,16 @@ const tipoIcon: Record<string, string> = {
 const diaLabel: Record<string, string> = {
   lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves',
   viernes: 'Viernes', sabado: 'Sábado', domingo: 'Domingo',
+}
+
+const diaSemanaCorto = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
+
+function formatFechaSlot(fecha: Date): { dia: string; fecha: string } {
+  const d = new Date(fecha)
+  return {
+    dia: diaSemanaCorto[d.getDay()],
+    fecha: d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }),
+  }
 }
 
 export default async function WorkshopDetailPage({ params }: PageProps) {
@@ -91,19 +102,88 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
             </div>
 
             {/* Horarios (slots) */}
-            {workshop.slots && workshop.slots.length > 0 && (
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-3">Horarios</h2>
-                <div className="space-y-2">
-                  {workshop.slots.map((s: { dia?: string; horaInicio: string; horaFin: string }, i: number) => (
-                    <div key={i} className="flex items-center gap-3 rounded-lg px-4 py-2 bg-gray-50">
-                      <span className="font-medium text-gray-700 w-24">{diaLabel[s.dia ?? ''] || s.dia}</span>
-                      <span className="text-gray-600">{s.horaInicio} — {s.horaFin}</span>
+            {(() => {
+              const now = new Date()
+              const cupo = workshop.cupoPorSesion || 0
+
+              // Slots concretos con fecha, futuros y no cancelados
+              const slotsFuturos = (workshop.slots || [])
+                .filter((s: { fecha?: Date; cancelado?: boolean }) =>
+                  s.fecha && new Date(s.fecha) > now && !s.cancelado
+                )
+                .sort((a: { fecha?: Date }, b: { fecha?: Date }) =>
+                  new Date(a.fecha!).getTime() - new Date(b.fecha!).getTime()
+                )
+
+              const proximos = slotsFuturos.slice(0, 10)
+              const restantes = slotsFuturos.length - proximos.length
+
+              // Plantilla semanal (patrón) — si no hay slots con fecha
+              const plantilla = workshop.plantillaSemanal || []
+              const slotsSinFecha = (workshop.slots || []).filter(
+                (s: { fecha?: Date; dia?: string }) => !s.fecha && s.dia
+              )
+
+              if (proximos.length === 0 && plantilla.length === 0 && slotsSinFecha.length === 0) {
+                return null
+              }
+
+              return (
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 mb-3">
+                    {proximos.length > 0 ? 'Próximas sesiones disponibles' : 'Horarios'}
+                  </h2>
+
+                  {proximos.length > 0 && (
+                    <>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {proximos.map((s: { fecha?: Date; horaInicio: string; horaFin: string; reservas: number }, i: number) => {
+                          const disponible = cupo - (s.reservas || 0)
+                          const lleno = disponible <= 0
+                          const fmt = formatFechaSlot(s.fecha!)
+                          return (
+                            <div
+                              key={i}
+                              className={`rounded-lg border px-3 py-2 ${
+                                lleno ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-purple-200 bg-purple-50'
+                              }`}
+                            >
+                              <div className="text-xs text-gray-500 capitalize">{fmt.dia}</div>
+                              <div className="font-semibold text-gray-900 text-sm">{fmt.fecha}</div>
+                              <div className="text-sm text-gray-700">{s.horaInicio} – {s.horaFin}</div>
+                              <div className={`text-xs mt-1 ${lleno ? 'text-red-600' : 'text-green-700'}`}>
+                                {lleno ? 'Sin cupos' : `${disponible} de ${cupo} disponibles`}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      {restantes > 0 && (
+                        <p className="text-sm text-gray-500 mt-2">
+                          +{restantes} sesión{restantes === 1 ? '' : 'es'} más disponible{restantes === 1 ? '' : 's'}
+                        </p>
+                      )}
+                    </>
+                  )}
+
+                  {proximos.length === 0 && (plantilla.length > 0 || slotsSinFecha.length > 0) && (
+                    <div className="space-y-2">
+                      {(plantilla.length > 0 ? plantilla : slotsSinFecha).map(
+                        (s: { dia?: string; horaInicio: string; horaFin: string }, i: number) => (
+                          <div key={i} className="flex items-center gap-3 rounded-lg px-4 py-2 bg-gray-50">
+                            <span className="font-medium text-gray-700 w-24">{diaLabel[s.dia ?? ''] || s.dia}</span>
+                            <span className="text-gray-600">{s.horaInicio} — {s.horaFin}</span>
+                          </div>
+                        )
+                      )}
+                      <p className="text-xs text-gray-500 mt-2">
+                        Horarios recurrentes. Las sesiones concretas se publicarán próximamente.
+                      </p>
                     </div>
-                  ))}
+                  )}
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
             {/* Edades */}
             {(workshop.edadMinima || workshop.edadMaxima) && (
@@ -167,6 +247,23 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               </div>
 
               {(() => {
+                if (workshop.modeloAcceso === 'recurrente') {
+                  // Taller recurrente → botón de suscripción
+                  return workshop.plan ? (
+                    <div className="space-y-2">
+                      <div className="text-xs text-center text-gray-500 border-t pt-3">
+                        {workshop.plan.sesionesIncluidas} sesión{workshop.plan.sesionesIncluidas !== 1 ? 'es' : ''} ·{' '}
+                        {workshop.plan.vigencia === 'mensual' ? 'renueva mensual' : workshop.plan.vigencia === 'por_ciclo' ? 'por ciclo' : 'sin vencimiento'}
+                      </div>
+                      <SuscribirseButton workshopId={String(workshop._id)} workshopSlug={workshop.slug} />
+                    </div>
+                  ) : (
+                    <div className="w-full text-center bg-gray-200 text-gray-500 py-3 rounded-lg font-semibold text-sm">
+                      Próximamente
+                    </div>
+                  )
+                }
+                // Taller puntual → flujo de inscripción existente
                 return workshop.cupoPorSesion > 0 ? (
                   <Link
                     href={`/talleres/${workshop.slug}/inscribirse`}

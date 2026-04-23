@@ -1,0 +1,95 @@
+'use client'
+
+import { useState } from 'react'
+import CalendarGridAlumno, { type CalendarSlot } from './CalendarGridAlumno'
+
+export type { CalendarSlot }
+
+interface Props {
+  subscriptionId: string
+  workshopId: string
+  workshopSlug: string
+  sesionesDisponibles: number
+  fechaVencimiento: string
+  allSlots: CalendarSlot[]
+}
+
+function getMonday(d: Date): Date {
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  const mon = new Date(d)
+  mon.setDate(d.getDate() + diff)
+  mon.setHours(0, 0, 0, 0)
+  return mon
+}
+
+function slotsBetween(slots: CalendarSlot[], from: Date, to: Date): CalendarSlot[] {
+  return slots.filter(s => {
+    const f = new Date(s.fecha)
+    return f >= from && f < to
+  })
+}
+
+export default function ReservasCalendar({
+  subscriptionId, workshopId, workshopSlug, sesionesDisponibles, fechaVencimiento, allSlots,
+}: Props) {
+  const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()))
+
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekStart.getDate() + 7)
+
+  const visibleSlots = slotsBetween(allSlots, weekStart, weekEnd)
+
+  function handleWeekChange(delta: number) {
+    setWeekStart(prev => {
+      const d = new Date(prev)
+      d.setDate(d.getDate() + delta * 7)
+      return d
+    })
+  }
+
+  const vence = new Date(fechaVencimiento)
+
+  return (
+    <div className="space-y-4">
+      {/* Indicador de sesiones */}
+      <div className="flex items-center justify-between bg-purple-50 rounded-xl px-4 py-3">
+        <div>
+          <span className="text-sm font-medium text-purple-900">
+            {sesionesDisponibles} sesión{sesionesDisponibles !== 1 ? 'es' : ''} disponible{sesionesDisponibles !== 1 ? 's' : ''}
+          </span>
+          <span className="text-xs text-purple-600 ml-2">
+            · vence {vence.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </span>
+        </div>
+        <a
+          href={`/alumno/suscripciones`}
+          className="text-xs text-purple-600 hover:underline"
+        >
+          Ver suscripción →
+        </a>
+      </div>
+
+      {sesionesDisponibles === 0 && (
+        <div className="bg-amber-50 text-amber-700 text-sm px-4 py-3 rounded-xl">
+          Sin sesiones disponibles. <a href={`/talleres/${workshopSlug}`} className="underline">Renovar suscripción →</a>
+        </div>
+      )}
+
+      <CalendarGridAlumno
+        weekStart={weekStart}
+        slots={visibleSlots}
+        sesionesDisponibles={sesionesDisponibles}
+        subscriptionId={subscriptionId}
+        workshopId={workshopId}
+        onWeekChange={handleWeekChange}
+      />
+
+      {visibleSlots.length === 0 && (
+        <p className="text-sm text-gray-400 text-center py-6">
+          No hay sesiones programadas esta semana.
+        </p>
+      )}
+    </div>
+  )
+}

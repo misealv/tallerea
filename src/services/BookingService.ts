@@ -75,24 +75,46 @@ export const BookingService = {
     })
     if (existing) throw new Error('Ya tienes una reserva en esta sesión')
 
-    // Consumir sesión de la suscripción
+    // Consumir sesión de la suscripción (atómico)
     await SubscriptionService.consumeSesion(subscriptionId)
 
-    // Incrementar reservas en el slot
-    workshop.slots[slotIndex].reservas += 1
-    await workshop.save()
+    // [RACE] Incrementar reservas en el slot atómicamente con verificación de cupo
+    const updated = await Workshop.updateOne(
+      {
+        _id: workshopId,
+        [`slots.${slotIndex}.cancelado`]: false,
+        [`slots.${slotIndex}.reservas`]: { $lt: workshop.cupoPorSesion },
+      },
+      { $inc: { [`slots.${slotIndex}.reservas`]: 1 } }
+    )
+    if (updated.modifiedCount === 0) {
+      // Devolver sesión si falla el incremento de cupo
+      await SubscriptionService.devolverSesion(subscriptionId).catch(() => null)
+      throw new Error('Sesión llena — no hay cupo disponible')
+    }
 
-    // Crear booking
-    const booking = await new Booking({
-      subscriptionId,
-      workshopId,
-      studentId,
-      slotIndex,
-      fecha: slot.fecha ?? new Date(),
-      estado: 'reservada',
-    }).save()
-
-    return booking
+    // Crear booking — si falla, revertir sesión y cupo
+    try {
+      const booking = await new Booking({
+        subscriptionId,
+        workshopId,
+        studentId,
+        slotIndex,
+        fecha: slot.fecha ?? new Date(),
+        estado: 'reservada',
+      }).save()
+      return booking
+    } catch (err) {
+      // Compensar: devolver sesión y liberar cupo
+      await Promise.all([
+        SubscriptionService.devolverSesion(subscriptionId).catch(() => null),
+        Workshop.updateOne(
+          { _id: workshopId },
+          { $inc: { [`slots.${slotIndex}.reservas`]: -1 } }
+        ).catch(() => null),
+      ])
+      throw err
+    }
   },
 
   // Cancelar reserva (dentro del plazo)
@@ -122,13 +144,12 @@ export const BookingService = {
     // Devolver sesión a la suscripción
     await SubscriptionService.devolverSesion(String(booking.subscriptionId))
 
-    // Decrementar reservas en el slot
+    // [RACE] Decrementar reservas atómicamente
     if (workshop) {
-      const slot = workshop.slots[booking.slotIndex]
-      if (slot) {
-        slot.reservas = Math.max(0, slot.reservas - 1)
-        await workshop.save()
-      }
+      await Workshop.updateOne(
+        { _id: booking.workshopId },
+        { $inc: { [`slots.${booking.slotIndex}.reservas`]: -1 } }
+      )
     }
 
     return booking
@@ -188,13 +209,24 @@ export const BookingService = {
     if (newSlot.cancelado) throw new Error('Sesión destino cancelada')
     if (newSlot.reservas >= workshop.cupoPorSesion) throw new Error('Sesión destino sin cupo')
 
-    // Liberar cupo del slot anterior
-    const oldSlot = workshop.slots[booking.slotIndex]
-    if (oldSlot) oldSlot.reservas = Math.max(0, oldSlot.reservas - 1)
+    // [RACE] Ocupar cupo del nuevo slot atómicamente con verificación
+    const occupied = await Workshop.updateOne(
+      {
+        _id: booking.workshopId,
+        [`slots.${newSlotIndex}.cancelado`]: false,
+        [`slots.${newSlotIndex}.reservas`]: { $lt: workshop.cupoPorSesion },
+      },
+      { $inc: { [`slots.${newSlotIndex}.reservas`]: 1 } }
+    )
+    if (occupied.modifiedCount === 0) {
+      throw new Error('Sesión destino sin cupo')
+    }
 
-    // Ocupar cupo del nuevo slot
-    newSlot.reservas += 1
-    await workshop.save()
+    // [RACE] Liberar cupo del slot anterior atómicamente
+    await Workshop.updateOne(
+      { _id: booking.workshopId },
+      { $inc: { [`slots.${booking.slotIndex}.reservas`]: -1 } }
+    )
 
     // Actualizar booking
     booking.slotIndex = newSlotIndex

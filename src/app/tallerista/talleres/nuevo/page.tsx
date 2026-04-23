@@ -7,6 +7,7 @@ import Link from 'next/link'
 import AIDescriptionHelper from '@/components/AIDescriptionHelper'
 import StockImagePicker from '@/components/StockImagePicker'
 import ImageUpload from '@/components/ImageUpload'
+import SlotCalendar, { type SlotData } from '@/components/SlotCalendar'
 
 // ── Tipos locales ────────────────────────────────────────────────────────────
 
@@ -33,6 +34,10 @@ interface Paso2Data {
   // Plan (solo recurrente)
   sesionesIncluidas: string
   vigencia: 'mensual' | 'por_ciclo' | 'sin_vencimiento'
+  // Disponibilidad (solo recurrente)
+  tipoRecurrencia: 'semanal' | 'mensual'
+  cantidadRepeticiones: string
+  plantillaSemanal: SlotData[]
 }
 
 interface LocationOption {
@@ -83,14 +88,17 @@ export default function NuevoTallerPage() {
   })
 
   const [p2, setP2] = useState<Paso2Data>({
-    descripcion:      '',
-    duracionSesion:   '90',
-    cupoPorSesion:    '10',
-    fechaInicio:      '',
-    locationId:       '',
-    imagenes:         [],
-    sesionesIncluidas:'8',
-    vigencia:         'mensual',
+    descripcion:         '',
+    duracionSesion:      '90',
+    cupoPorSesion:       '10',
+    fechaInicio:         '',
+    locationId:          '',
+    imagenes:            [],
+    sesionesIncluidas:   '8',
+    vigencia:            'mensual',
+    tipoRecurrencia:     'semanal',
+    cantidadRepeticiones:'8',
+    plantillaSemanal:    [],
   })
 
   const [locations, setLocations] = useState<LocationOption[]>([])
@@ -126,6 +134,7 @@ export default function NuevoTallerPage() {
     if (p1.modeloAcceso === 'recurrente') {
       const ses = parseInt(p2.sesionesIncluidas)
       if (isNaN(ses) || ses < 1) return 'Las sesiones incluidas deben ser al menos 1'
+      if (p2.plantillaSemanal.length === 0) return 'Dibuja al menos un horario en el calendario de disponibilidad'
     }
     return null
   }
@@ -165,6 +174,14 @@ export default function NuevoTallerPage() {
         politicaNoShow: 'pierde',
         precioSesionSuelta: null,
       }
+      body.tipoRecurrencia = p2.tipoRecurrencia
+      body.plantillaSemanal = p2.plantillaSemanal.map(s => ({
+        dia: s.dia, horaInicio: s.horaInicio, horaFin: s.horaFin,
+      }))
+      body.recurrencia = {
+        cantidadRepeticiones: parseInt(p2.cantidadRepeticiones) || 8,
+        fechaFinRecurrencia: null,
+      }
     }
 
     // Incluir locationId solo para presencial/hibrido
@@ -184,8 +201,14 @@ export default function NuevoTallerPage() {
       body: JSON.stringify(body),
     })
     const data = await res.json()
+    if (!res.ok) { setLoading(false); setError(data.error || 'Error al crear el taller'); return }
+
+    // Generar slots desde plantilla si es recurrente
+    if (p1.modeloAcceso === 'recurrente' && p2.plantillaSemanal.length > 0) {
+      await fetch(`/api/workshops/${data._id}/generate-slots`, { method: 'POST' }).catch(() => null)
+    }
+
     setLoading(false)
-    if (!res.ok) { setError(data.error || 'Error al crear el taller'); return }
     router.push(`/tallerista/talleres/${data._id}/editar`)
     router.refresh()
   }
@@ -402,10 +425,10 @@ export default function NuevoTallerPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
           </div>
 
-          {/* Plan — solo recurrente */}
+          {/* Plan + disponibilidad — solo recurrente */}
           {p1.modeloAcceso === 'recurrente' && (
-            <div className="border-t pt-4 space-y-4">
-              <p className="text-sm font-medium text-gray-700">Plan de suscripción</p>
+            <div className="border-t pt-4 space-y-6">
+              <p className="text-sm font-semibold text-gray-700">Plan de suscripción</p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Sesiones incluidas por período</label>
@@ -422,6 +445,42 @@ export default function NuevoTallerPage() {
                     <option value="sin_vencimiento">Sin vencimiento</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Disponibilidad semanal */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-gray-700">Disponibilidad horaria</p>
+                <p className="text-xs text-gray-400">Haz clic en la grilla para marcar los bloques de horario disponibles.</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Tipo de recurrencia</label>
+                    <div className="flex gap-2">
+                      {(['semanal', 'mensual'] as const).map(t => (
+                        <button key={t} type="button" onClick={() => up2('tipoRecurrencia', t)}
+                          className={`flex-1 py-2 rounded-lg border text-sm transition-colors capitalize ${
+                            p2.tipoRecurrencia === t ? 'border-purple-500 bg-purple-50 text-purple-700 font-medium' : 'border-gray-200 text-gray-600'
+                          }`}>{t}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Semanas a generar</label>
+                    <input type="number" min="1" max="52" value={p2.cantidadRepeticiones}
+                      onChange={e => up2('cantidadRepeticiones', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
+                  </div>
+                </div>
+                <SlotCalendar
+                  slots={p2.plantillaSemanal}
+                  duracionSesion={parseInt(p2.duracionSesion) || 90}
+                  cupoDefault={parseInt(p2.cupoPorSesion) || 10}
+                  onSlotsChange={slots => up2('plantillaSemanal', slots)}
+                />
+                {p2.plantillaSemanal.length > 0 && (
+                  <p className="text-xs text-green-700">
+                    ✓ {p2.plantillaSemanal.length} bloque{p2.plantillaSemanal.length !== 1 ? 's' : ''} definido{p2.plantillaSemanal.length !== 1 ? 's' : ''} · se generarán ~{p2.plantillaSemanal.length * (parseInt(p2.cantidadRepeticiones) || 8)} sesiones
+                  </p>
+                )}
               </div>
             </div>
           )}
