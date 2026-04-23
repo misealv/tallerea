@@ -36,7 +36,11 @@ export default function AlumnoAccesoPage() {
         <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8 text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">¡Revisa tu correo!</h1>
           <p className="text-gray-600">
-            Te enviamos un enlace de acceso a <strong>{email}</strong>. Es válido por 15 minutos.
+            Si <strong>{email}</strong> corresponde a una cuenta de alumno, te enviamos un enlace de acceso. Es válido por 15 minutos.
+          </p>
+          <p className="text-gray-500 text-sm mt-4">
+            ¿Aún no compras tu primer taller?{' '}
+            <a href="/talleres" className="text-purple-600 underline">Explora talleres</a>
           </p>
         </div>
       </div>

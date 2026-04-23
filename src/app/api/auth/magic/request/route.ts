@@ -14,16 +14,16 @@ export async function POST(req: NextRequest) {
 
   await dbConnect()
 
-  // Buscar usuario existente o crear alumno nuevo (role: 'user', sin password)
-  let user = await User.findOne({ email })
-  if (!user) {
-    user = await new User({ name: email.split('@')[0], email, role: 'user' }).save()
-  }
-  if (!user.activo) {
-    return NextResponse.json({ error: 'Cuenta suspendida' }, { status: 403 })
+  // Solo usuarios existentes reciben magic link — los alumnos nacen de transacción (no por auto-registro)
+  const user = await User.findOne({ email })
+
+  const isDev = process.env.NODE_ENV === 'development'
+
+  // Respuesta uniforme (anti-enumeración): siempre 200 ok, independiente de si el user existe
+  if (!user || !user.activo) {
+    return NextResponse.json({ ok: true })
   }
 
-  // Generar token: raw (email) + hash (almacenado)
   const rawToken = randomBytes(32).toString('hex')
   const tokenHash = createHash('sha256').update(rawToken).digest('hex')
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000) // 15 min
@@ -38,8 +38,6 @@ export async function POST(req: NextRequest) {
 
   await sendMagicLink({ email, magicUrl })
 
-  // En dev, devolver la URL para facilitar pruebas
-  const isDev = process.env.NODE_ENV === 'development'
   return NextResponse.json({
     ok: true,
     ...(isDev ? { magicUrl } : {}),
