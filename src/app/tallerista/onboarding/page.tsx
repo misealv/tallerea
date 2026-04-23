@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+
+const STORAGE_KEY = 'tallerea_onboarding_draft'
 
 const ESPECIALIDADES = [
   { value: 'visual', label: 'Artes visuales' },
@@ -42,6 +44,21 @@ export default function OnboardingPage() {
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // Restaurar borrador al montar
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (saved) setForm(JSON.parse(saved))
+    } catch { /* ignorar */ }
+  }, [])
+
+  // Guardar borrador en cada cambio
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(form))
+    } catch { /* ignorar */ }
+  }, [form])
 
   function update(field: string, value: string) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -88,6 +105,9 @@ export default function OnboardingPage() {
       setError(data.error || 'Error al enviar solicitud')
       return
     }
+
+    // Limpiar borrador al enviar exitosamente
+    try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignorar */ }
 
     router.push('/tallerista/onboarding?enviado=1')
     router.refresh()
