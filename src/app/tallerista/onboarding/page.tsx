@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 const STORAGE_KEY = 'tallerea_onboarding_draft'
 
@@ -28,9 +28,11 @@ function slugify(str: string): string {
     .trim().replace(/\s+/g, '-')
 }
 
-export default function OnboardingPage() {
+function OnboardingContent() {
   const { data: session } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const enviado = searchParams.get('enviado') === '1'
   const tallerEstado = session?.user?.tallerEstado
 
   const [form, setForm] = useState({
@@ -45,7 +47,6 @@ export default function OnboardingPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // Restaurar borrador al montar
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
@@ -53,7 +54,6 @@ export default function OnboardingPage() {
     } catch { /* ignorar */ }
   }, [])
 
-  // Guardar borrador en cada cambio
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(form))
@@ -106,29 +106,36 @@ export default function OnboardingPage() {
       return
     }
 
-    // Limpiar borrador al enviar exitosamente
     try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignorar */ }
 
     router.push('/tallerista/onboarding?enviado=1')
     router.refresh()
   }
 
-  // Estado pendiente: mostrar pantalla de espera
-  if (tallerEstado === 'pendiente') {
+  // Pantalla de confirmación: justo después de enviar (?enviado=1) o mientras está pendiente
+  if (enviado || tallerEstado === 'pendiente') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
         <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8 text-center">
-          <div className="text-5xl mb-4">⏳</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Solicitud en revisión</h1>
-          <p className="text-gray-600">
-            Recibimos tu solicitud y la estamos revisando. Te notificaremos por email cuando esté aprobada.
+          <div className="text-5xl mb-4">{enviado ? '🎉' : '⏳'}</div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            {enviado ? '¡Solicitud enviada!' : 'Solicitud en revisión'}
+          </h1>
+          <p className="text-gray-600 text-sm leading-relaxed">
+            {enviado
+              ? 'Recibimos tu solicitud. Nuestro equipo la revisará en los próximos días hábiles y te escribiremos al email registrado cuando tengamos una respuesta.'
+              : 'Recibimos tu solicitud y la estamos revisando. Te notificaremos por email cuando esté aprobada.'}
           </p>
+          {enviado && (
+            <p className="text-sm text-purple-600 mt-4 font-medium">
+              También te enviamos un correo de confirmación.
+            </p>
+          )}
         </div>
       </div>
     )
   }
 
-  // Estado rechazado: mostrar razón + formulario de re-postulación
   const esRepostulacion = tallerEstado === 'rechazado'
 
   return (
@@ -145,7 +152,6 @@ export default function OnboardingPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        {/* Slug */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             URL de tu perfil público
@@ -163,7 +169,6 @@ export default function OnboardingPage() {
           </div>
         </div>
 
-        {/* Especialidades */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Especialidades (máx. 5)
@@ -186,7 +191,6 @@ export default function OnboardingPage() {
           </div>
         </div>
 
-        {/* Bio */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Sobre ti <span className="text-gray-400 text-xs">({form.bio.length}/2000)</span>
@@ -202,7 +206,6 @@ export default function OnboardingPage() {
           />
         </div>
 
-        {/* Credenciales */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Formación y credenciales <span className="text-gray-400 text-xs">({form.credenciales.length}/2000)</span>
@@ -218,7 +221,6 @@ export default function OnboardingPage() {
           />
         </div>
 
-        {/* Entrega de materiales */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             ¿Qué materiales provees a tus alumnos? <span className="text-gray-400 text-xs">(opcional)</span>
@@ -233,7 +235,6 @@ export default function OnboardingPage() {
           />
         </div>
 
-        {/* Redes */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Instagram</label>
@@ -266,5 +267,14 @@ export default function OnboardingPage() {
         </button>
       </form>
     </div>
+  )
+}
+
+// useSearchParams requiere Suspense boundary en Next.js 14
+export default function OnboardingPage() {
+  return (
+    <Suspense>
+      <OnboardingContent />
+    </Suspense>
   )
 }
