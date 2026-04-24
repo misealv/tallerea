@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 
 interface Paquete {
   _id: string
@@ -57,11 +58,18 @@ export default function PrecioCard({
   const sugerido = aporteVoluntario?.sugerido ?? 0
   const [montoVoluntario, setMontoVoluntario] = useState<string>(String(sugerido))
 
+  const { data: session } = useSession()
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   // ── Checkout suscripción (recurrente) ────────────────────────────────
   async function handleSubscribir() {
+    // Suscripciones requieren sesión (necesitan cuenta para renovación y seguimiento)
+    if (!session?.user) {
+      router.push(`/login?callbackUrl=/talleres/${workshopSlug}`)
+      return
+    }
     setLoading(true)
     setError('')
     try {
@@ -76,7 +84,6 @@ export default function PrecioCard({
       })
       const data = await res.json()
       if (!res.ok) {
-        if (res.status === 401) { router.push(`/login?callbackUrl=/talleres/${workshopSlug}`); return }
         setError(data.error || 'Error al suscribirse')
         return
       }
@@ -89,6 +96,11 @@ export default function PrecioCard({
 
   // ── Clase de prueba ──────────────────────────────────────────────────
   async function handleClasePrueba() {
+    // Sin sesión → inscribirse como invitado (soporta name+email)
+    if (!session?.user) {
+      router.push(`/talleres/${workshopSlug}/inscribirse?clasePrueba=true`)
+      return
+    }
     setLoading(true)
     setError('')
     try {
@@ -99,7 +111,6 @@ export default function PrecioCard({
       })
       const data = await res.json()
       if (!res.ok) {
-        if (res.status === 401) { router.push(`/login?callbackUrl=/talleres/${workshopSlug}`); return }
         setError(data.error || 'Error')
         return
       }

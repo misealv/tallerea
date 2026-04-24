@@ -41,10 +41,13 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
   const [guestName, setGuestName] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
 
-  // Monto voluntario si viene en el query param (desde PrecioCard)
+  // Params desde PrecioCard
   const montoVoluntarioParam = typeof window !== 'undefined'
     ? Number(new URL(window.location.href).searchParams.get('montoVoluntario') ?? '') || undefined
     : undefined
+  const esClasePrueba = typeof window !== 'undefined'
+    ? new URL(window.location.href).searchParams.get('clasePrueba') === 'true'
+    : false
 
   useEffect(() => {
     if (!slug) return
@@ -100,6 +103,7 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
           body: JSON.stringify({
             workshopId: workshop._id,
             slotIndex: slotsToEnroll[i],
+            ...(esClasePrueba ? { esClasePrueba: true } : {}),
             ...(montoVoluntarioParam !== undefined ? { montoVoluntario: montoVoluntarioParam } : {}),
             ...(isGuest ? { name: guestName.trim(), email: guestEmail.trim() } : {}),
           }),
