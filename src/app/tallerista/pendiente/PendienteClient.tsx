@@ -6,14 +6,12 @@ import Link from 'next/link'
 
 export default function PendienteClient({ recienEnviado }: { recienEnviado: boolean }) {
   useEffect(() => {
-    if (recienEnviado) {
-      // Cerrar sesión automáticamente tras envío de solicitud
-      const timer = setTimeout(() => {
-        signOut({ callbackUrl: '/' })
-      }, 4000) // 4 segundos para que el usuario lea el mensaje
-      return () => clearTimeout(timer)
-    }
-  }, [recienEnviado])
+    // Cerrar sesión automáticamente en todos los casos (nuevo envío o login posterior)
+    const timer = setTimeout(() => {
+      signOut({ callbackUrl: '/' })
+    }, 4000)
+    return () => clearTimeout(timer)
+  }, [])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
