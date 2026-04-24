@@ -119,6 +119,14 @@ export default function NuevoTallerPage() {
 
   function up1<K extends keyof Paso1Data>(k: K, v: Paso1Data[K]) {
     setP1(prev => ({ ...prev, [k]: v }))
+    // Resetear modalidad de precio al cambiar modeloAcceso para evitar estado inválido
+    if (k === 'modeloAcceso') {
+      const nuevoAcceso = v as 'puntual' | 'recurrente'
+      setPreciosData({
+        modalidadPrecio: nuevoAcceso === 'puntual' ? 'fijo' : 'gratuito',
+        ...(nuevoAcceso === 'puntual' ? { precioFijo: { monto: 0 } } : {}),
+      })
+    }
   }
   function up2<K extends keyof Paso2Data>(k: K, v: Paso2Data[K]) {
     setP2(prev => ({ ...prev, [k]: v }))
