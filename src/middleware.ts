@@ -14,10 +14,14 @@ export default withAuth(
     }
 
     // Área tallerista: solo talleristas aprobados pueden pasar
-    // /tallerista/onboarding es accesible a cualquier sesión válida
-    if (pathname.startsWith('/tallerista') && !pathname.startsWith('/tallerista/onboarding')) {
+    // /tallerista/onboarding y /tallerista/pendiente son accesibles a cualquier sesión válida
+    const rutasLibres = ['/tallerista/onboarding', '/tallerista/pendiente']
+    if (pathname.startsWith('/tallerista') && !rutasLibres.some(r => pathname.startsWith(r))) {
       if (token?.tallerEstado !== 'aprobado') {
-        return NextResponse.redirect(new URL('/tallerista/onboarding', req.url))
+        const destino = token?.tallerEstado === 'pendiente'
+          ? '/tallerista/pendiente'
+          : '/tallerista/onboarding'
+        return NextResponse.redirect(new URL(destino, req.url))
       }
     }
 

@@ -48,7 +48,9 @@ function LoginForm() {
       router.push('/admin')
     } else if (tallerEstado === 'aprobado') {
       router.push('/tallerista')
-    } else if (tallerEstado === 'pendiente' || tallerEstado === 'rechazado') {
+    } else if (tallerEstado === 'pendiente') {
+      router.push('/tallerista/pendiente')
+    } else if (tallerEstado === 'rechazado') {
       router.push('/tallerista/onboarding')
     } else {
       // Alumno sin taller

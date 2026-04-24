@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useSession, signOut } from 'next-auth/react'
-import { useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 
 const STORAGE_KEY = 'tallerea_onboarding_draft'
 
@@ -30,8 +30,7 @@ function slugify(str: string): string {
 
 function OnboardingContent() {
   const { data: session } = useSession()
-  const searchParams = useSearchParams()
-  const enviado = searchParams.get('enviado') === '1'
+  const router = useRouter()
   const tallerEstado = session?.user?.tallerEstado
 
   const [form, setForm] = useState({
@@ -107,33 +106,10 @@ function OnboardingContent() {
 
     try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignorar */ }
 
-    await signOut({ callbackUrl: '/tallerista/onboarding?enviado=1' })
+    router.push('/tallerista/pendiente?nuevo=1')
   }
 
-  // Pantalla de confirmación: justo después de enviar (?enviado=1) o mientras está pendiente
-  if (enviado || tallerEstado === 'pendiente') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8 text-center">
-          <div className="text-5xl mb-4">{enviado ? '🎉' : '⏳'}</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            {enviado ? '¡Solicitud enviada!' : 'Solicitud en revisión'}
-          </h1>
-          <p className="text-gray-600 text-sm leading-relaxed">
-            {enviado
-              ? 'Recibimos tu solicitud. Nuestro equipo la revisará en los próximos días hábiles y te escribiremos al email registrado cuando tengamos una respuesta.'
-              : 'Recibimos tu solicitud y la estamos revisando. Te notificaremos por email cuando esté aprobada.'}
-          </p>
-          {enviado && (
-            <p className="text-sm text-purple-600 mt-4 font-medium">
-              También te enviamos un correo de confirmación.
-            </p>
-          )}
-        </div>
-      </div>
-    )
-  }
-
+  // Pantalla de confirmación obsoleta — el middleware ya redirige pendiente a /tallerista/pendiente
   const esRepostulacion = tallerEstado === 'rechazado'
 
   return (
