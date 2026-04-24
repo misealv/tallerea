@@ -101,8 +101,6 @@ export default function SlotCalendarPicker({ slots, fechaInicio, selectedSlotInd
 
   if (!ocurrencias.length) return null
 
-  const mesActual = ocurrencias[0]?.fecha.getMonth()
-
   return (
     <div className="space-y-3">
       <h3 className="font-semibold text-gray-900">Elige tu fecha</h3>
