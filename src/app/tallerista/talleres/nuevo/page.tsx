@@ -228,7 +228,7 @@ export default function NuevoTallerPage() {
     }
 
     setLoading(false)
-    router.push(`/tallerista/talleres/${data._id}/editar`)
+    router.push('/tallerista/talleres')
     router.refresh()
   }
 
