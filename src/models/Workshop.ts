@@ -50,6 +50,34 @@ export interface IPolitica {
   permitirReagendamiento: boolean;
 }
 
+export type ModalidadPrecio = 'gratuito' | 'fijo' | 'voluntario' | 'paquetes';
+
+export interface IPrecioFijo {
+  monto: number;
+}
+
+export interface IAporteVoluntario {
+  sugerido: number;
+  minimo: number;
+  maximo: number | null;
+}
+
+export interface IPaquete {
+  _id: Types.ObjectId;
+  nombre: string;
+  precio: number;
+  sesionesIncluidas: number;
+  duracionDias: number;
+  activo: boolean;
+  orden: number;
+}
+
+export interface IClasePrueba {
+  habilitada: boolean;
+  precio: number;        // 0 = gratuita, >0 = reducida
+  limitePorAlumno: 1;   // fijo en V1
+}
+
 export interface IWorkshop extends Document {
   accountId?: Types.ObjectId;  // legacy — se mantiene para compatibilidad con datos existentes
   ownerId: Types.ObjectId;     // User tallerista directo
@@ -96,6 +124,12 @@ export interface IWorkshop extends Document {
   // Métricas denormalizadas de reviews
   reviewsCount: number;
   reviewsAvg: number;
+  // Modelo de precios (v2)
+  modalidadPrecio: ModalidadPrecio;
+  precioFijo?: IPrecioFijo;
+  aporteVoluntario?: IAporteVoluntario;
+  paquetes?: IPaquete[];
+  clasePrueba?: IClasePrueba;
   createdAt: Date;
 }
 
@@ -140,6 +174,31 @@ const PlantillaMensualSchema = new Schema({
 const PoliticaSchema = new Schema({
   horasAntesCancelacion: { type: Number, default: 24, min: 0 },
   permitirReagendamiento: { type: Boolean, default: true },
+}, { _id: false });
+
+const PrecioFijoSchema = new Schema({
+  monto: { type: Number, required: true, min: 0 },
+}, { _id: false });
+
+const AporteVoluntarioSchema = new Schema({
+  sugerido: { type: Number, required: true, min: 0 },
+  minimo:   { type: Number, default: 0, min: 0 },
+  maximo:   { type: Number, default: null },
+}, { _id: false });
+
+const PaqueteSchema = new Schema({
+  nombre:            { type: String, required: true, trim: true },
+  precio:            { type: Number, required: true, min: 0 },
+  sesionesIncluidas: { type: Number, required: true, min: 1 },
+  duracionDias:      { type: Number, required: true, min: 1 },
+  activo:            { type: Boolean, default: true },
+  orden:             { type: Number, default: 0 },
+});
+
+const ClasePruebaSchema = new Schema({
+  habilitada:       { type: Boolean, default: false },
+  precio:           { type: Number, default: 0, min: 0 },
+  limitePorAlumno:  { type: Number, default: 1, enum: [1] },
 }, { _id: false });
 
 const WorkshopSchema = new Schema<IWorkshop>({
@@ -189,6 +248,16 @@ const WorkshopSchema = new Schema<IWorkshop>({
   deletedAt: { type: Date, default: null },
   reviewsCount: { type: Number, default: 0 },
   reviewsAvg:   { type: Number, default: 0 },
+  // Modelo de precios v2 — reemplaza el campo `precio` global
+  modalidadPrecio: {
+    type: String,
+    enum: ['gratuito', 'fijo', 'voluntario', 'paquetes'],
+    default: 'fijo',
+  },
+  precioFijo:        { type: PrecioFijoSchema },
+  aporteVoluntario:  { type: AporteVoluntarioSchema },
+  paquetes:          [PaqueteSchema],
+  clasePrueba:       { type: ClasePruebaSchema },
 }, { timestamps: true });
 
 WorkshopSchema.pre('save', function(next) {
@@ -200,13 +269,56 @@ WorkshopSchema.pre('save', function(next) {
   if (this.tipo !== 'otro') {
     this.tipoPersonalizado = null;
   }
+  // Inferir modalidadPrecio desde precio legacy si no está definido (compat migración)
+  if (!this.modalidadPrecio) {
+    this.modalidadPrecio = this.precio === 0 ? 'gratuito'
+      : this.plan ? 'paquetes'
+      : 'fijo';
+  }
   // Inferir modeloAcceso si no está definido (compat con docs existentes)
   if (!this.modeloAcceso) {
-    this.modeloAcceso = this.plan ? 'recurrente' : 'puntual';
+    this.modeloAcceso = (this.plan || this.modalidadPrecio === 'paquetes') ? 'recurrente' : 'puntual';
   }
-  // [BREAKING] Validar coherencia modeloAcceso ↔ plan
-  if (this.modeloAcceso === 'recurrente' && !this.plan) {
-    return next(new Error('[WORKSHOP] Taller recurrente requiere campo "plan" definido'));
+
+  // [BREAKING] Validar coherencia modalidadPrecio ↔ modeloAcceso
+  if (this.modeloAcceso === 'puntual' && this.modalidadPrecio === 'paquetes') {
+    return next(new Error('[WORKSHOP] Taller puntual no puede usar modalidad "paquetes"'));
+  }
+  if (this.modeloAcceso === 'recurrente' && !['gratuito', 'paquetes'].includes(this.modalidadPrecio)) {
+    return next(new Error('[WORKSHOP] Taller recurrente solo permite modalidad "gratuito" o "paquetes"'));
+  }
+
+  // Validar coherencia interna de modalidadPrecio
+  const mp = this.modalidadPrecio;
+  if (mp === 'fijo') {
+    if (!this.precioFijo || this.precioFijo.monto < 0) {
+      return next(new Error('[WORKSHOP] Modalidad "fijo" requiere precioFijo.monto >= 0'));
+    }
+  }
+  if (mp === 'voluntario') {
+    const av = this.aporteVoluntario;
+    if (!av) return next(new Error('[WORKSHOP] Modalidad "voluntario" requiere aporteVoluntario'));
+    if (av.sugerido < av.minimo) return next(new Error('[WORKSHOP] aporteVoluntario.sugerido debe ser >= minimo'));
+    if (av.maximo !== null && av.maximo !== undefined && av.maximo < av.sugerido) {
+      return next(new Error('[WORKSHOP] aporteVoluntario.maximo debe ser >= sugerido'));
+    }
+  }
+  if (mp === 'paquetes') {
+    const pqs = this.paquetes ?? [];
+    if (pqs.length === 0) return next(new Error('[WORKSHOP] Modalidad "paquetes" requiere al menos un paquete'));
+    if (!pqs.some(p => p.activo)) return next(new Error('[WORKSHOP] Debe haber al menos un paquete activo'));
+    for (const p of pqs) {
+      if (p.precio < 0) return next(new Error('[WORKSHOP] Precio de paquete no puede ser negativo'));
+      if (p.sesionesIncluidas < 1) return next(new Error('[WORKSHOP] sesionesPorPeriodo debe ser >= 1'));
+    }
+  }
+  if (this.clasePrueba?.habilitada && this.clasePrueba.precio < 0) {
+    return next(new Error('[WORKSHOP] clasePrueba.precio no puede ser negativo'));
+  }
+
+  // Compat: modeloAcceso recurrente requiere plan (legacy) o paquetes
+  if (this.modeloAcceso === 'recurrente' && !this.plan && (this.paquetes ?? []).length === 0) {
+    return next(new Error('[WORKSHOP] Taller recurrente requiere "plan" o al menos un "paquete" definido'));
   }
   if (this.modeloAcceso === 'puntual' && this.plan) {
     this.plan = undefined;

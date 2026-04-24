@@ -12,8 +12,13 @@ export interface ISubscription extends Document {
   pagoRef: string;
   paymentBreakdownId?: Types.ObjectId;
   monto: number;
-  autoRenovar: boolean;            // si true → cron envía email de renovación con link
-  renovadaDesdeId?: Types.ObjectId; // suscripción del ciclo anterior
+  autoRenovar: boolean;
+  renovadaDesdeId?: Types.ObjectId;
+  // Snapshot del paquete al momento de comprar (inmutable post-creación)
+  paqueteId?: Types.ObjectId;
+  paqueteNombreSnapshot?: string;
+  precioSnapshot?: number;
+  sesionesPorPeriodoSnapshot?: number;
   activo: boolean;
   createdAt: Date;
 }
@@ -32,6 +37,11 @@ const SubscriptionSchema = new Schema<ISubscription>({
   monto: { type: Number, required: true, min: 0 },
   autoRenovar: { type: Boolean, default: true },
   renovadaDesdeId: { type: Schema.Types.ObjectId, ref: 'Subscription' },
+  // Snapshot de paquete — inmutable post-creación
+  paqueteId:                 { type: Schema.Types.ObjectId },
+  paqueteNombreSnapshot:     { type: String },
+  precioSnapshot:            { type: Number, min: 0 },
+  sesionesPorPeriodoSnapshot:{ type: Number, min: 1 },
   activo: { type: Boolean, default: true },
 }, { timestamps: true });
 
