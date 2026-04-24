@@ -139,27 +139,24 @@ export default function SlotCalendarPicker({ slots, selectedSlots, onSelectionCh
                   onClick={() => toggleSlot(idx)}
                   title={full ? 'Sin cupos disponibles' : `${slot.cupoDisponible} cupo${slot.cupoDisponible !== 1 ? 's' : ''} disponible${slot.cupoDisponible !== 1 ? 's' : ''}`}
                 >
-                  <div className="font-semibold truncate">{slot.horaInicio}</div>
+                  <div className="font-semibold truncate">{slot.horaInicio}–{slot.horaFin}</div>
                   {height >= CELL_HEIGHT * 1.5 && (
-                    <div className="truncate opacity-80 text-[10px]">
-                      {slot.horaFin}
-                    </div>
-                  )}
-                  {height >= CELL_HEIGHT * 2.5 && !full && (
-                    <div className="mt-1 space-y-0.5">
+                    <div className="mt-0.5 space-y-0.5">
                       {/* Barra de ocupación */}
-                      <div className={`h-1 rounded-full ${selected ? 'bg-white/40' : 'bg-purple-300'} overflow-hidden`}>
-                        <div
-                          className={`h-full rounded-full ${selected ? 'bg-white' : pct > 80 ? 'bg-orange-400' : 'bg-purple-600'}`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
+                      {slot.cupoMax > 0 && (
+                        <div className={`h-1 rounded-full ${selected ? 'bg-white/40' : 'bg-purple-300'} overflow-hidden`}>
+                          <div
+                            className={`h-full rounded-full ${selected ? 'bg-white' : pct > 80 ? 'bg-orange-400' : 'bg-purple-600'}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      )}
                       <div className="text-[10px] opacity-90">
-                        {full ? 'Lleno' : `${slot.cupoDisponible}/${slot.cupoMax} cupos`}
+                        {full ? 'Lleno' : `${slot.cupoDisponible}${slot.cupoMax > 0 ? `/${slot.cupoMax}` : ''} cupo${slot.cupoDisponible !== 1 ? 's' : ''}`}
                       </div>
                     </div>
                   )}
-                  {full && height >= CELL_HEIGHT * 1.5 && (
+                  {full && height < CELL_HEIGHT * 1.5 && (
                     <div className="text-[10px] mt-0.5">Lleno</div>
                   )}
                 </div>

@@ -25,6 +25,10 @@ interface Workshop {
   cupoMax: number
   fechaInicio: string
   slots: Slot[]
+  clasePrueba?: {
+    habilitada: boolean
+    precio: number
+  }
 }
 
 export default function InscribirsePage({ params }: { params: { slug: string } }) {
@@ -165,11 +169,21 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
 
           <div className="border-t border-gray-100 pt-3">
             <div className="flex justify-between text-lg">
-              <span className="font-medium">Total</span>
+              <span className="font-medium">
+                {esClasePrueba ? 'Clase de prueba' : 'Total'}
+              </span>
               <span className="font-bold text-purple-700">
-                {workshop.precioPublico === 0 ? 'Gratis' : `$${workshop.precioPublico.toLocaleString('es-CL')}`}
+                {(() => {
+                  const precio = esClasePrueba
+                    ? (workshop.clasePrueba?.precio ?? 0)
+                    : workshop.precioPublico
+                  return precio === 0 ? 'Gratis' : `$${precio.toLocaleString('es-CL')}`
+                })()}
               </span>
             </div>
+            {esClasePrueba && (
+              <p className="text-xs text-gray-400 mt-1">1 sesión de prueba · sin compromiso</p>
+            )}
           </div>
         </div>
 
@@ -215,9 +229,13 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
         >
           {submitting
             ? `Procesando${selectedSlots.length > 1 ? ` (${currentSlotIdx + 1}/${selectedSlots.length})` : ''}...`
-            : workshop.precioPublico === 0
-            ? 'Inscribirme gratis'
-            : `Pagar $${workshop.precioPublico.toLocaleString('es-CL')}`}
+            : (() => {
+                const precio = esClasePrueba
+                  ? (workshop.clasePrueba?.precio ?? 0)
+                  : workshop.precioPublico
+                if (precio === 0) return esClasePrueba ? 'Reservar clase de prueba gratis' : 'Inscribirme gratis'
+                return `Pagar $${precio.toLocaleString('es-CL')}`
+              })()}
         </button>
 
         <button
