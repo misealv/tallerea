@@ -7,6 +7,7 @@ import AIDescriptionHelper from '@/components/AIDescriptionHelper'
 import StockImagePicker from '@/components/StockImagePicker'
 import ImageUpload from '@/components/ImageUpload'
 import EditorPrecios, { type EditorPreciosValue } from '@/components/EditorPrecios'
+import SlotCalendar, { type SlotData } from '@/components/SlotCalendar'
 
 const TIPOS = [
   { value: 'visual', label: 'Artes visuales' },
@@ -66,6 +67,7 @@ export default function EditarTallerPage() {
     modalidadPrecio: 'fijo',
     precioFijo: { monto: 0 },
   })
+  const [slots, setSlots] = useState<SlotData[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -106,6 +108,10 @@ export default function EditarTallerPage() {
           paquetes:         w.paquetes         ?? undefined,
           clasePrueba:      w.clasePrueba       ?? undefined,
         })
+        // Cargar slots existentes
+        if (Array.isArray(w.slots)) {
+          setSlots(w.slots.map((s: SlotData) => ({ ...s })))
+        }
         setLoading(false)
       })
       .catch(() => { setError('Error al cargar el taller'); setLoading(false) })
@@ -170,6 +176,7 @@ export default function EditarTallerPage() {
     }
 
     body.imagenes = form.imagenes
+    body.slots = slots
 
     const res = await fetch(`/api/workshops/${id}`, {
       method: 'PUT',
@@ -283,6 +290,16 @@ export default function EditarTallerPage() {
             )}
           </div>
         )}
+
+        {/* Horarios de clase */}
+        <div className="border-t pt-4">
+          <SlotCalendar
+            slots={slots}
+            duracionSesion={parseInt(form.duracionSesion) || 90}
+            cupoDefault={parseInt(form.cupoPorSesion) || 10}
+            onSlotsChange={setSlots}
+          />
+        </div>
 
         {/* Duración + cupo + fecha */}
         <div className="grid grid-cols-3 gap-4">
