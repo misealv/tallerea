@@ -117,12 +117,12 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
             {hours.map(h => (
               <div key={h} className="grid grid-cols-[50px_repeat(7,1fr)]">
                 {/* Hora label */}
-                <div className="text-xs text-gray-400 pr-1 text-right py-0.5 border-r border-gray-100"
+                <div className="text-xs text-gray-400 pr-1 text-right py-0.5 border-r border-gray-300"
                   style={{ height: CELL_HEIGHT * 2 }}>
                   {String(h).padStart(2, '0')}:00
                 </div>
                 {DIAS.map(d => (
-                  <div key={`${d}-${h}`} className="border-b border-r border-gray-50 relative"
+                  <div key={`${d}-${h}`} className="border-b border-r border-gray-200 relative"
                     style={{ height: CELL_HEIGHT * 2 }}>
                     {/* Top half (00) */}
                     <div
@@ -132,7 +132,7 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
                     />
                     {/* Bottom half (30) */}
                     <div
-                      className="absolute inset-x-0 bottom-0 cursor-pointer hover:bg-purple-50 transition-colors border-t border-dashed border-gray-100"
+                      className="absolute inset-x-0 bottom-0 cursor-pointer hover:bg-purple-50 transition-colors border-t border-dashed border-gray-300"
                       style={{ height: CELL_HEIGHT }}
                       onClick={() => handleCellClick(d, h, 1)}
                     />
