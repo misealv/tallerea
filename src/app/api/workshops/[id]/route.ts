@@ -14,7 +14,7 @@ export async function GET(
     if (!validateObjectId(params.id)) {
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
     }
-    const workshop = await WorkshopService.getById(params.id)
+    const workshop = await WorkshopService.getByIdIncludingInactive(params.id)
     if (!workshop) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
     return NextResponse.json(workshop)
   } catch (error: unknown) {

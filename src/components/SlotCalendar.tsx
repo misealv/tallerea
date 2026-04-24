@@ -181,7 +181,28 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
                 <h3 className="font-semibold text-gray-900">
                   {DIA_LABEL[popover.dia]} {slots[popover.slotIdx].horaInicio} — {slots[popover.slotIdx].horaFin}
                 </h3>
-                <p className="text-sm text-gray-600">Cupo: {slots[popover.slotIdx].cupoMax}</p>
+
+                {/* Editar cupo */}
+                <div>
+                  <label className="text-xs text-gray-500">Cupo máximo</label>
+                  <input
+                    type="number" min="1" value={popoverCupo}
+                    onChange={e => setPopoverCupo(e.target.value)}
+                    className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    const cupo = Math.max(1, Number(popoverCupo) || 1)
+                    const updated = slots.map((s, i) =>
+                      i === popover.slotIdx ? { ...s, cupoMax: cupo, cupoDisponible: cupo } : s
+                    )
+                    onSlotsChange(updated)
+                    setPopover(null)
+                  }}
+                  className="w-full bg-purple-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-purple-700">
+                  Guardar cambios
+                </button>
 
                 {/* Repetir en otros días */}
                 {!showRepeatInEdit ? (
