@@ -119,13 +119,28 @@ export default async function PerfilTalleristaPage({ params }: { params: { slug:
                 <Link
                   key={String(w._id)}
                   href={`/talleres/${w.slug}`}
-                  className="bg-white rounded-xl border border-gray-200 p-5 hover:border-purple-300 hover:shadow-sm transition group"
+                  className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-purple-300 hover:shadow-sm transition group"
                 >
-                  <p className="font-semibold text-gray-900 group-hover:text-purple-700 transition">{w.titulo}</p>
-                  <p className="text-xs text-gray-500 mt-1 capitalize">{w.tipo} · {w.modalidad}</p>
-                  {w.descripcion && (
-                    <p className="text-sm text-gray-600 mt-2 line-clamp-2">{w.descripcion}</p>
+                  {w.imagenes?.[0] ? (
+                    <div className="relative w-full h-40">
+                      <Image
+                        src={w.imagenes[0]}
+                        alt={w.titulo}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 640px) 100vw, 50vw"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-full h-40 bg-purple-50 flex items-center justify-center text-4xl">🎨</div>
                   )}
+                  <div className="p-4">
+                    <p className="font-semibold text-gray-900 group-hover:text-purple-700 transition">{w.titulo}</p>
+                    <p className="text-xs text-gray-500 mt-1 capitalize">{w.tipo} · {w.modalidad}</p>
+                    {w.descripcion && (
+                      <p className="text-sm text-gray-600 mt-2 line-clamp-2">{w.descripcion}</p>
+                    )}
+                  </div>
                 </Link>
               ))}
             </div>
