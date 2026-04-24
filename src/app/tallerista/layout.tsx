@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Link from 'next/link'
+import SignOutButton from './SignOutButton'
 
 export default async function TalleristaLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -48,6 +49,7 @@ export default async function TalleristaLayout({ children }: { children: React.R
           <Link href="/tallerista/liquidaciones" className="text-gray-600 hover:text-purple-700">Liquidaciones</Link>
           <Link href="/tallerista/espacios" className="text-gray-600 hover:text-purple-700">Mis espacios</Link>
           <Link href="/tallerista/perfil" className="text-gray-600 hover:text-purple-700">Mi perfil</Link>
+          <SignOutButton />
         </nav>
       </header>
       <main className="max-w-5xl mx-auto px-4 py-8">{children}</main>
