@@ -315,4 +315,11 @@ export const TallerService = {
     if (!updated) throw new Error('Error al recuperar usuario actualizado')
     return updated
   },
+
+  async getBySlug(slug: string): Promise<IUser | null> {
+    await connectDB()
+    return User.findOne({ 'taller.slug': slug, 'taller.estado': 'aprobado', activo: true })
+      .select('-password -magicLinkToken -magicLinkExpiresAt -taller.datosBancarios')
+      .lean<IUser>()
+  },
 }
