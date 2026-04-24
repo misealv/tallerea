@@ -28,24 +28,61 @@ export const PaymentService = {
     studentEmail: string,
     slotIndex?: number | null,
     usarCredito = false,
+    montoVoluntario?: number,   // solo si workshop.modalidadPrecio === 'voluntario'
+    esClasePrueba = false,
   ): Promise<CreatePaymentResult> {
     const workshop = await WorkshopService.getById(workshopId)
     if (!workshop) throw new Error('Taller no encontrado')
 
-    // Crear enrollment pendiente. Si usarCredito=true, EnrollmentService.create descuenta crédito
-    // dentro de su transacción y persiste el monto aplicado en enrollment.creditoAplicado.
-    const enrollment = await EnrollmentService.create({
-      workshopId,
-      studentId,
-      monto: workshop.precio,
-      slotIndex: slotIndex ?? null,
-      usarCredito,
-    })
+    // [FINANCE RISK] Determinar monto según modalidad
+    let montoBase: number
+    const mp = workshop.modalidadPrecio ?? 'fijo'
+
+    if (mp === 'voluntario') {
+      const av = workshop.aporteVoluntario
+      if (montoVoluntario === undefined || montoVoluntario === null) {
+        montoBase = av?.sugerido ?? 0
+      } else {
+        // Clamp al rango [minimo, maximo]
+        const min = av?.minimo ?? 0
+        const max = av?.maximo ?? Infinity
+        montoBase = Math.min(Math.max(Math.round(montoVoluntario), min), max === Infinity ? montoVoluntario : max)
+      }
+    } else if (esClasePrueba && workshop.clasePrueba?.habilitada) {
+      montoBase = workshop.clasePrueba.precio ?? 0
+    } else if (mp === 'gratuito') {
+      montoBase = 0
+    } else if (mp === 'fijo') {
+      montoBase = workshop.precioFijo?.monto ?? workshop.precio ?? 0
+    } else {
+      // paquetes no pasan por aquí (van por SubscriptionService), fallo explícito
+      throw new Error('Talleres con paquetes deben usar el flujo de suscripción')
+    }
+
+    // Si es clase de prueba, usar reservarPrueba en lugar de create
+    let enrollment
+    if (esClasePrueba) {
+      enrollment = await EnrollmentService.reservarPrueba(workshopId, studentId, slotIndex ?? null)
+    } else {
+      // Crear enrollment pendiente. Si usarCredito=true, EnrollmentService.create descuenta crédito
+      enrollment = await EnrollmentService.create({
+        workshopId,
+        studentId,
+        monto: montoBase,
+        slotIndex: slotIndex ?? null,
+        usarCredito,
+      })
+    }
 
     const enrollmentId = String(enrollment._id)
     const creditoAplicado = enrollment.creditoAplicado ?? 0
-    // [FINANCE RISK] montoACobrar es lo que MP debe cobrar; el profesor cobra siempre el bruto completo
-    const montoACobrar = Math.max(0, workshop.precio - creditoAplicado)
+    // [FINANCE RISK] montoACobrar = monto real a cobrar por MP; crédito sale del margen de Tallerea
+    const montoACobrar = Math.max(0, montoBase - creditoAplicado)
+
+    // Guardar montoPagadoVoluntario si aplica
+    if (mp === 'voluntario' && montoBase !== undefined) {
+      await EnrollmentService.update(enrollmentId, { montoPagadoVoluntario: montoBase } as Parameters<typeof EnrollmentService.update>[1])
+    }
 
     // Taller gratuito o crédito cubre 100%: marcar pagado directamente, sin preference MP
     if (workshop.precio === 0 || montoACobrar === 0) {

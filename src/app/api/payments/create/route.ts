@@ -63,6 +63,8 @@ export async function POST(req: NextRequest) {
 
     // usarCredito: solo permitido para usuarios autenticados (guests no tienen saldo)
     const usarCredito = Boolean(body.usarCredito) && !!session?.user?.id
+    const esClasePrueba = Boolean(body.esClasePrueba)
+    const montoVoluntario = typeof body.montoVoluntario === 'number' ? body.montoVoluntario : undefined
 
     let studentId: string
     let studentName: string
@@ -97,6 +99,8 @@ export async function POST(req: NextRequest) {
       studentEmail,
       slotIndex ?? null,
       usarCredito,
+      montoVoluntario,
+      esClasePrueba,
     )
 
     return NextResponse.json(result)
@@ -104,6 +108,7 @@ export async function POST(req: NextRequest) {
     const message = error instanceof Error ? error.message : 'Error interno'
     const status = message.includes('Ya estás inscrito') ? 409
       : message.includes('No hay cupos') ? 409
+      : message.includes('Ya usaste tu clase de prueba') ? 409
       : 500
     return NextResponse.json({ error: message }, { status })
   }

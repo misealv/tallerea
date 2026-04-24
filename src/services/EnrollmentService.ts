@@ -198,4 +198,46 @@ export const EnrollmentService = {
     await dbConnect()
     await Enrollment.findByIdAndUpdate(id, { activo: false })
   },
+
+  /**
+   * Reserva la clase de prueba (1 por alumno por taller).
+   * Si precio === 0 → crea enrollment pagado directo.
+   * Si precio > 0 → crea enrollment pendiente para que PaymentService complete el pago.
+   */
+  async reservarPrueba(
+    workshopId: string,
+    studentId: string,
+    slotIndex: number | null,
+  ): Promise<IEnrollment> {
+    await dbConnect()
+
+    const workshop = await Workshop.findOne({ _id: workshopId, activo: true })
+    if (!workshop) throw new Error('Taller no encontrado')
+    if (!workshop.clasePrueba?.habilitada) throw new Error('Este taller no ofrece clase de prueba')
+
+    // Validar 1 prueba por alumno por taller (excluye canceladas)
+    const yaTuvo = await Enrollment.countDocuments({
+      workshopId,
+      studentId,
+      esClasePrueba: true,
+      estado: { $ne: 'cancelado' },
+    })
+    if (yaTuvo > 0) throw new Error('Ya usaste tu clase de prueba en este taller')
+
+    const precio = workshop.clasePrueba.precio ?? 0
+
+    // Crear enrollment de prueba
+    const enrollment = await new Enrollment({
+      workshopId,
+      studentId,
+      slotIndex,
+      monto: precio,
+      creditoAplicado: 0,
+      esClasePrueba: true,
+      estado: precio === 0 ? 'pagado' : 'pendiente',
+      activo: true,
+    }).save()
+
+    return enrollment
+  },
 }

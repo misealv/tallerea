@@ -6,6 +6,7 @@ import Link from 'next/link'
 import AIDescriptionHelper from '@/components/AIDescriptionHelper'
 import StockImagePicker from '@/components/StockImagePicker'
 import ImageUpload from '@/components/ImageUpload'
+import EditorPrecios, { type EditorPreciosValue } from '@/components/EditorPrecios'
 
 const TIPOS = [
   { value: 'visual', label: 'Artes visuales' },
@@ -61,6 +62,10 @@ export default function EditarTallerPage() {
     sesionesIncluidas: '8', vigencia: 'mensual', modeloAcceso: 'puntual',
   })
   const [locations, setLocations] = useState<LocationOption[]>([])
+  const [preciosData, setPreciosData] = useState<EditorPreciosValue>({
+    modalidadPrecio: 'fijo',
+    precioFijo: { monto: 0 },
+  })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -93,6 +98,14 @@ export default function EditarTallerPage() {
           vigencia: w.plan?.vigencia ?? 'mensual',
           modeloAcceso: w.modeloAcceso ?? (w.plan ? 'recurrente' : 'puntual'),
         })
+        // Cargar datos de precios v2
+        setPreciosData({
+          modalidadPrecio: w.modalidadPrecio ?? (w.precio === 0 ? 'gratuito' : 'fijo'),
+          precioFijo:       w.precioFijo       ?? (w.precio !== undefined ? { monto: w.precio } : undefined),
+          aporteVoluntario: w.aporteVoluntario ?? undefined,
+          paquetes:         w.paquetes         ?? undefined,
+          clasePrueba:      w.clasePrueba       ?? undefined,
+        })
         setLoading(false)
       })
       .catch(() => { setError('Error al cargar el taller'); setLoading(false) })
@@ -120,12 +133,18 @@ export default function EditarTallerPage() {
       titulo: form.titulo.trim(),
       tipo: form.tipo,
       modalidad: form.modalidad,
-      precio: parseInt(form.precio) || 0,
+      precio: preciosData.modalidadPrecio === 'fijo' ? (preciosData.precioFijo?.monto ?? 0) : 0,
       precioModalidad: form.precioModalidad,
       descripcion: form.descripcion.trim(),
       duracionSesion: parseInt(form.duracionSesion) || 90,
       cupoPorSesion: parseInt(form.cupoPorSesion) || 10,
       fechaInicio: form.fechaInicio,
+      // Modelo de precios v2
+      modalidadPrecio: preciosData.modalidadPrecio,
+      ...(preciosData.precioFijo      && { precioFijo:       preciosData.precioFijo }),
+      ...(preciosData.aporteVoluntario && { aporteVoluntario: preciosData.aporteVoluntario }),
+      ...(preciosData.paquetes        && { paquetes:         preciosData.paquetes }),
+      ...(preciosData.clasePrueba     && { clasePrueba:      preciosData.clasePrueba }),
       politica: {
         horasAntesCancelacion: parseInt(form.horasAntesCancelacion) || 24,
         permitirReagendamiento: form.permitirReagendamiento,
@@ -207,38 +226,12 @@ export default function EditarTallerPage() {
           </div>
         </div>
 
-        {/* Precio */}
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            {(['bruto', 'neto'] as const).map(m => (
-              <button key={m} type="button" onClick={() => up('precioModalidad', m)}
-                className={`border-2 rounded-xl p-3 text-left transition-colors ${
-                  form.precioModalidad === m ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300'
-                }`}>
-                <p className="font-semibold text-gray-800 text-sm">{m === 'bruto' ? 'Precio bruto' : 'Precio neto'}</p>
-                <p className="text-xs text-gray-500 mt-0.5 leading-snug">
-                  {m === 'bruto'
-                    ? 'El alumno paga este monto. La comisión de Tallerea se descuenta de lo que recibes tú.'
-                    : 'Tú recibes este monto. La comisión se suma al precio que ve el alumno.'}
-                </p>
-              </button>
-            ))}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {form.precioModalidad === 'bruto' ? 'Precio que paga el alumno (CLP)' : 'Monto que recibes tú (CLP)'}
-            </label>
-            <input type="number" min="0" step="1" value={form.precio} onChange={e => up('precio', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
-            {form.precio && !isNaN(parseInt(form.precio)) && parseInt(form.precio) > 0 && (
-              <p className="text-xs text-gray-400 mt-1">
-                {form.precioModalidad === 'bruto'
-                  ? `El alumno paga $${parseInt(form.precio).toLocaleString('es-CL')} — la comisión de Tallerea se descuenta de ese total.`
-                  : `El alumno verá un precio mayor al incluirse la comisión de Tallerea.`}
-              </p>
-            )}
-          </div>
-        </div>
+        {/* Editor de precios v2 */}
+        <EditorPrecios
+          value={preciosData}
+          onChange={setPreciosData}
+          modeloAcceso={form.modeloAcceso}
+        />
 
         {/* Descripción */}
         <div>

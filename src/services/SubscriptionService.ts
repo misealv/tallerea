@@ -82,13 +82,50 @@ export const SubscriptionService = {
   async createWithPayment(
     workshopId: string,
     studentId: string,
-    studentEmail: string
+    studentEmail: string,
+    paqueteId?: string,
   ): Promise<CreateSubscriptionResult> {
     await dbConnect()
 
     const workshop = await Workshop.findOne({ _id: workshopId, activo: true })
     if (!workshop) throw new Error('Taller no encontrado')
-    if (!workshop.plan) throw new Error('Este taller no tiene plan de suscripción')
+
+    // Resolver monto y sesiones según modalidadPrecio
+    let monto: number
+    let sesiones: number
+    let vigencia: string
+    let paqueteNombre: string | undefined
+    let paqueteIdResuelto: string | undefined
+
+    const mp = workshop.modalidadPrecio ?? 'fijo'
+
+    if (mp === 'paquetes') {
+      if (!workshop.paquetes || workshop.paquetes.length === 0) {
+        throw new Error('Este taller no tiene paquetes configurados')
+      }
+      // Buscar paquete solicitado o el primero activo
+      type PaqueteItem = (typeof workshop.paquetes)[number]
+      const paquete = paqueteId
+        ? workshop.paquetes.find((p: PaqueteItem) => String(p._id) === paqueteId && p.activo)
+        : workshop.paquetes.find((p: PaqueteItem) => p.activo)
+      if (!paquete) throw new Error('Paquete no encontrado o inactivo')
+      monto = paquete.precio
+      sesiones = paquete.sesionesIncluidas
+      vigencia = 'mensual'   // duracionDias del paquete; usar calcularVencimiento con días
+      paqueteNombre = paquete.nombre
+      paqueteIdResuelto = String(paquete._id)
+    } else if (mp === 'gratuito') {
+      monto = 0
+      sesiones = workshop.plan?.sesionesIncluidas ?? 999
+      vigencia = workshop.plan?.vigencia ?? 'mensual'
+    } else if (workshop.plan) {
+      // Compat legacy
+      monto = workshop.precio
+      sesiones = workshop.plan.sesionesIncluidas
+      vigencia = workshop.plan.vigencia
+    } else {
+      throw new Error('Este taller no tiene plan de suscripción configurado')
+    }
 
     // Verificar que no exista suscripción activa
     const existing = await Subscription.findOne({
@@ -106,11 +143,20 @@ export const SubscriptionService = {
       }
     }
 
-    const monto = workshop.precio
-    const sesiones = workshop.plan.sesionesIncluidas
-    const vigencia = workshop.plan.vigencia
     const fechaCompra = new Date()
-    const fechaVencimiento = calcularVencimiento(vigencia, fechaCompra)
+    // Usar duracionDias del paquete si está disponible
+    let fechaVencimiento: Date
+    if (mp === 'paquetes' && paqueteId) {
+      type PaqueteItemB = NonNullable<typeof workshop.paquetes>[number]
+      const pq = workshop.paquetes?.find((p: PaqueteItemB) => String(p._id) === paqueteIdResuelto)
+      if (pq?.duracionDias) {
+        fechaVencimiento = new Date(fechaCompra.getTime() + pq.duracionDias * 24 * 60 * 60 * 1000)
+      } else {
+        fechaVencimiento = calcularVencimiento('mensual', fechaCompra)
+      }
+    } else {
+      fechaVencimiento = calcularVencimiento(vigencia, fechaCompra)
+    }
 
     // Crear suscripción (pendiente de pago si no es gratis)
     const subscription = await new Subscription({
@@ -123,6 +169,13 @@ export const SubscriptionService = {
       fechaCompra,
       fechaVencimiento,
       monto,
+      // Snapshot del paquete — inmutable post-creación
+      ...(paqueteIdResuelto && {
+        paqueteId:                  paqueteIdResuelto,
+        paqueteNombreSnapshot:      paqueteNombre,
+        precioSnapshot:             monto,
+        sesionesPorPeriodoSnapshot: sesiones,
+      }),
     }).save()
 
     // Taller gratuito → completar sin pago

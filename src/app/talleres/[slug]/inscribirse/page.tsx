@@ -41,6 +41,11 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
   const [guestName, setGuestName] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
 
+  // Monto voluntario si viene en el query param (desde PrecioCard)
+  const montoVoluntarioParam = typeof window !== 'undefined'
+    ? Number(new URL(window.location.href).searchParams.get('montoVoluntario') ?? '') || undefined
+    : undefined
+
   useEffect(() => {
     if (!slug) return
     fetch(`/api/workshops?slug=${slug}`)
@@ -95,6 +100,7 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
           body: JSON.stringify({
             workshopId: workshop._id,
             slotIndex: slotsToEnroll[i],
+            ...(montoVoluntarioParam !== undefined ? { montoVoluntario: montoVoluntarioParam } : {}),
             ...(isGuest ? { name: guestName.trim(), email: guestEmail.trim() } : {}),
           }),
         })

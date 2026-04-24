@@ -60,15 +60,23 @@ export default async function MisTalleresPage({
           <div className="space-y-4">
             {result.data.map((e) => {
               const w = e.workshopId as unknown as { _id: string; titulo: string; slug: string; tipo: string } | null
+              const esPrueba = (e as unknown as { esClasePrueba?: boolean }).esClasePrueba === true
               return (
                 <div key={String(e._id)} className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <Link
-                      href={`/talleres/${w?.slug || ''}`}
-                      className="font-semibold text-gray-900 hover:text-purple-700"
-                    >
-                      {w?.titulo || 'Taller'}
-                    </Link>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Link
+                        href={`/talleres/${w?.slug || ''}`}
+                        className="font-semibold text-gray-900 hover:text-purple-700"
+                      >
+                        {w?.titulo || 'Taller'}
+                      </Link>
+                      {esPrueba && (
+                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                          Clase de prueba
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-3 mt-1">
                       <span className={`text-xs px-2 py-1 rounded-full ${estadoBadge[e.estado]}`}>
                         {e.estado}
@@ -80,6 +88,15 @@ export default async function MisTalleresPage({
                         {new Date(e.createdAt).toLocaleDateString('es-CL')}
                       </span>
                     </div>
+                    {/* CTA conversión si es clase de prueba pagada */}
+                    {esPrueba && e.estado === 'pagado' && w?.slug && (
+                      <Link
+                        href={`/talleres/${w.slug}`}
+                        className="inline-block mt-2 text-xs text-purple-600 hover:text-purple-800 font-medium underline"
+                      >
+                        Suscribirme al taller completo →
+                      </Link>
+                    )}
                   </div>
                   {e.estado === 'pendiente' && (
                     <CancelButton enrollmentId={String(e._id)} />

@@ -13,16 +13,20 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { workshopId } = body
+    const { workshopId, paqueteId } = body
 
     if (!workshopId || !validateObjectId(workshopId)) {
       return NextResponse.json({ error: 'workshopId inválido' }, { status: 400 })
+    }
+    if (paqueteId && !validateObjectId(paqueteId)) {
+      return NextResponse.json({ error: 'paqueteId inválido' }, { status: 400 })
     }
 
     const result = await SubscriptionService.createWithPayment(
       workshopId,
       session.user.id,
-      session.user.email
+      session.user.email,
+      paqueteId ?? undefined,
     )
 
     // Taller gratuito → redirigir a reservas directamente

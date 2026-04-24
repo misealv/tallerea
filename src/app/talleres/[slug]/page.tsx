@@ -5,7 +5,7 @@ import { WorkshopService } from '@/services/WorkshopService'
 import { SiteConfigService } from '@/services/SiteConfigService'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import SuscribirseButton from '@/components/SuscribirseButton'
+import PrecioCard from '@/components/PrecioCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,10 +61,6 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
   const owner = workshop.ownerId as unknown as {
     name: string; taller?: { slug?: string; bio?: string }
   } | null
-
-  const precioPublico = workshop.precioModalidad === 'neto'
-    ? Math.round(workshop.precio * 100 / (100 - comisionPct))
-    : workshop.precio
 
   return (
     <>
@@ -213,71 +209,33 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
 
           {/* Sidebar derecha */}
           <div className="space-y-4">
-            {/* Card de precio */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-20 space-y-4">
-              <div className="text-center">
-                <p className="text-3xl font-bold text-purple-700">
-                  {precioPublico === 0 ? 'Gratis' : `$${precioPublico.toLocaleString('es-CL')}`}
-                </p>
-              </div>
-
-              <div className="text-sm space-y-2 text-gray-600">
-                <div className="flex justify-between">
-                  <span>Cupos por sesión</span>
-                  <span className={`font-medium ${workshop.cupoPorSesion > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {workshop.cupoPorSesion}
-                  </span>
-                </div>
-                {workshop.maxAlumnosActivos && (
-                  <div className="flex justify-between">
-                    <span>Cupos totales</span>
-                    <span className="font-medium text-gray-900">{workshop.maxAlumnosActivos}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span>Inicio</span>
-                  <span className="font-medium">{new Date(workshop.fechaInicio).toLocaleDateString('es-CL')}</span>
-                </div>
-                {workshop.fechaFin && (
-                  <div className="flex justify-between">
-                    <span>Término</span>
-                    <span className="font-medium">{new Date(workshop.fechaFin).toLocaleDateString('es-CL')}</span>
-                  </div>
-                )}
-              </div>
-
-              {(() => {
-                if (workshop.modeloAcceso === 'recurrente') {
-                  // Taller recurrente → botón de suscripción
-                  return workshop.plan ? (
-                    <div className="space-y-2">
-                      <div className="text-xs text-center text-gray-500 border-t pt-3">
-                        {workshop.plan.sesionesIncluidas} sesión{workshop.plan.sesionesIncluidas !== 1 ? 'es' : ''} ·{' '}
-                        {workshop.plan.vigencia === 'mensual' ? 'renueva mensual' : workshop.plan.vigencia === 'por_ciclo' ? 'por ciclo' : 'sin vencimiento'}
-                      </div>
-                      <SuscribirseButton workshopId={String(workshop._id)} workshopSlug={workshop.slug} />
-                    </div>
-                  ) : (
-                    <div className="w-full text-center bg-gray-200 text-gray-500 py-3 rounded-lg font-semibold text-sm">
-                      Próximamente
-                    </div>
-                  )
-                }
-                // Taller puntual → flujo de inscripción existente
-                return workshop.cupoPorSesion > 0 ? (
-                  <Link
-                    href={`/talleres/${workshop.slug}/inscribirse`}
-                    className="block w-full text-center bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
-                  >
-                    Inscribirme
-                  </Link>
-                ) : (
-                  <div className="w-full text-center bg-gray-200 text-gray-500 py-3 rounded-lg font-semibold">
-                    Sin cupos
-                  </div>
-                )
-              })()}
-            </div>
+            <PrecioCard
+              workshopId={String(workshop._id)}
+              workshopSlug={workshop.slug}
+              modeloAcceso={workshop.modeloAcceso ?? 'puntual'}
+              modalidadPrecio={workshop.modalidadPrecio ?? (workshop.precio === 0 ? 'gratuito' : 'fijo')}
+              precioFijo={workshop.precioFijo?.monto ?? workshop.precio}
+              aporteVoluntario={workshop.aporteVoluntario ? {
+                sugerido: workshop.aporteVoluntario.sugerido,
+                minimo:   workshop.aporteVoluntario.minimo,
+                maximo:   workshop.aporteVoluntario.maximo ?? null,
+              } : undefined}
+              paquetes={(workshop.paquetes ?? []).map((p: { _id: { toString(): string }; nombre: string; precio: number; sesionesIncluidas: number; duracionDias: number; activo: boolean }) => ({
+                _id:               p._id.toString(),
+                nombre:            p.nombre,
+                precio:            p.precio,
+                sesionesIncluidas: p.sesionesIncluidas,
+                duracionDias:      p.duracionDias,
+                activo:            p.activo,
+              }))}
+              clasePrueba={workshop.clasePrueba ? {
+                habilitada: workshop.clasePrueba.habilitada,
+                precio:     workshop.clasePrueba.precio,
+              } : undefined}
+              cupoPorSesion={workshop.cupoPorSesion}
+              plan={workshop.plan ?? null}
+              comisionPct={comisionPct}
+            />
 
             {/* Tallerista */}
             {owner && (
