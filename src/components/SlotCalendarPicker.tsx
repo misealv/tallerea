@@ -117,10 +117,11 @@ export default function SlotCalendarPicker({ slots, selectedSlots, onSelectionCh
               const top = (startMin / 30) * CELL_HEIGHT
               const height = Math.max(((endMin - startMin) / 30) * CELL_HEIGHT, CELL_HEIGHT)
 
-              const full = slot.cupoDisponible <= 0
+              const full = (slot.cupoDisponible ?? 0) <= 0
               const selected = selectedSlots.includes(idx)
+              const disponible = slot.cupoDisponible ?? 0
               const pct = slot.cupoMax > 0
-                ? Math.round(((slot.cupoMax - slot.cupoDisponible) / slot.cupoMax) * 100)
+                ? Math.round(((slot.cupoMax - disponible) / slot.cupoMax) * 100)
                 : 100
 
               const colWidth = `calc((100% - 50px) / ${diasConSlots.length})`
@@ -137,7 +138,7 @@ export default function SlotCalendarPicker({ slots, selectedSlots, onSelectionCh
                   className={`absolute rounded-md px-1.5 py-1 text-xs z-10 transition-all overflow-hidden select-none ${bgClass}`}
                   style={{ top, height, left, width: `calc(${colWidth} - 4px)`, marginLeft: 2 }}
                   onClick={() => toggleSlot(idx)}
-                  title={full ? 'Sin cupos disponibles' : `${slot.cupoDisponible} cupo${slot.cupoDisponible !== 1 ? 's' : ''} disponible${slot.cupoDisponible !== 1 ? 's' : ''}`}
+                  title={full ? 'Sin cupos disponibles' : `${disponible} cupo${disponible !== 1 ? 's' : ''} disponible${disponible !== 1 ? 's' : ''}`}
                 >
                   <div className="font-semibold truncate">{slot.horaInicio}–{slot.horaFin}</div>
                   {height >= CELL_HEIGHT * 1.5 && (
@@ -152,7 +153,7 @@ export default function SlotCalendarPicker({ slots, selectedSlots, onSelectionCh
                         </div>
                       )}
                       <div className="text-[10px] opacity-90">
-                        {full ? 'Lleno' : `${slot.cupoDisponible}${slot.cupoMax > 0 ? `/${slot.cupoMax}` : ''} cupo${slot.cupoDisponible !== 1 ? 's' : ''}`}
+                        {full ? 'Lleno' : `${disponible}${slot.cupoMax > 0 ? `/${slot.cupoMax}` : ''} cupo${disponible !== 1 ? 's' : ''}`}
                       </div>
                     </div>
                   )}
@@ -173,7 +174,7 @@ export default function SlotCalendarPicker({ slots, selectedSlots, onSelectionCh
           <span className="font-medium">
             {DIA_LABEL_FULL[slots[selectedSlots[0]].dia]} {slots[selectedSlots[0]].horaInicio} — {slots[selectedSlots[0]].horaFin}
           </span>
-          <span className="text-purple-500 text-xs">({slots[selectedSlots[0]].cupoDisponible} cupos)</span>
+          <span className="text-purple-500 text-xs">({(slots[selectedSlots[0]].cupoDisponible ?? 0)} cupos)</span>
         </div>
       )}
     </div>
