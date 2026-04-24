@@ -39,8 +39,8 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const slug = params.slug
-  const [selectedSlots, setSelectedSlots] = useState<number[]>([])
-  const [currentSlotIdx, setCurrentSlotIdx] = useState(0)
+  const [selectedSlotIdx, setSelectedSlotIdx] = useState<number | null>(null)
+  const [selectedFecha, setSelectedFecha] = useState<string | null>(null)
   // Datos del invitado (solo cuando no hay sesión)
   const [guestName, setGuestName] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
@@ -75,8 +75,8 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
     const hasSlots = workshop.slots && workshop.slots.length > 0
 
     // Si tiene slots, validar selección
-    if (hasSlots && selectedSlots.length === 0) {
-      setError('Selecciona al menos un horario')
+    if (hasSlots && (selectedSlotIdx === null || !selectedFecha)) {
+      setError('Selecciona una fecha y horario')
       return
     }
 
@@ -96,41 +96,33 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
     setError('')
 
     try {
-      // Si hay múltiples slots seleccionados, inscribir uno por uno
-      const slotsToEnroll = hasSlots ? selectedSlots : [null]
+      const res = await fetch('/api/payments/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workshopId: workshop._id,
+          slotIndex: hasSlots ? selectedSlotIdx : null,
+          ...(selectedFecha ? { fecha: selectedFecha } : {}),
+          ...(esClasePrueba ? { esClasePrueba: true } : {}),
+          ...(montoVoluntarioParam !== undefined ? { montoVoluntario: montoVoluntarioParam } : {}),
+          ...(isGuest ? { name: guestName.trim(), email: guestEmail.trim() } : {}),
+        }),
+      })
+      const data = await res.json()
 
-      for (let i = 0; i < slotsToEnroll.length; i++) {
-        setCurrentSlotIdx(i)
-        const res = await fetch('/api/payments/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            workshopId: workshop._id,
-            slotIndex: slotsToEnroll[i],
-            ...(esClasePrueba ? { esClasePrueba: true } : {}),
-            ...(montoVoluntarioParam !== undefined ? { montoVoluntario: montoVoluntarioParam } : {}),
-            ...(isGuest ? { name: guestName.trim(), email: guestEmail.trim() } : {}),
-          }),
-        })
-        const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Error al inscribirse')
+        setSubmitting(false)
+        return
+      }
 
-        if (!res.ok) {
-          setError(data.error || 'Error al inscribirse')
-          setSubmitting(false)
-          return
-        }
-
-        // Si es gratis y es el último, redirigir
-        if (data.free && i === slotsToEnroll.length - 1) {
-          router.push(session ? '/alumno?pago=ok' : '/?pago=ok&revisa=email')
-          return
-        }
-
-        // Si tiene pago, redirigir a MercadoPago (solo primer slot con pago)
-        if (data.initPoint) {
-          window.location.href = data.initPoint
-          return
-        }
+      if (data.free) {
+        router.push(session ? '/alumno?pago=ok' : '/?pago=ok&revisa=email')
+        return
+      }
+      if (data.initPoint) {
+        window.location.href = data.initPoint
+        return
       }
 
       router.push(session ? '/alumno?pago=ok' : '/?pago=ok&revisa=email')
@@ -158,7 +150,13 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
 
           {/* Selector de slot si tiene slots */}
           {workshop.slots && workshop.slots.length > 0 ? (
-            <SlotCalendarPicker slots={workshop.slots} selectedSlots={selectedSlots} onSelectionChange={setSelectedSlots} />
+            <SlotCalendarPicker
+              slots={workshop.slots}
+              fechaInicio={workshop.fechaInicio}
+              selectedSlotIndex={selectedSlotIdx}
+              selectedFecha={selectedFecha}
+              onSelect={(slotIndex, fecha) => { setSelectedSlotIdx(slotIndex); setSelectedFecha(fecha) }}
+            />
           ) : (
             <p className="text-xs text-gray-400">{workshop.cupoDisponible} cupos disponibles</p>
           )}
@@ -224,11 +222,11 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
 
         <button
           onClick={handleInscribirse}
-          disabled={submitting || (workshop.slots?.length > 0 ? selectedSlots.length === 0 : workshop.cupoDisponible <= 0)}
+          disabled={submitting || (workshop.slots?.length > 0 ? selectedSlotIdx === null : workshop.cupoDisponible <= 0)}
           className="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
         >
           {submitting
-            ? `Procesando${selectedSlots.length > 1 ? ` (${currentSlotIdx + 1}/${selectedSlots.length})` : ''}...`
+            ? 'Procesando...'
             : (() => {
                 const precio = esClasePrueba
                   ? (workshop.clasePrueba?.precio ?? 0)

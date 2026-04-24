@@ -1,5 +1,7 @@
 'use client'
 
+import { useMemo } from 'react'
+
 interface Slot {
   dia: string
   horaInicio: string
@@ -10,173 +12,195 @@ interface Slot {
 
 interface Props {
   slots: Slot[]
-  selectedSlots: number[]
-  onSelectionChange: (indices: number[]) => void
+  fechaInicio: string
+  selectedSlotIndex: number | null
+  selectedFecha: string | null
+  onSelect: (slotIndex: number, fecha: string) => void
 }
 
-const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'] as const
+const DIA_JS: Record<string, number> = {
+  domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6,
+}
+const DIAS_ORDEN = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'] as const
 const DIA_LABEL: Record<string, string> = {
   lunes: 'Lun', martes: 'Mar', miercoles: 'Mié', jueves: 'Jue',
   viernes: 'Vie', sabado: 'Sáb', domingo: 'Dom',
 }
-const DIA_LABEL_FULL: Record<string, string> = {
-  lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves',
-  viernes: 'Viernes', sabado: 'Sábado', domingo: 'Domingo',
+const MES_LABEL = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+const MES_LABEL_FULL = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+
+function toLocal(s: string): Date {
+  // Parsear como fecha local evitando offset UTC
+  const d = new Date(s.includes('T') ? s : s + 'T12:00:00')
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
 }
 
-const CELL_HEIGHT = 28 // px por 30 min
-
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number)
-  return h * 60 + m
+function nextWeekday(from: Date, targetDay: number): Date {
+  const d = new Date(from)
+  const diff = (targetDay - d.getDay() + 7) % 7
+  d.setDate(d.getDate() + diff)
+  return d
 }
 
-export default function SlotCalendarPicker({ slots, selectedSlots, onSelectionChange }: Props) {
-  if (slots.length === 0) return null
+function toISODate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
-  // Calcular rango de horas visible solo en torno a los slots existentes
-  const allMins = slots.flatMap(s => [timeToMinutes(s.horaInicio), timeToMinutes(s.horaFin)])
-  const minHour = Math.max(0, Math.floor(Math.min(...allMins) / 60) - 1)
-  const maxHour = Math.min(23, Math.ceil(Math.max(...allMins) / 60) + 1)
+function getMondayISO(d: Date): string {
+  const day = new Date(d)
+  const jsDay = day.getDay()
+  day.setDate(day.getDate() - (jsDay === 0 ? 6 : jsDay - 1))
+  return toISODate(day)
+}
 
-  const hours: number[] = []
-  for (let h = minHour; h < maxHour; h++) hours.push(h)
+interface Ocurrencia {
+  slotIndex: number
+  slot: Slot
+  fecha: Date
+  fechaISO: string
+}
 
-  // Solo días que tienen al menos un slot
-  const diasConSlots = DIAS.filter(d => slots.some(s => s.dia === d))
+function generarOcurrencias(slots: Slot[], fechaInicio: string, semanas = 8): Ocurrencia[] {
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
+  const inicio = toLocal(fechaInicio)
+  const desde = inicio > hoy ? inicio : hoy
+  const result: Ocurrencia[] = []
 
-  function toggleSlot(idx: number) {
-    const slot = slots[idx]
-    if (slot.cupoDisponible <= 0) return
-    if (selectedSlots.includes(idx)) {
-      onSelectionChange(selectedSlots.filter(i => i !== idx))
-    } else {
-      // Selección única: reemplazar
-      onSelectionChange([idx])
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i]
+    const targetDay = DIA_JS[slot.dia]
+    if (targetDay === undefined) continue
+    const primera = nextWeekday(new Date(desde), targetDay)
+    for (let w = 0; w < semanas; w++) {
+      const fecha = new Date(primera)
+      fecha.setDate(primera.getDate() + w * 7)
+      result.push({ slotIndex: i, slot, fecha, fechaISO: toISODate(fecha) })
     }
   }
+  return result.sort((a, b) => a.fecha.getTime() - b.fecha.getTime())
+}
+
+export default function SlotCalendarPicker({ slots, fechaInicio, selectedSlotIndex, selectedFecha, onSelect }: Props) {
+  const ocurrencias = useMemo(() => generarOcurrencias(slots, fechaInicio, 8), [slots, fechaInicio])
+
+  const semanaMap = useMemo(() => {
+    const map = new Map<string, Ocurrencia[]>()
+    for (const o of ocurrencias) {
+      const key = getMondayISO(o.fecha)
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(o)
+    }
+    return map
+  }, [ocurrencias])
+
+  const semanas = useMemo(() => Array.from(semanaMap.keys()).sort(), [semanaMap])
+  const diasConSlots = useMemo(() => DIAS_ORDEN.filter(d => slots.some(s => s.dia === d)), [slots])
+
+  if (!ocurrencias.length) return null
+
+  const mesActual = ocurrencias[0]?.fecha.getMonth()
 
   return (
     <div className="space-y-3">
-      <h3 className="font-semibold text-gray-900">Elige tu horario</h3>
-      <p className="text-xs text-gray-500">Haz clic en un bloque para seleccionar el horario</p>
+      <h3 className="font-semibold text-gray-900">Elige tu fecha</h3>
 
       <div className="overflow-x-auto border border-gray-200 rounded-lg">
-        <div style={{ minWidth: `${50 + diasConSlots.length * 90}px` }}>
-          {/* Header días */}
-          <div
-            className="border-b border-gray-200 bg-gray-50"
-            style={{ display: 'grid', gridTemplateColumns: `50px repeat(${diasConSlots.length}, 1fr)` }}
-          >
-            <div className="p-1 text-xs text-gray-400" />
-            {diasConSlots.map(d => (
-              <div key={d} className="py-2 px-1 text-xs font-semibold text-center text-gray-700">
-                <span className="hidden sm:inline">{DIA_LABEL_FULL[d]}</span>
-                <span className="sm:hidden">{DIA_LABEL[d]}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Celdas + bloques */}
-          <div className="relative">
-            {hours.map(h => (
-              <div
-                key={h}
-                style={{ display: 'grid', gridTemplateColumns: `50px repeat(${diasConSlots.length}, 1fr)` }}
-              >
-                {/* Hora label */}
-                <div
-                  className="text-xs text-gray-400 pr-2 text-right border-r border-gray-200 flex items-start justify-end pt-0.5"
-                  style={{ height: CELL_HEIGHT * 2 }}
-                >
-                  {String(h).padStart(2, '0')}:00
-                </div>
-                {diasConSlots.map(d => (
-                  <div
-                    key={`${d}-${h}`}
-                    className="border-b border-r border-gray-100 relative"
-                    style={{ height: CELL_HEIGHT * 2 }}
-                  >
-                    {/* Divisor media hora */}
-                    <div
-                      className="absolute inset-x-0 border-t border-dashed border-gray-100"
-                      style={{ top: CELL_HEIGHT }}
-                    />
-                  </div>
-                ))}
-              </div>
-            ))}
-
-            {/* Bloques de slots */}
-            {slots.map((slot, idx) => {
-              const diaIdx = diasConSlots.indexOf(slot.dia as typeof DIAS[number])
-              if (diaIdx < 0) return null
-
-              const startMin = timeToMinutes(slot.horaInicio) - minHour * 60
-              const endMin = timeToMinutes(slot.horaFin) - minHour * 60
-              const top = (startMin / 30) * CELL_HEIGHT
-              const height = Math.max(((endMin - startMin) / 30) * CELL_HEIGHT, CELL_HEIGHT)
-
-              const full = (slot.cupoDisponible ?? 0) <= 0
-              const selected = selectedSlots.includes(idx)
-              const disponible = slot.cupoDisponible ?? 0
-              const pct = slot.cupoMax > 0
-                ? Math.round(((slot.cupoMax - disponible) / slot.cupoMax) * 100)
-                : 100
-
-              const colWidth = `calc((100% - 50px) / ${diasConSlots.length})`
-              const left = `calc(50px + ${diaIdx} * ${colWidth})`
-
-              let bgClass: string
-              if (selected) bgClass = 'bg-purple-600 text-white ring-2 ring-purple-400 ring-offset-1'
-              else if (full) bgClass = 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              else bgClass = 'bg-purple-100 text-purple-900 hover:bg-purple-200 cursor-pointer'
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="px-3 py-2 text-left text-xs text-gray-500 font-medium whitespace-nowrap">Semana</th>
+              {diasConSlots.map(d => (
+                <th key={d} className="px-3 py-2 text-center text-xs text-gray-700 font-semibold">
+                  {DIA_LABEL[d]}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {semanas.map((lunesISO, sIdx) => {
+              const ocurrSemana = semanaMap.get(lunesISO) ?? []
+              const lunes = toLocal(lunesISO)
+              const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6)
+              const mL = lunes.getMonth(); const mD = domingo.getMonth()
+              const weekLabel = mL === mD
+                ? `${lunes.getDate()}–${domingo.getDate()} ${MES_LABEL[mL]}`
+                : `${lunes.getDate()} ${MES_LABEL[mL]} – ${domingo.getDate()} ${MES_LABEL[mD]}`
 
               return (
-                <div
-                  key={idx}
-                  className={`absolute rounded-md px-1.5 py-1 text-xs z-10 transition-all overflow-hidden select-none ${bgClass}`}
-                  style={{ top, height, left, width: `calc(${colWidth} - 4px)`, marginLeft: 2 }}
-                  onClick={() => toggleSlot(idx)}
-                  title={full ? 'Sin cupos disponibles' : `${disponible} cupo${disponible !== 1 ? 's' : ''} disponible${disponible !== 1 ? 's' : ''}`}
-                >
-                  <div className="font-semibold truncate">{slot.horaInicio}–{slot.horaFin}</div>
-                  {height >= CELL_HEIGHT * 1.5 && (
-                    <div className="mt-0.5 space-y-0.5">
-                      {/* Barra de ocupación */}
-                      {slot.cupoMax > 0 && (
-                        <div className={`h-1 rounded-full ${selected ? 'bg-white/40' : 'bg-purple-300'} overflow-hidden`}>
-                          <div
-                            className={`h-full rounded-full ${selected ? 'bg-white' : pct > 80 ? 'bg-orange-400' : 'bg-purple-600'}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                      )}
-                      <div className="text-[10px] opacity-90">
-                        {full ? 'Lleno' : `${disponible}${slot.cupoMax > 0 ? `/${slot.cupoMax}` : ''} cupo${disponible !== 1 ? 's' : ''}`}
-                      </div>
-                    </div>
-                  )}
-                  {full && height < CELL_HEIGHT * 1.5 && (
-                    <div className="text-[10px] mt-0.5">Lleno</div>
-                  )}
-                </div>
+                <tr key={lunesISO} className={`border-b border-gray-100 last:border-0 ${sIdx % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
+                  <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap align-middle">{weekLabel}</td>
+                  {diasConSlots.map(dia => {
+                    const o = ocurrSemana.find(oc => oc.slot.dia === dia)
+                    if (!o) return <td key={dia} className="px-3 py-2" />
+
+                    const disponible = o.slot.cupoDisponible ?? 0
+                    const full = disponible <= 0
+                    const selected = selectedSlotIndex === o.slotIndex && selectedFecha === o.fechaISO
+                    const pct = o.slot.cupoMax > 0
+                      ? Math.round(((o.slot.cupoMax - disponible) / o.slot.cupoMax) * 100)
+                      : 100
+
+                    return (
+                      <td key={dia} className="px-2 py-2 text-center">
+                        <button
+                          type="button"
+                          disabled={full}
+                          onClick={() => onSelect(o.slotIndex, o.fechaISO)}
+                          className={`w-full rounded-lg px-2 py-2.5 text-xs transition-all border ${
+                            selected
+                              ? 'bg-purple-600 text-white border-purple-600 ring-2 ring-purple-300'
+                              : full
+                              ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
+                              : 'bg-white text-purple-900 border-purple-200 hover:bg-purple-50 hover:border-purple-400 cursor-pointer'
+                          }`}
+                        >
+                          <div className="font-bold text-base leading-none">{o.fecha.getDate()}</div>
+                          <div className={`text-[10px] mt-0.5 ${selected ? 'text-purple-200' : 'text-gray-500'}`}>
+                            {o.slot.horaInicio}
+                          </div>
+                          {o.slot.cupoMax > 0 && (
+                            <>
+                              <div className={`mt-1.5 h-1 rounded-full overflow-hidden ${selected ? 'bg-white/30' : 'bg-gray-200'}`}>
+                                <div
+                                  className={`h-full rounded-full ${
+                                    selected ? 'bg-white' : pct > 80 ? 'bg-orange-400' : 'bg-purple-500'
+                                  }`}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                              <div className={`text-[10px] mt-0.5 ${selected ? 'text-purple-200' : 'text-gray-400'}`}>
+                                {full ? 'Lleno' : `${disponible}/${o.slot.cupoMax}`}
+                              </div>
+                            </>
+                          )}
+                        </button>
+                      </td>
+                    )
+                  })}
+                </tr>
               )
             })}
-          </div>
-        </div>
+          </tbody>
+        </table>
       </div>
 
-      {/* Leyenda selección */}
-      {selectedSlots.length > 0 && (
-        <div className="flex items-center gap-2 text-sm text-purple-700 bg-purple-50 rounded-lg px-3 py-2">
-          <span className="w-3 h-3 rounded bg-purple-600 flex-shrink-0" />
-          <span className="font-medium">
-            {DIA_LABEL_FULL[slots[selectedSlots[0]].dia]} {slots[selectedSlots[0]].horaInicio} — {slots[selectedSlots[0]].horaFin}
-          </span>
-          <span className="text-purple-500 text-xs">({(slots[selectedSlots[0]].cupoDisponible ?? 0)} cupos)</span>
-        </div>
-      )}
+      {selectedFecha && selectedSlotIndex !== null && (() => {
+        const o = ocurrencias.find(oc => oc.slotIndex === selectedSlotIndex && oc.fechaISO === selectedFecha)
+        if (!o) return null
+        return (
+          <div className="flex items-center gap-2 text-sm text-purple-700 bg-purple-50 rounded-lg px-3 py-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-purple-600 flex-shrink-0" />
+            <span className="font-medium">
+              {DIA_LABEL[o.slot.dia]} {o.fecha.getDate()} de {MES_LABEL_FULL[o.fecha.getMonth()]} · {o.slot.horaInicio}–{o.slot.horaFin}
+            </span>
+            <span className="text-purple-400 text-xs">({(o.slot.cupoDisponible ?? 0)} cupos)</span>
+          </div>
+        )
+      })()}
     </div>
   )
 }
+
