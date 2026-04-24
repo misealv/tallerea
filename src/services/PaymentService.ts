@@ -85,12 +85,12 @@ export const PaymentService = {
     }
 
     // Taller gratuito o crédito cubre 100%: marcar pagado directamente, sin preference MP
-    if (workshop.precio === 0 || montoACobrar === 0) {
+    if (montoBase === 0 || montoACobrar === 0) {
       await EnrollmentService.update(enrollmentId, { estado: 'pagado' })
 
-      // [CUADRATURA] Si el taller no es gratuito (había precio pero crédito lo cubrió),
+      // [CUADRATURA] Si el monto no es 0 (había precio pero crédito lo cubrió),
       // crear PaymentBreakdown para que el profesor cobre su parte en la liquidación
-      if (workshop.precio > 0) {
+      if (montoBase > 0) {
         await this._createBreakdownForEnrollment(enrollmentId, null)
       }
 
@@ -100,7 +100,7 @@ export const PaymentService = {
           studentEmail,
           workshopTitle: workshop.titulo,
           workshopSlug: workshop.slug,
-          monto: workshop.precio,
+          monto: montoBase,
         })
       } catch {
         // No bloquear inscripción por fallo de email

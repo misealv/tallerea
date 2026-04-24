@@ -90,6 +90,7 @@ export const ReviewService = {
       studentId: sid,
       estado: 'pagado',
       activo: true,
+      esClasePrueba: { $ne: true },   // [PREGUNTA 2] La prueba NO otorga elegibilidad de review
     })
       .populate('workshopId', 'titulo slug imagenes ownerId slots')
       .lean<EnrollmentLean[]>()

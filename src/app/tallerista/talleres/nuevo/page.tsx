@@ -181,13 +181,17 @@ export default function NuevoTallerPage() {
     }
 
     if (p1.modeloAcceso === 'recurrente') {
+      // [PREGUNTA 1] Para gratuito recurrente, preferir config del EditorPrecios
+      const sesGratuito = preciosData.modalidadPrecio === 'gratuito'
+        ? preciosData.sesionesPorPeriodoGratuito
+        : undefined
       body.plan = {
-        sesionesIncluidas: parseInt(p2.sesionesIncluidas) || 8,
-        vigencia:          p2.vigencia,
-        horasAntesCancelacion: parseInt(p1.horasAntesCancelacion) || 24,
+        sesionesIncluidas:       sesGratuito ?? (parseInt(p2.sesionesIncluidas) || 8),
+        vigencia:                p2.vigencia,
+        horasAntesCancelacion:   parseInt(p1.horasAntesCancelacion) || 24,
         permitirCambioPostPlazo: p1.permitirReagendamiento,
-        politicaNoShow: 'pierde',
-        precioSesionSuelta: null,
+        politicaNoShow:          'pierde',
+        precioSesionSuelta:      null,
       }
       body.tipoRecurrencia = p2.tipoRecurrencia
       body.plantillaSemanal = p2.plantillaSemanal.map(s => ({

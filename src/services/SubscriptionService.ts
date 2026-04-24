@@ -241,10 +241,14 @@ export const SubscriptionService = {
     prev.estado = 'vencida'
     await prev.save()
 
+    // Preservar paqueteId del snapshot para renovar con el mismo paquete
+    const paqueteIdPrev = prev.paqueteId ? String(prev.paqueteId) : undefined
+
     return this.createWithPayment(
       String(prev.workshopId),
       String(prev.studentId),
-      studentEmail
+      studentEmail,
+      paqueteIdPrev,
     )
   },
 

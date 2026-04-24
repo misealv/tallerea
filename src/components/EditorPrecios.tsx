@@ -9,6 +9,9 @@ export interface EditorPreciosValue {
   aporteVoluntario?: IAporteVoluntario
   paquetes?: Omit<IPaquete, '_id'>[]
   clasePrueba?: IClasePrueba
+  // [PREGUNTA 1] Config para gratuito recurrente
+  sesionesPorPeriodoGratuito?: number   // sesiones por ciclo mensual
+  duracionDiasGratuito?: number          // duración del ciclo (default 30)
 }
 
 interface Props {
@@ -74,6 +77,48 @@ export default function EditorPrecios({ value, onChange, modeloAcceso }: Props) 
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
             placeholder="Ej: 15000"
           />
+        </div>
+      )}
+
+      {/* [PREGUNTA 1] Gratuito recurrente: configurar sesiones por ciclo */}
+      {value.modalidadPrecio === 'gratuito' && modeloAcceso === 'recurrente' && (
+        <div className="grid grid-cols-2 gap-3 bg-green-50 rounded-lg p-4 border border-green-200">
+          <div className="col-span-2">
+            <p className="text-sm font-medium text-green-900">Taller gratuito recurrente</p>
+            <p className="text-xs text-green-700 mt-0.5">
+              Los alumnos se suscriben sin costo, pero el ciclo y las sesiones por período son configurables.
+            </p>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Sesiones por ciclo</label>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={value.sesionesPorPeriodoGratuito ?? ''}
+              onChange={e => onChange({
+                ...value,
+                sesionesPorPeriodoGratuito: Math.max(1, Math.round(Number(e.target.value))),
+              })}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+              placeholder="Ej: 4"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Duración del ciclo (días)</label>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={value.duracionDiasGratuito ?? ''}
+              onChange={e => onChange({
+                ...value,
+                duracionDiasGratuito: Math.max(1, Math.round(Number(e.target.value))),
+              })}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+              placeholder="30"
+            />
+          </div>
         </div>
       )}
 

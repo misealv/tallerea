@@ -215,7 +215,7 @@ export const EnrollmentService = {
     if (!workshop) throw new Error('Taller no encontrado')
     if (!workshop.clasePrueba?.habilitada) throw new Error('Este taller no ofrece clase de prueba')
 
-    // Validar 1 prueba por alumno por taller (excluye canceladas)
+    // [PREGUNTA 2] Validar 1 prueba por alumno por taller (excluye canceladas)
     const yaTuvo = await Enrollment.countDocuments({
       workshopId,
       studentId,
@@ -226,18 +226,51 @@ export const EnrollmentService = {
 
     const precio = workshop.clasePrueba.precio ?? 0
 
-    // Crear enrollment de prueba
-    const enrollment = await new Enrollment({
-      workshopId,
-      studentId,
-      slotIndex,
-      monto: precio,
-      creditoAplicado: 0,
-      esClasePrueba: true,
-      estado: precio === 0 ? 'pagado' : 'pendiente',
-      activo: true,
-    }).save()
+    // [PREGUNTA 4][RACE] La clase de prueba consume el mismo cupo del slot regular (aforo).
+    // Decremento atómico condicional para evitar overbooking.
+    const session = await mongoose.startSession()
+    session.startTransaction()
+    try {
+      if (workshop.slots && workshop.slots.length > 0 && slotIndex !== null) {
+        if (slotIndex < 0 || slotIndex >= workshop.slots.length) {
+          throw new Error('Debes seleccionar un horario válido')
+        }
+        const updated = await Workshop.updateOne(
+          {
+            _id: workshopId,
+            [`slots.${slotIndex}.cupoDisponible`]: { $gt: 0 },
+          },
+          { $inc: { [`slots.${slotIndex}.cupoDisponible`]: -1 } },
+          { session }
+        )
+        if (updated.modifiedCount === 0) throw new Error('No hay cupos disponibles en este horario')
+      } else {
+        const updated = await Workshop.updateOne(
+          { _id: workshopId, cupoDisponible: { $gt: 0 } },
+          { $inc: { cupoDisponible: -1 } },
+          { session }
+        )
+        if (updated.modifiedCount === 0) throw new Error('No hay cupos disponibles')
+      }
 
-    return enrollment
+      const [enrollment] = await Enrollment.create([{
+        workshopId,
+        studentId,
+        slotIndex,
+        monto: precio,
+        creditoAplicado: 0,
+        esClasePrueba: true,
+        estado: precio === 0 ? 'pagado' : 'pendiente',
+        activo: true,
+      }], { session })
+
+      await session.commitTransaction()
+      return enrollment
+    } catch (error) {
+      await session.abortTransaction()
+      throw error
+    } finally {
+      session.endSession()
+    }
   },
 }
