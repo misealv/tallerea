@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useSession } from 'next-auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSession, signOut } from 'next-auth/react'
+import { useSearchParams } from 'next/navigation'
 
 const STORAGE_KEY = 'tallerea_onboarding_draft'
 
@@ -30,7 +30,6 @@ function slugify(str: string): string {
 
 function OnboardingContent() {
   const { data: session } = useSession()
-  const router = useRouter()
   const searchParams = useSearchParams()
   const enviado = searchParams.get('enviado') === '1'
   const tallerEstado = session?.user?.tallerEstado
@@ -108,8 +107,7 @@ function OnboardingContent() {
 
     try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignorar */ }
 
-    router.push('/tallerista/onboarding?enviado=1')
-    router.refresh()
+    await signOut({ callbackUrl: '/tallerista/onboarding?enviado=1' })
   }
 
   // Pantalla de confirmación: justo después de enviar (?enviado=1) o mientras está pendiente
