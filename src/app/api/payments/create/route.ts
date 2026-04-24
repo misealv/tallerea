@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { PaymentService } from '@/services/PaymentService'
+import { SubscriptionService } from '@/services/SubscriptionService'
+import { WorkshopService } from '@/services/WorkshopService'
 import { findOrCreateGuestUser } from '@/lib/guestUser'
 import { rateLimit, getClientIp } from '@/lib/rateLimit'
 
@@ -30,6 +32,34 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { workshopId, slotIndex } = body
     if (!workshopId) return NextResponse.json({ error: 'workshopId es requerido' }, { status: 400 })
+
+    // [RUTEO] Talleres recurrentes usan flujo de Subscription, no Enrollment
+    const workshop = await WorkshopService.getById(workshopId)
+    if (!workshop) return NextResponse.json({ error: 'Taller no encontrado' }, { status: 404 })
+
+    if (workshop.modeloAcceso === 'recurrente') {
+      if (!session?.user?.id || !session.user.email) {
+        return NextResponse.json(
+          { error: 'Debes iniciar sesión para suscribirte a un taller recurrente' },
+          { status: 401 }
+        )
+      }
+      const subResult = await SubscriptionService.createWithPayment(
+        workshopId,
+        session.user.id,
+        session.user.email
+      )
+      if (subResult.free) {
+        return NextResponse.json({
+          free: true,
+          subscriptionId: String(subResult.subscription._id),
+        })
+      }
+      return NextResponse.json({
+        initPoint: subResult.initPoint,
+        subscriptionId: String(subResult.subscription._id),
+      })
+    }
 
     // usarCredito: solo permitido para usuarios autenticados (guests no tienen saldo)
     const usarCredito = Boolean(body.usarCredito) && !!session?.user?.id

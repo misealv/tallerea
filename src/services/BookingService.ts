@@ -62,6 +62,10 @@ export const BookingService = {
     const slot = workshop.slots[slotIndex]
     if (!slot) throw new Error('Sesión no encontrada')
     if (slot.cancelado) throw new Error('Sesión cancelada')
+    if (!slot.fecha) throw new Error('Sesión sin fecha definida')
+    if (new Date(slot.fecha) <= new Date()) {
+      throw new Error('No se puede reservar una sesión que ya ocurrió')
+    }
 
     // Validar cupo
     if (slot.reservas >= workshop.cupoPorSesion) {
@@ -100,7 +104,7 @@ export const BookingService = {
         workshopId,
         studentId,
         slotIndex,
-        fecha: slot.fecha ?? new Date(),
+        fecha: slot.fecha,
         estado: 'reservada',
       }).save()
       return booking
@@ -207,6 +211,10 @@ export const BookingService = {
     const newSlot = workshop.slots[newSlotIndex]
     if (!newSlot) throw new Error('Sesión destino no encontrada')
     if (newSlot.cancelado) throw new Error('Sesión destino cancelada')
+    if (!newSlot.fecha) throw new Error('Sesión destino sin fecha definida')
+    if (new Date(newSlot.fecha) <= new Date()) {
+      throw new Error('No se puede cambiar a una sesión que ya ocurrió')
+    }
     if (newSlot.reservas >= workshop.cupoPorSesion) throw new Error('Sesión destino sin cupo')
 
     // [RACE] Ocupar cupo del nuevo slot atómicamente con verificación
@@ -230,7 +238,7 @@ export const BookingService = {
 
     // Actualizar booking
     booking.slotIndex = newSlotIndex
-    booking.fecha = newSlot.fecha ?? new Date()
+    booking.fecha = newSlot.fecha
     await booking.save()
 
     return booking

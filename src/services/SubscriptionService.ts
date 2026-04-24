@@ -230,15 +230,21 @@ export const SubscriptionService = {
     return updated
   },
 
-  // Devolver 1 sesión (cancelación de booking) — [RACE] atómico
+  // Devolver 1 sesión (cancelación de booking) — [RACE] atómico, con tope superior
   async devolverSesion(subscriptionId: string): Promise<ISubscription> {
     await dbConnect()
-    const updated = await Subscription.findByIdAndUpdate(
-      subscriptionId,
+    // Solo devolver si sesionesUsadas > 0 — evita acumular por double-cancel
+    const updated = await Subscription.findOneAndUpdate(
+      { _id: subscriptionId, sesionesUsadas: { $gt: 0 } },
       { $inc: { sesionesUsadas: -1, sesionesDisponibles: 1 } },
       { new: true }
     ).lean<ISubscription>()
-    if (!updated) throw new Error('Suscripción no encontrada')
+    if (!updated) {
+      // No-op idempotente: si no había sesiones usadas, retornar el estado actual sin mutar
+      const sub = await Subscription.findById(subscriptionId).lean<ISubscription>()
+      if (!sub) throw new Error('Suscripción no encontrada')
+      return sub
+    }
     return updated
   },
 

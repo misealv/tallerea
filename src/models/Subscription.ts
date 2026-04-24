@@ -45,4 +45,10 @@ SubscriptionSchema.index(
   { unique: true, partialFilterExpression: { estado: 'activa' } }
 );
 
+// [IDEMPOTENCIA] pagoRef único cuando está presente — evita duplicar Subscription por retries del webhook MP
+SubscriptionSchema.index(
+  { pagoRef: 1 },
+  { unique: true, sparse: true }
+);
+
 export default mongoose.models.Subscription || mongoose.model<ISubscription>('Subscription', SubscriptionSchema);
