@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import SlotSelector from '@/components/SlotSelector'
+import SlotCalendarPicker from '@/components/SlotCalendarPicker'
 
 interface Slot {
   dia: string
@@ -154,7 +154,7 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
 
           {/* Selector de slot si tiene slots */}
           {workshop.slots && workshop.slots.length > 0 ? (
-            <SlotSelector slots={workshop.slots} selectedSlots={selectedSlots} onSelectionChange={setSelectedSlots} />
+            <SlotCalendarPicker slots={workshop.slots} selectedSlots={selectedSlots} onSelectionChange={setSelectedSlots} />
           ) : (
             <p className="text-xs text-gray-400">{workshop.cupoDisponible} cupos disponibles</p>
           )}
