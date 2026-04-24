@@ -23,6 +23,11 @@ const DIA_LABEL: Record<string, string> = {
   viernes: 'Vie', sabado: 'Sáb', domingo: 'Dom',
 }
 
+// Normaliza 'miércoles' / 'Sábado' → 'miercoles' / 'sabado' (sin acentos, minúscula)
+function normalizeDia(dia: string): string {
+  return dia.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
 const START_HOUR = 7
 const END_HOUR = 22
 const CELL_HEIGHT = 28 // px por 30 min
@@ -51,9 +56,9 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
 
   const handleCellClick = useCallback((dia: string, hour: number, half: number) => {
     const minuteOfDay = hour * 60 + half * 30
-    // Verificar si ya hay un slot aquí
+    // Verificar si ya hay un slot aquí (comparar normalizando día)
     const existingIdx = slots.findIndex(s =>
-      s.dia === dia && timeToMinutes(s.horaInicio) <= minuteOfDay && timeToMinutes(s.horaFin) > minuteOfDay
+      normalizeDia(s.dia) === dia && timeToMinutes(s.horaInicio) <= minuteOfDay && timeToMinutes(s.horaFin) > minuteOfDay
     )
     if (existingIdx >= 0) {
       setPopover({ dia, hora: slots[existingIdx].horaInicio, slotIdx: existingIdx })
@@ -143,7 +148,7 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
 
             {/* Bloques de slots renderizados encima de la grilla */}
             {slots.map((slot, idx) => {
-              const diaIdx = DIAS.indexOf(slot.dia as typeof DIAS[number])
+              const diaIdx = DIAS.indexOf(normalizeDia(slot.dia) as typeof DIAS[number])
               if (diaIdx < 0) return null
               const startMin = timeToMinutes(slot.horaInicio) - START_HOUR * 60
               const endMin = timeToMinutes(slot.horaFin) - START_HOUR * 60
@@ -192,6 +197,7 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
                   />
                 </div>
                 <button
+                  type="button"
                   onClick={() => {
                     const cupo = Math.max(1, Number(popoverCupo) || 1)
                     const updated = slots.map((s, i) =>
@@ -207,11 +213,11 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
                 {/* Repetir en otros días */}
                 {!showRepeatInEdit ? (
                   <div className="flex gap-2">
-                    <button onClick={() => { setShowRepeatInEdit(true); setPopoverRepeatDias([]) }}
+                    <button type="button" onClick={() => { setShowRepeatInEdit(true); setPopoverRepeatDias([]) }}
                       className="flex-1 text-sm bg-purple-50 text-purple-700 py-2 rounded-lg hover:bg-purple-100">
                       🔁 Repetir
                     </button>
-                    <button onClick={() => handleRemove(popover.slotIdx!)}
+                    <button type="button" onClick={() => handleRemove(popover.slotIdx!)}
                       className="flex-1 text-sm bg-red-50 text-red-600 py-2 rounded-lg hover:bg-red-100">
                       Eliminar
                     </button>
@@ -243,11 +249,11 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
                       <p className="text-xs text-purple-600">Se creará en {popoverRepeatDias.length} día{popoverRepeatDias.length !== 1 ? 's' : ''} más</p>
                     )}
                     <div className="flex gap-2">
-                      <button onClick={handleRepeatExisting} disabled={popoverRepeatDias.length === 0}
+                      <button type="button" onClick={handleRepeatExisting} disabled={popoverRepeatDias.length === 0}
                         className="flex-1 bg-purple-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50">
                         Crear ({popoverRepeatDias.length})
                       </button>
-                      <button onClick={() => setShowRepeatInEdit(false)}
+                      <button type="button" onClick={() => setShowRepeatInEdit(false)}
                         className="flex-1 bg-gray-100 text-gray-600 py-2 rounded-lg text-sm hover:bg-gray-200">
                         Cancelar
                       </button>
@@ -297,11 +303,11 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={handleCreate}
+                  <button type="button" onClick={handleCreate}
                     className="flex-1 bg-purple-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-purple-700">
                     {popoverRepeatDias.length > 0 ? `Crear (${popoverRepeatDias.length + 1})` : 'Crear'}
                   </button>
-                  <button onClick={() => { setPopover(null); setPopoverRepeatDias([]) }}
+                  <button type="button" onClick={() => { setPopover(null); setPopoverRepeatDias([]) }}
                     className="flex-1 bg-gray-100 text-gray-600 py-2 rounded-lg text-sm hover:bg-gray-200">
                     Cancelar
                   </button>
