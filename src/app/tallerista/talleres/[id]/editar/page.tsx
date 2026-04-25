@@ -204,9 +204,15 @@ export default function EditarTallerPage() {
     }
 
     body.imagenes = form.imagenes
-    // Enviar el patrón semanal; las cancelaciones de sesiones individuales
-    // se gestionan desde /tallerista/calendario
-    body.slots = slots
+
+    if (form.modeloAcceso === 'recurrente') {
+      // Para recurrente: actualizar plantillaSemanal (no slots directos, para no borrar las
+      // instancias generadas con fecha específica que muestra el calendario)
+      body.plantillaSemanal = slots.map(s => ({ dia: s.dia, horaInicio: s.horaInicio, horaFin: s.horaFin }))
+    } else {
+      // Puntual: los slots son la definición concreta (sin fecha automática)
+      body.slots = slots
+    }
 
     const res = await fetch(`/api/workshops/${id}`, {
       method: 'PUT',
@@ -214,8 +220,14 @@ export default function EditarTallerPage() {
       body: JSON.stringify(body),
     })
     const data = await res.json()
+    if (!res.ok) { setSaving(false); setError(data.error || 'Error al guardar'); return }
+
+    // Regenerar slots desde la plantilla actualizada (preserva los que tienen reservas)
+    if (form.modeloAcceso === 'recurrente') {
+      await fetch(`/api/workshops/${id}/generate-slots`, { method: 'POST' }).catch(() => null)
+    }
+
     setSaving(false)
-    if (!res.ok) { setError(data.error || 'Error al guardar'); return }
     setOk(true)
     router.refresh()
   }
