@@ -8,6 +8,7 @@ import StockImagePicker from '@/components/StockImagePicker'
 import ImageUpload from '@/components/ImageUpload'
 import EditorPrecios, { type EditorPreciosValue } from '@/components/EditorPrecios'
 import SlotCalendar, { type SlotData } from '@/components/SlotCalendar'
+import SlotScheduleManager, { type ScheduledSlot } from '@/components/SlotScheduleManager'
 
 const TIPOS = [
   { value: 'visual', label: 'Artes visuales' },
@@ -68,6 +69,7 @@ export default function EditarTallerPage() {
     precioFijo: { monto: 0 },
   })
   const [slots, setSlots] = useState<SlotData[]>([])
+  const [scheduledSlots, setScheduledSlots] = useState<ScheduledSlot[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -193,7 +195,8 @@ export default function EditarTallerPage() {
     }
 
     body.imagenes = form.imagenes
-    body.slots = slots
+    // Enviar instancias fechadas si existen, si no el patrón semanal
+    body.slots = scheduledSlots.length > 0 ? scheduledSlots : slots
 
     const res = await fetch(`/api/workshops/${id}`, {
       method: 'PUT',
@@ -309,13 +312,27 @@ export default function EditarTallerPage() {
         )}
 
         {/* Horarios de clase */}
-        <div className="border-t pt-4">
-          <SlotCalendar
-            slots={slots}
-            duracionSesion={parseInt(form.duracionSesion) || 90}
-            cupoDefault={parseInt(form.cupoPorSesion) || 10}
-            onSlotsChange={setSlots}
-          />
+        <div className="border-t pt-4 space-y-6">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800 mb-3">Horario semanal (patrón)</h3>
+            <p className="text-xs text-gray-500 mb-3">Define los días y horarios que se repiten cada semana.</p>
+            <SlotCalendar
+              slots={slots}
+              duracionSesion={parseInt(form.duracionSesion) || 90}
+              cupoDefault={parseInt(form.cupoPorSesion) || 10}
+              onSlotsChange={setSlots}
+            />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800 mb-1">Sesiones programadas</h3>
+            <p className="text-xs text-gray-500 mb-3">Gestiona sesiones individuales — cancela o edita cupos para fechas específicas.</p>
+            <SlotScheduleManager
+              patternSlots={slots}
+              fechaInicio={form.fechaInicio}
+              semanas={8}
+              onChange={setScheduledSlots}
+            />
+          </div>
         </div>
 
         {/* Duración + cupo + fecha */}
