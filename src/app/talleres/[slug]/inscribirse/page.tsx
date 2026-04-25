@@ -11,8 +11,9 @@ interface Slot {
   dia: string
   horaInicio: string
   horaFin: string
-  cupoMax: number
-  cupoDisponible: number
+  cupoMax?: number
+  cupoDisponible?: number
+  reservas?: number
 }
 
 interface Workshop {
@@ -23,6 +24,7 @@ interface Workshop {
   precioPublico: number
   cupoDisponible: number
   cupoMax: number
+  cupoPorSesion?: number
   fechaInicio: string
   slots: Slot[]
   clasePrueba?: {
@@ -155,6 +157,7 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
               fechaInicio={workshop.fechaInicio}
               selectedSlotIndex={selectedSlotIdx}
               selectedFecha={selectedFecha}
+              cupoPorSesion={workshop.cupoPorSesion}
               onSelect={(slotIndex, fecha) => { setSelectedSlotIdx(slotIndex); setSelectedFecha(fecha) }}
             />
           ) : (

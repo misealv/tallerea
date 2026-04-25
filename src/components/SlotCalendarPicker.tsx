@@ -6,8 +6,9 @@ interface Slot {
   dia: string
   horaInicio: string
   horaFin: string
-  cupoMax: number
-  cupoDisponible: number
+  cupoMax?: number
+  cupoDisponible?: number
+  reservas?: number
 }
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
   selectedSlotIndex: number | null
   selectedFecha: string | null
   onSelect: (slotIndex: number, fecha: string) => void
+  cupoPorSesion?: number  // cupo global del workshop (recurrente)
 }
 
 const DIA_JS: Record<string, number> = {
@@ -83,7 +85,7 @@ function generarOcurrencias(slots: Slot[], fechaInicio: string, semanas = 8): Oc
   return result.sort((a, b) => a.fecha.getTime() - b.fecha.getTime())
 }
 
-export default function SlotCalendarPicker({ slots, fechaInicio, selectedSlotIndex, selectedFecha, onSelect }: Props) {
+export default function SlotCalendarPicker({ slots, fechaInicio, selectedSlotIndex, selectedFecha, onSelect, cupoPorSesion }: Props) {
   const ocurrencias = useMemo(() => generarOcurrencias(slots, fechaInicio, 8), [slots, fechaInicio])
 
   const semanaMap = useMemo(() => {
@@ -134,12 +136,18 @@ export default function SlotCalendarPicker({ slots, fechaInicio, selectedSlotInd
                     const o = ocurrSemana.find(oc => oc.slot.dia === dia)
                     if (!o) return <td key={dia} className="px-3 py-2" />
 
-                    const disponible = o.slot.cupoDisponible ?? 0
-                    const full = disponible <= 0
+                    const cupoMax = o.slot.cupoMax ?? cupoPorSesion ?? 0
+                    const cupoDisp = o.slot.cupoDisponible !== undefined
+                      ? o.slot.cupoDisponible
+                      : cupoMax > 0
+                        ? Math.max(0, cupoMax - (o.slot.reservas ?? 0))
+                        : 0
+                    const disponible = cupoDisp
+                    const full = cupoMax > 0 ? disponible <= 0 : false
                     const selected = selectedSlotIndex === o.slotIndex && selectedFecha === o.fechaISO
-                    const pct = o.slot.cupoMax > 0
-                      ? Math.round(((o.slot.cupoMax - disponible) / o.slot.cupoMax) * 100)
-                      : 100
+                    const pct = cupoMax > 0
+                      ? Math.round(((cupoMax - disponible) / cupoMax) * 100)
+                      : 0
 
                     return (
                       <td key={dia} className="px-2 py-2 text-center">
@@ -159,7 +167,7 @@ export default function SlotCalendarPicker({ slots, fechaInicio, selectedSlotInd
                           <div className={`text-[10px] mt-0.5 ${selected ? 'text-purple-200' : 'text-gray-500'}`}>
                             {o.slot.horaInicio}
                           </div>
-                          {o.slot.cupoMax > 0 && (
+                          {cupoMax > 0 && (
                             <>
                               <div className={`mt-1.5 h-1 rounded-full overflow-hidden ${selected ? 'bg-white/30' : 'bg-gray-200'}`}>
                                 <div
@@ -170,7 +178,7 @@ export default function SlotCalendarPicker({ slots, fechaInicio, selectedSlotInd
                                 />
                               </div>
                               <div className={`text-[10px] mt-0.5 ${selected ? 'text-purple-200' : 'text-gray-400'}`}>
-                                {full ? 'Lleno' : `${disponible}/${o.slot.cupoMax}`}
+                                {full ? 'Lleno' : `${disponible}/${cupoMax}`}
                               </div>
                             </>
                           )}
