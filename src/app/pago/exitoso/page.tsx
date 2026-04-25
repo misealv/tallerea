@@ -10,10 +10,36 @@ function PagoExitosoContent() {
   const searchParams = useSearchParams()
   const estado = searchParams.get('estado') // 'error' | 'pendiente' | null (= exitoso)
   const [segundos, setSegundos] = useState(5)
+  const [verifying, setVerifying] = useState(false)
 
-  // Alumno autenticado con pago exitoso: redirigir automáticamente
+  // [FALLBACK] Verificar pago vía API (en caso de que el webhook no haya llegado)
+  // MP redirige con ?payment_id=... ó ?collection_id=...
   useEffect(() => {
-    if (status === 'loading') return
+    if (estado) return // si vino con error/pendiente, no verificar
+    const paymentId = searchParams.get('payment_id') || searchParams.get('collection_id')
+    if (!paymentId) return
+
+    setVerifying(true)
+    fetch('/api/payments/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentId }),
+    })
+      .then(async r => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(data?.error || 'Error verificando pago')
+        return data
+      })
+      .catch(err => {
+        // No bloqueamos UI: si el webhook ya procesó, todo OK; si no, el usuario verá retraso
+        console.error('[verify]', err)
+      })
+      .finally(() => setVerifying(false))
+  }, [searchParams, estado])
+
+  // Alumno autenticado con pago exitoso: redirigir automáticamente (espera a que termine verify)
+  useEffect(() => {
+    if (status === 'loading' || verifying) return
     if (estado) return  // Error o pendiente: no redirigir
     if (session?.user?.id) {
       const timer = setInterval(() => {
@@ -28,9 +54,22 @@ function PagoExitosoContent() {
       }, 1000)
       return () => clearInterval(timer)
     }
-  }, [session, status, router, estado])
+  }, [session, status, router, estado, verifying])
 
   if (status === 'loading') return null
+
+  // Mientras verifica con MP, mostrar spinner (evita confundir al usuario)
+  if (verifying) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-8 max-w-md w-full text-center space-y-5">
+          <div className="text-5xl animate-pulse">⏳</div>
+          <h1 className="text-2xl font-bold text-gray-900">Confirmando tu pago…</h1>
+          <p className="text-gray-600">Estamos verificando con MercadoPago. Un momento.</p>
+        </div>
+      </div>
+    )
+  }
 
   // Pago con error
   if (estado === 'error') {

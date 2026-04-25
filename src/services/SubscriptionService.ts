@@ -4,7 +4,6 @@ import Subscription, { ISubscription } from '@/models/Subscription'
 import Booking from '@/models/Booking'
 import Workshop from '@/models/Workshop'
 import User from '@/models/User'
-import PaymentBreakdown from '@/models/PaymentBreakdown'
 import { FinanceService } from '@/services/FinanceService'
 import { SiteConfigService } from '@/services/SiteConfigService'
 import { createPaymentPreference } from '@/lib/mercadopago'
@@ -78,7 +77,8 @@ export const SubscriptionService = {
     }).lean<ISubscription>()
   },
 
-  // [FINANCE RISK] Crea suscripción + PaymentBreakdown + preferencia MP
+  // [FINANCE RISK] Crea suscripción en estado 'pendiente_pago' + preferencia MP.
+  // El PaymentBreakdown se crea en handleApprovedSubscription al confirmar el pago.
   async createWithPayment(
     workshopId: string,
     studentId: string,
@@ -171,11 +171,14 @@ export const SubscriptionService = {
       fechaVencimiento = calcularVencimiento(vigencia, fechaCompra)
     }
 
-    // Crear suscripción (pendiente de pago si no es gratis)
+    // [FINANCE] Crear suscripción en estado 'pendiente_pago'.
+    // El PaymentBreakdown NO se crea acá — se difiere a handleApprovedSubscription
+    // cuando MercadoPago confirme el pago (Principio #10: nunca registrar dinero antes de confirmación).
+    const estadoInicial = monto === 0 ? 'activa' : 'pendiente_pago'
     const subscription = await new Subscription({
       workshopId,
       studentId,
-      estado: 'activa',
+      estado: estadoInicial,
       sesionesTotales: sesiones,
       sesionesUsadas: 0,
       sesionesDisponibles: sesiones,
@@ -196,30 +199,6 @@ export const SubscriptionService = {
       return { subscription, free: true }
     }
 
-    // [CUADRATURA] Calcular desglose financiero
-    const feePct = await SiteConfigService.getComisionPct()
-    const desglose = FinanceService.calcularDesglose(monto, feePct)
-
-    // Crear PaymentBreakdown pendiente
-    const breakdown = await new PaymentBreakdown({
-      subscriptionId: subscription._id,
-      workshopId,
-      ownerId: workshop.ownerId,
-      studentId,
-      montoBruto: desglose.montoBruto,
-      comisionMP: 0,
-      feeTallerea: desglose.feeTallerea,
-      montoProfesor: desglose.montoProfesor,
-      porcentajeFee: feePct,
-      precioModalidad: workshop.precioModalidad ?? 'bruto',
-      tipo: 'pago',
-      estado: 'pendiente',
-    }).save()
-
-    // Vincular breakdown a suscripción
-    subscription.paymentBreakdownId = breakdown._id as mongoose.Types.ObjectId
-    await subscription.save()
-
     // Crear preferencia MercadoPago — prefijo 'sub:' identifica subscription
     const preference = await createPaymentPreference({
       externalRef: `sub:${String(subscription._id)}`,
@@ -227,15 +206,6 @@ export const SubscriptionService = {
       amount: monto,
       payerEmail: studentEmail,
     })
-
-    // Audit log
-    await FinanceService.log(
-      'pago_recibido',
-      'PaymentBreakdown',
-      String(breakdown._id),
-      monto,
-      studentId
-    )
 
     return {
       subscription,

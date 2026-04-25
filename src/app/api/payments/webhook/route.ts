@@ -39,8 +39,10 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
 
-    // Solo procesar notificaciones de pago
-    if (body.type !== 'payment' && body.action !== 'payment.created') {
+    // Procesar notificaciones de pago: created y updated (pagos diferidos: transferencia, etc.)
+    const isPayment = body.type === 'payment'
+    const isPaymentAction = body.action === 'payment.created' || body.action === 'payment.updated'
+    if (!isPayment && !isPaymentAction) {
       return NextResponse.json({ ok: true })
     }
 

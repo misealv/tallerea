@@ -21,11 +21,23 @@ export async function GET(req: NextRequest) {
     const ownerId = searchParams.get('ownerId')
     const accountId = searchParams.get('accountId')
     const tipo = searchParams.get('tipo')
+    // [FINANCE] Por defecto ocultamos breakdowns huérfanos (pendientes sin mercadoPagoId).
+    // Son artefactos del flujo de Subscription que crea breakdown antes de confirmar pago.
+    // Pasar ?incluirHuerfanos=true para auditarlos desde admin.
+    const incluirHuerfanos = searchParams.get('incluirHuerfanos') === 'true'
 
     const query: Record<string, unknown> = {}
     if (ownerId) query.ownerId = ownerId
     else if (accountId) query.accountId = accountId
     if (tipo) query.tipo = tipo
+    if (!incluirHuerfanos) {
+      // Excluir solo: tipo 'pago' + estado 'pendiente' + sin mercadoPagoId
+      query.$nor = [{
+        tipo: 'pago',
+        estado: 'pendiente',
+        $or: [{ mercadoPagoId: { $exists: false } }, { mercadoPagoId: null }, { mercadoPagoId: '' }],
+      }]
+    }
 
     const [data, total] = await Promise.all([
       PaymentBreakdown.find(query)

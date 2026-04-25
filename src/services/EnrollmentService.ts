@@ -71,8 +71,9 @@ export const EnrollmentService = {
     }
 
     // Verificar inscripción duplicada (mismo taller + mismo slot)
-    // Los 'pendiente' de más de 5 min se consideran abandonados y no bloquean
-    const cutoff = new Date(Date.now() - 5 * 60 * 1000)
+    // Los 'pendiente' de más de 60 min se consideran abandonados y no bloquean.
+    // 60min absorbe latencia de pagos diferidos (transferencia, OXXO) sin cancelar prematuramente.
+    const cutoff = new Date(Date.now() - 60 * 60 * 1000)
     const existing = await Enrollment.findOne({
       workshopId: data.workshopId,
       studentId: data.studentId,
@@ -222,7 +223,8 @@ export const EnrollmentService = {
    */
   async _sweepStalePendingForSlot(workshopId: string, slotIndex: number | null): Promise<void> {
     await dbConnect()
-    const cutoff = new Date(Date.now() - 5 * 60 * 1000)
+    // Cutoff a 60min para no cancelar pagos diferidos en proceso
+    const cutoff = new Date(Date.now() - 60 * 60 * 1000)
     const stale = await Enrollment.find({
       workshopId,
       slotIndex: slotIndex ?? null,

@@ -43,19 +43,29 @@ export default async function MisTalleresPage() {
   const workshopIds = workshops.map(w => w._id)
 
   // Contar inscritos por taller en una sola query cada uno (simple, permite grids pequeños)
-  const [enrollCounts, subCounts] = await Promise.all([
+  const [enrollCounts, enrollPendingCounts, subCounts, subPendingCounts] = await Promise.all([
     Enrollment.aggregate<{ _id: Types.ObjectId; count: number }>([
       { $match: { workshopId: { $in: workshopIds }, estado: 'pagado', activo: true } },
+      { $group: { _id: '$workshopId', count: { $sum: 1 } } },
+    ]),
+    Enrollment.aggregate<{ _id: Types.ObjectId; count: number }>([
+      { $match: { workshopId: { $in: workshopIds }, estado: 'pendiente', activo: true } },
       { $group: { _id: '$workshopId', count: { $sum: 1 } } },
     ]),
     Subscription.aggregate<{ _id: Types.ObjectId; count: number }>([
       { $match: { workshopId: { $in: workshopIds }, estado: 'activa', activo: true } },
       { $group: { _id: '$workshopId', count: { $sum: 1 } } },
     ]),
+    Subscription.aggregate<{ _id: Types.ObjectId; count: number }>([
+      { $match: { workshopId: { $in: workshopIds }, estado: 'pendiente_pago', activo: true } },
+      { $group: { _id: '$workshopId', count: { $sum: 1 } } },
+    ]),
   ])
 
   const enrollMap = new Map(enrollCounts.map(x => [String(x._id), x.count]))
+  const enrollPendMap = new Map(enrollPendingCounts.map(x => [String(x._id), x.count]))
   const subMap = new Map(subCounts.map(x => [String(x._id), x.count]))
+  const subPendMap = new Map(subPendingCounts.map(x => [String(x._id), x.count]))
 
   return (
     <div className="space-y-6">
@@ -89,7 +99,9 @@ export default async function MisTalleresPage() {
           {workshops.map(w => {
             const esRecurrente = w.modeloAcceso === 'recurrente' || Boolean(w.plan)
             const inscritos = enrollMap.get(String(w._id)) ?? 0
+            const inscritosPend = enrollPendMap.get(String(w._id)) ?? 0
             const suscriptores = subMap.get(String(w._id)) ?? 0
+            const suscriptoresPend = subPendMap.get(String(w._id)) ?? 0
             return (
               <div
                 key={String(w._id)}
@@ -117,6 +129,11 @@ export default async function MisTalleresPage() {
                     {esRecurrente
                       ? `${suscriptores} suscriptor${suscriptores !== 1 ? 'es' : ''} activo${suscriptores !== 1 ? 's' : ''}`
                       : `${inscritos} inscripción${inscritos !== 1 ? 'es' : ''} pagada${inscritos !== 1 ? 's' : ''}`}
+                    {(esRecurrente ? suscriptoresPend : inscritosPend) > 0 && (
+                      <span className="ml-2 text-amber-600">
+                        · {esRecurrente ? suscriptoresPend : inscritosPend} pendiente{(esRecurrente ? suscriptoresPend : inscritosPend) !== 1 ? 's' : ''} de pago
+                      </span>
+                    )}
                   </p>
                   <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100 mt-3">
                     <Link

@@ -3,7 +3,7 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
 export interface ISubscription extends Document {
   workshopId: Types.ObjectId;
   studentId: Types.ObjectId;
-  estado: 'activa' | 'vencida' | 'cancelada';
+  estado: 'pendiente_pago' | 'activa' | 'vencida' | 'cancelada';
   sesionesTotales: number;
   sesionesUsadas: number;
   sesionesDisponibles: number;
@@ -26,7 +26,7 @@ export interface ISubscription extends Document {
 const SubscriptionSchema = new Schema<ISubscription>({
   workshopId: { type: Schema.Types.ObjectId, ref: 'Workshop', required: true },
   studentId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-  estado: { type: String, enum: ['activa', 'vencida', 'cancelada'], default: 'activa' },
+  estado: { type: String, enum: ['pendiente_pago', 'activa', 'vencida', 'cancelada'], default: 'pendiente_pago' },
   sesionesTotales: { type: Number, required: true, min: 1 },
   sesionesUsadas: { type: Number, default: 0, min: 0 },
   sesionesDisponibles: { type: Number, required: true, min: 0 },
