@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
 
 const DIAS_WEEK = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
 const DIA_LABEL: Record<string, string> = {
@@ -38,6 +39,8 @@ interface SlotItem {
 interface Inscrito { bookingId: string; name: string; email: string; estado: string }
 
 export default function CalendarioTallerista() {
+  const searchParams = useSearchParams()
+  const filterWorkshopId = searchParams.get('workshop') ?? null
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()))
   const [slots, setSlots] = useState<SlotItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -125,31 +128,54 @@ export default function CalendarioTallerista() {
 
   const weekDates = useMemo(() => DIAS_WEEK.map((_, i) => toDateStr(addDays(weekStart, i))), [weekStart])
 
+  // Slots filtrados por workshop si viene ?workshop= en el query
+  const filteredSlots = useMemo(() => {
+    if (!filterWorkshopId) return slots
+    return slots.filter(s => s.workshopId === filterWorkshopId)
+  }, [slots, filterWorkshopId])
+
   const horasUnicas = useMemo(() => {
     const seen = new Set<string>()
     const weekSet = new Set(weekDates)
-    slots.forEach(s => { if (weekSet.has(s.fecha)) seen.add(s.horaInicio) })
+    filteredSlots.forEach(s => { if (weekSet.has(s.fecha)) seen.add(s.horaInicio) })
     return Array.from(seen).sort()
-  }, [slots, weekDates])
+  }, [filteredSlots, weekDates])
 
   const slotByKey = useMemo(() => {
     const m = new Map<string, SlotItem>()
     // La fecha del servidor ya viene en 'YYYY-MM-DD' (zona Chile).
     // getChileDow es solo de apoyo para verificar; la key se construye por fecha directa.
-    slots.forEach(s => { getChileDow(s.fecha); m.set(`${s.fecha}|${s.horaInicio}`, s) })
+    filteredSlots.forEach(s => { getChileDow(s.fecha); m.set(`${s.fecha}|${s.horaInicio}`, s) })
     return m
-  }, [slots])
+  }, [filteredSlots])
 
   const today = toDateStr(new Date())
   const weekLabel = weekStart.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })
   const weekEnd = addDays(weekStart, 6).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })
-  const allWorkshops = Array.from(new Set(slots.map(s => s.workshopId))).map(id => {
-    const s = slots.find(x => x.workshopId === id)!
+  const allWorkshops = Array.from(new Set(filteredSlots.map(s => s.workshopId))).map(id => {
+    const s = filteredSlots.find(x => x.workshopId === id)!
     return { id, titulo: s.workshopTitulo, colorIdx: colorMap.get(id) ?? 0 }
   })
 
+  // Título del filtro activo (si lo hay)
+  const filteredWorkshopTitulo = filterWorkshopId
+    ? slots.find(s => s.workshopId === filterWorkshopId)?.workshopTitulo ?? null
+    : null
+
   return (
     <div className="space-y-4" onClick={() => setDetail(null)}>
+      {/* Filtro activo */}
+      {filteredWorkshopTitulo && (
+        <div className="flex items-center justify-between bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg px-3 py-2 text-sm">
+          <span className="text-purple-800 dark:text-purple-200">
+            Filtrando por taller: <strong>{filteredWorkshopTitulo}</strong>
+          </span>
+          <a href="/tallerista/calendario" className="text-xs text-purple-700 dark:text-purple-300 hover:underline">
+            Ver todos ×
+          </a>
+        </div>
+      )}
+
       {/* Cabecera */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Calendario</h1>
