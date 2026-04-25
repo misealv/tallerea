@@ -27,19 +27,18 @@ function getMonday(d: Date): Date {
   return mon
 }
 
-// [TZ] Obtener el día de la semana y la fecha YYYY-MM-DD en zona Chile (UTC-3)
+// [TZ] Obtener el día de la semana y la fecha YYYY-MM-DD en zona Chile (UTC-4 invierno / UTC-3 verano)
 function getChileDayInfo(isoString: string): { dow: number; localDateStr: string } {
-  const parts = new Intl.DateTimeFormat('en-CA', {
+  // Extraer la fecha local en Santiago como string YYYY-MM-DD (sin depender de nombres de día)
+  const localDateStr = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Santiago',
-    weekday: 'short',
     year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(new Date(isoString))
-  const weekday = parts.find(p => p.type === 'weekday')?.value ?? 'Mon'
-  const year = parts.find(p => p.type === 'year')?.value
-  const month = parts.find(p => p.type === 'month')?.value
-  const day = parts.find(p => p.type === 'day')?.value
-  const dowMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
-  return { dow: dowMap[weekday] ?? 0, localDateStr: `${year}-${month}-${day}` }
+  }).format(new Date(isoString))
+
+  // Construir una fecha al mediodía local para obtener getDay() sin riesgos de DST
+  const [y, m, d] = localDateStr.split('-').map(Number)
+  const dow = new Date(y, m - 1, d, 12).getDay()  // 0=Dom, 1=Lun, ..., 6=Sáb
+  return { dow, localDateStr }
 }
 
 function minutesToTop(h: string) {
