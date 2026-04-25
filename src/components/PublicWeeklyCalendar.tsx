@@ -16,7 +16,6 @@ interface Props {
   cupoPorSesion: number
 }
 
-const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
 const DIAS_LABEL = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
 // Lunes 00:00 local de la semana de la fecha dada
@@ -132,7 +131,6 @@ export default function PublicWeeklyCalendar({ slots, cupoPorSesion }: Props) {
                       const disponibles = cupoPorSesion - (s.reservas || 0)
                       const cancelado = !!s.cancelado
                       const lleno = !cancelado && disponibles <= 0
-                      const ok = !cancelado && !lleno
                       return (
                         <div
                           key={j}
