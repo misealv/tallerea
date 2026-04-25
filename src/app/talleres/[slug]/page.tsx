@@ -227,14 +227,20 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                 minimo:   workshop.aporteVoluntario.minimo,
                 maximo:   workshop.aporteVoluntario.maximo ?? null,
               } : undefined}
-              paquetes={(workshop.paquetes ?? []).map((p: { _id: { toString(): string }; nombre: string; precio: number; sesionesIncluidas: number; duracionDias: number; activo: boolean }) => ({
-                _id:               p._id.toString(),
-                nombre:            p.nombre,
-                precio:            p.precio,
-                sesionesIncluidas: p.sesionesIncluidas,
-                duracionDias:      p.duracionDias,
-                activo:            p.activo,
-              }))}
+              paquetes={(workshop.paquetes ?? []).map((p: { _id: { toString(): string }; nombre: string; precio: number; sesionesIncluidas: number; duracionDias: number; activo: boolean }) => {
+                // [FINANCE RISK] Convertir precio neto a bruto para mostrar al alumno
+                const precioPublicoPaquete = workshop.precioModalidad === 'neto' && p.precio > 0
+                  ? Math.round(p.precio * 100 / (100 - comisionPct))
+                  : p.precio
+                return {
+                  _id:               p._id.toString(),
+                  nombre:            p.nombre,
+                  precio:            precioPublicoPaquete,
+                  sesionesIncluidas: p.sesionesIncluidas,
+                  duracionDias:      p.duracionDias,
+                  activo:            p.activo,
+                }
+              })}
               clasePrueba={workshop.clasePrueba ? {
                 habilitada: workshop.clasePrueba.habilitada,
                 precio:     workshop.clasePrueba.precio,

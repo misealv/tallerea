@@ -109,7 +109,14 @@ export const SubscriptionService = {
         ? workshop.paquetes.find((p: PaqueteItem) => String(p._id) === paqueteId && p.activo)
         : workshop.paquetes.find((p: PaqueteItem) => p.activo)
       if (!paquete) throw new Error('Paquete no encontrado o inactivo')
-      monto = paquete.precio
+      // [FINANCE RISK] Si precioModalidad es 'neto', convertir a precio bruto para cobrar al alumno
+      const precioBasePaquete = paquete.precio
+      if (workshop.precioModalidad === 'neto' && precioBasePaquete > 0) {
+        const comisionPct = await SiteConfigService.getComisionPct()
+        monto = FinanceService.calcularPrecioDesdeNeto(precioBasePaquete, comisionPct)
+      } else {
+        monto = precioBasePaquete
+      }
       sesiones = paquete.sesionesIncluidas
       vigencia = 'mensual'   // duracionDias del paquete; usar calcularVencimiento con días
       paqueteNombre = paquete.nombre
@@ -119,8 +126,14 @@ export const SubscriptionService = {
       sesiones = workshop.plan?.sesionesIncluidas ?? 999
       vigencia = workshop.plan?.vigencia ?? 'mensual'
     } else if (workshop.plan) {
-      // Compat legacy
-      monto = workshop.precio
+      // Compat legacy — también convertir si precioModalidad es neto
+      const precioLegacy = workshop.precio
+      if (workshop.precioModalidad === 'neto' && precioLegacy > 0) {
+        const comisionPct = await SiteConfigService.getComisionPct()
+        monto = FinanceService.calcularPrecioDesdeNeto(precioLegacy, comisionPct)
+      } else {
+        monto = precioLegacy
+      }
       sesiones = workshop.plan.sesionesIncluidas
       vigencia = workshop.plan.vigencia
     } else {
