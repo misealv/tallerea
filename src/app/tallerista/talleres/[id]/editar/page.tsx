@@ -108,12 +108,26 @@ export default function EditarTallerPage() {
           paquetes:         w.paquetes         ?? undefined,
           clasePrueba:      w.clasePrueba       ?? undefined,
         })
-        // Cargar slots existentes — normalizar dia sin acentos para compatibilidad con enum del schema
+        // Cargar slots existentes — normalizar dia y deduplicar por dia+horaInicio.
+        // Slots con fecha específica (sesiones generadas) se colapsan en su patrón semanal.
         if (Array.isArray(w.slots)) {
-          setSlots(w.slots.map((s: SlotData) => ({
-            ...s,
-            dia: (s.dia ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(),
-          })))
+          const seen = new Set<string>()
+          const deduped: SlotData[] = []
+          for (const s of w.slots as (SlotData & { fecha?: unknown })[]) {
+            const diaNorm = (s.dia ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+            const key = `${diaNorm}|${s.horaInicio}`
+            if (!seen.has(key)) {
+              seen.add(key)
+              deduped.push({
+                dia: diaNorm,
+                horaInicio: s.horaInicio,
+                horaFin: s.horaFin,
+                cupoMax: s.cupoMax ?? 10,
+                cupoDisponible: s.cupoDisponible ?? s.cupoMax ?? 10,
+              })
+            }
+          }
+          setSlots(deduped)
         }
         setLoading(false)
       })
