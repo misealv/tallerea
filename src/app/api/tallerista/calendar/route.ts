@@ -94,6 +94,14 @@ export async function GET(req: NextRequest) {
       lunes: 0, martes: 1, miercoles: 2, jueves: 3, viernes: 4, sabado: 5, domingo: 6,
     }
 
+    // [TZ-FIX] Comparar por fecha civil (YYYY-MM-DD) en UTC, no por timestamp.
+    // Los slots se guardan como medianoche UTC (e.g. 2026-04-27T00:00:00Z).
+    // `from` en UTC-3 = 2026-04-27T03:00:00Z desplaza la comparación → excluye slots del propio día.
+    const fromYMD = from.toISOString().slice(0, 10)
+    const toYMD = to.toISOString().slice(0, 10)
+    const fechaToYMD = (d: Date) => new Date(d).toISOString().slice(0, 10)
+    const inRangeYMD = (ymd: string) => ymd >= fromYMD && ymd < toYMD
+
     // [N+1 FIX] Pre-calcular slots en rango por workshop
     // Soporta dos modelos:
     //   1. Slot con `fecha` concreta  → filtra por rango directamente
@@ -106,20 +114,17 @@ export async function GET(req: NextRequest) {
 
       w.slots.forEach((s, i) => {
         if (s.fecha) {
-          // Slot con fecha concreta
-          const d = new Date(s.fecha)
-          if (d >= from && d < to) {
-            inRange.push({ slotIdx: i, slot: s, virtualFecha: d.toISOString().slice(0, 10) })
+          // Slot con fecha concreta — comparar como fecha civil YYYY-MM-DD
+          const ymd = fechaToYMD(s.fecha)
+          if (inRangeYMD(ymd)) {
+            inRange.push({ slotIdx: i, slot: s, virtualFecha: ymd })
           }
         } else if (s.dia && DIA_OFFSET[s.dia] !== undefined) {
           // Slot con día de semana → proyectar en la semana [from, to)
           const projected = new Date(from.getTime() + DIA_OFFSET[s.dia] * 24 * 60 * 60 * 1000)
-          if (projected >= from && projected < to) {
-            inRange.push({
-              slotIdx: i,
-              slot: s,
-              virtualFecha: projected.toISOString().slice(0, 10),
-            })
+          const ymd = projected.toISOString().slice(0, 10)
+          if (inRangeYMD(ymd)) {
+            inRange.push({ slotIdx: i, slot: s, virtualFecha: ymd })
           }
         }
       })
