@@ -235,14 +235,35 @@ export const EnrollmentService = {
         if (slotIndex < 0 || slotIndex >= workshop.slots.length) {
           throw new Error('Debes seleccionar un horario válido')
         }
-        const updated = await Workshop.updateOne(
-          {
-            _id: workshopId,
-            [`slots.${slotIndex}.cupoDisponible`]: { $gt: 0 },
-          },
-          { $inc: { [`slots.${slotIndex}.cupoDisponible`]: -1 } },
-          { session }
-        )
+        const slot = workshop.slots[slotIndex]
+
+        // [RACE] Dos estrategias atómicas según el modelo del taller:
+        // - Legacy puntual: slot tiene cupoDisponible propio → decrementar ese campo
+        // - Recurrente: slot tiene reservas + workshop.cupoPorSesion → incrementar reservas si reservas < cupoPorSesion
+        let updated
+        if (slot.cupoDisponible !== undefined) {
+          // Puntual legacy
+          updated = await Workshop.updateOne(
+            { _id: workshopId, [`slots.${slotIndex}.cupoDisponible`]: { $gt: 0 } },
+            { $inc: { [`slots.${slotIndex}.cupoDisponible`]: -1 } },
+            { session }
+          )
+        } else {
+          // Recurrente: guard atómico via $expr para comparar reservas vs cupoPorSesion del mismo documento
+          updated = await Workshop.updateOne(
+            {
+              _id: workshopId,
+              $expr: {
+                $lt: [
+                  { $arrayElemAt: ['$slots.reservas', slotIndex] },
+                  '$cupoPorSesion',
+                ],
+              },
+            },
+            { $inc: { [`slots.${slotIndex}.reservas`]: 1 } },
+            { session }
+          )
+        }
         if (updated.modifiedCount === 0) throw new Error('No hay cupos disponibles en este horario')
       } else {
         const updated = await Workshop.updateOne(
