@@ -108,9 +108,12 @@ export default function EditarTallerPage() {
           paquetes:         w.paquetes         ?? undefined,
           clasePrueba:      w.clasePrueba       ?? undefined,
         })
-        // Cargar slots existentes
+        // Cargar slots existentes — normalizar dia sin acentos para compatibilidad con enum del schema
         if (Array.isArray(w.slots)) {
-          setSlots(w.slots.map((s: SlotData) => ({ ...s })))
+          setSlots(w.slots.map((s: SlotData) => ({
+            ...s,
+            dia: (s.dia ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(),
+          })))
         }
         setLoading(false)
       })
