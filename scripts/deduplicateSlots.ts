@@ -54,7 +54,8 @@ async function run() {
       // Clave por fecha concreta O por día de semana (talleres recurrentes sin fecha fija)
       const key = s.fecha
         ? `fecha:${s.fecha.toISOString()}-${s.horaInicio}-${s.horaFin}`
-        : `dia:${s.dia}-${s.horaInicio}-${s.horaFin}`
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        : `dia:${(s as any).dia}-${s.horaInicio}-${s.horaFin}`
 
       if (!seen.has(key)) {
         seen.set(key, i)
