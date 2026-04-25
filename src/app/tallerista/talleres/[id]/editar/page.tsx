@@ -182,9 +182,13 @@ export default function EditarTallerPage() {
     }
 
     if (form.modeloAcceso === 'recurrente') {
+      // Para gratuito recurrente, las sesiones por ciclo vienen del EditorPrecios
+      const sesGratuito = preciosData.modalidadPrecio === 'gratuito'
+        ? preciosData.sesionesPorPeriodoGratuito
+        : undefined
       body.plan = {
-        sesionesIncluidas: parseInt(form.sesionesIncluidas) || 8,
-        sesionesPorPeriodo: parseInt(form.sesionesIncluidas) || 8,
+        sesionesIncluidas: sesGratuito ?? (parseInt(form.sesionesIncluidas) || 8),
+        sesionesPorPeriodo: sesGratuito ?? (parseInt(form.sesionesIncluidas) || 8),
         vigencia: form.vigencia,
         horasAntesCancelacion: parseInt(form.horasAntesCancelacion) || 24,
         permitirCambioPostPlazo: form.permitirReagendamiento,
@@ -356,29 +360,6 @@ export default function EditarTallerPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
           </div>
         </div>
-
-        {/* Plan recurrente */}
-        {form.modeloAcceso === 'recurrente' && (
-          <div className="border-t pt-4 space-y-4">
-            <p className="text-sm font-medium text-gray-700">Plan de suscripción</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Sesiones por período</label>
-                <input type="number" min="1" value={form.sesionesIncluidas} onChange={e => up('sesionesIncluidas', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Vigencia</label>
-                <select value={form.vigencia} onChange={e => up('vigencia', e.target.value as FormData['vigencia'])}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500">
-                  <option value="mensual">Mensual</option>
-                  <option value="por_ciclo">Por ciclo</option>
-                  <option value="sin_vencimiento">Sin vencimiento</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Política */}
         <div className="border-t pt-4 space-y-3">
