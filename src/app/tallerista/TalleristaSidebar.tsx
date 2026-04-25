@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react'
 const navItems = [
   { href: '/tallerista',              label: 'Dashboard',       icon: '📊', exact: true },
   { href: '/tallerista/talleres',     label: 'Mis talleres',    icon: '🎨' },
+  { href: '/tallerista/inscritos',    label: 'Inscritos',       icon: '👥' },
   { href: '/tallerista/calendario',   label: 'Calendario',      icon: '📅' },
   { href: '/tallerista/reagendamientos', label: 'Reagendamientos', icon: '🔄' },
   { href: '/tallerista/finanzas',     label: 'Finanzas',        icon: '💰' },
