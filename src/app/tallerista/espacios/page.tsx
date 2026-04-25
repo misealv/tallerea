@@ -33,6 +33,7 @@ export default function EspaciosPage() {
     setLoading(false)
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadLocations() }, [session?.user?.id])
 
   function openCreate() {
