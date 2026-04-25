@@ -74,7 +74,20 @@ function generarOcurrencias(slots: Slot[], fechaInicio: string, semanas = 8): Oc
       result.push({ slotIndex: i, slot, fecha, fechaISO: toISODate(fecha) })
     }
   }
-  return result.sort((a, b) => a.fecha.getTime() - b.fecha.getTime())
+
+  // Deduplicar por (fechaISO + horaInicio + horaFin): si el generador de slots corrió
+  // más de una vez, la DB puede tener entradas repetidas. Conservamos la primera aparición.
+  const seen = new Set<string>()
+  const unique: Ocurrencia[] = []
+  for (const o of result) {
+    const key = `${o.fechaISO}-${o.slot.horaInicio}-${o.slot.horaFin}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      unique.push(o)
+    }
+  }
+
+  return unique.sort((a, b) => a.fecha.getTime() - b.fecha.getTime())
 }
 
 export default function SlotCalendarPicker({ slots, fechaInicio, selectedSlotIndex, selectedFecha, onSelect, cupoPorSesion }: Props) {

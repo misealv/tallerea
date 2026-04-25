@@ -67,9 +67,14 @@ export default function PublicWeeklyCalendar({ slots, cupoPorSesion }: Props) {
     const map: Record<number, SlotInput[]> = {}
     for (let i = 0; i < 7; i++) map[i] = []
 
+    // Deduplicar por (fecha + horaInicio + horaFin) antes de agrupar
+    const seen = new Set<string>()
     for (const s of slots) {
       if (!s.fecha) continue
       const d = new Date(s.fecha)
+      const key = `${d.toISOString().slice(0, 10)}-${s.horaInicio}-${s.horaFin}`
+      if (seen.has(key)) continue
+      seen.add(key)
       const dayIdx = weekDays.findIndex(wd => sameDayUTC(wd, d))
       if (dayIdx >= 0) map[dayIdx].push(s)
     }
