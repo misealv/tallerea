@@ -129,7 +129,9 @@ export async function GET(req: NextRequest) {
           slotIndex: i,
           horaInicio: s.horaInicio,
           horaFin: s.horaFin,
-          fecha: s.fecha,
+          // [TZ] Devolver fecha como YYYY-MM-DD: los slots se guardan como medianoche UTC-3
+          // => ISO string empieza con la fecha correcta al extraer los primeros 10 chars del UTC+0
+          fecha: s.fecha ? new Date(s.fecha).toISOString().slice(0, 10) : null,
           cancelado: s.cancelado,
           reservas: bookingsByKey.get(key) ?? s.reservas,
           cupo: w.cupoPorSesion,
