@@ -242,8 +242,16 @@ export default function EditorPrecios({ value, onChange, modeloAcceso, comisionP
                   <div className="flex-1">
                     <span className="font-medium">{pq.nombre}</span>
                     <span className="text-gray-500 ml-2">
-                      {pq.sesionesIncluidas} ses · {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(pq.precio)}
+                      {pq.sesionesIncluidas} ses · {CLP(pq.precio)}
                     </span>
+                    {comisionPct !== undefined && (
+                      <span className="ml-2 text-xs text-indigo-600 font-medium">
+                        Precio público:{' '}
+                        {value.precioModalidad === 'neto' && pq.precio > 0
+                          ? CLP(Math.round(pq.precio * 100 / (100 - comisionPct)))
+                          : CLP(pq.precio)}
+                      </span>
+                    )}
                   </div>
                   <button
                     type="button"
