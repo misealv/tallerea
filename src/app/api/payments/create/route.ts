@@ -37,7 +37,12 @@ export async function POST(req: NextRequest) {
     const workshop = await WorkshopService.getById(workshopId)
     if (!workshop) return NextResponse.json({ error: 'Taller no encontrado' }, { status: 404 })
 
-    if (workshop.modeloAcceso === 'recurrente') {
+    // [BUSINESS LOGIC] Leer esClasePrueba ANTES del ruteo por modeloAcceso.
+    // Si el alumno pide clase de prueba en un taller recurrente, debe ir por
+    // el flujo de Enrollment (PaymentService), NO por SubscriptionService.
+    const esClasePrueba = Boolean(body.esClasePrueba)
+
+    if (workshop.modeloAcceso === 'recurrente' && !esClasePrueba) {
       let recurrenteStudentId: string
       let recurrenteStudentEmail: string
 
@@ -80,7 +85,6 @@ export async function POST(req: NextRequest) {
 
     // usarCredito: solo permitido para usuarios autenticados (guests no tienen saldo)
     const usarCredito = Boolean(body.usarCredito) && !!session?.user?.id
-    const esClasePrueba = Boolean(body.esClasePrueba)
     const montoVoluntario = typeof body.montoVoluntario === 'number' ? body.montoVoluntario : undefined
 
     let studentId: string
