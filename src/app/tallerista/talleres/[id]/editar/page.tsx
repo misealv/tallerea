@@ -69,6 +69,8 @@ export default function EditarTallerPage() {
   })
   const [comisionPct, setComisionPct] = useState<number>(15)
   const [slots, setSlots] = useState<SlotData[]>([])
+  // Plantilla original al cargar — para detectar si cambió antes de regenerar slots
+  const [originalPlantilla, setOriginalPlantilla] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -130,6 +132,10 @@ export default function EditarTallerPage() {
             }
           }
           setSlots(deduped)
+          // Guardar plantilla original serializada para comparar al guardar
+          setOriginalPlantilla(JSON.stringify(
+            deduped.map(s => ({ dia: s.dia, horaInicio: s.horaInicio, horaFin: s.horaFin }))
+          ))
         }
         setLoading(false)
       })
@@ -222,9 +228,16 @@ export default function EditarTallerPage() {
     const data = await res.json()
     if (!res.ok) { setSaving(false); setError(data.error || 'Error al guardar'); return }
 
-    // Regenerar slots desde la plantilla actualizada (preserva los que tienen reservas)
+    // Regenerar slots solo si la plantilla semanal cambió efectivamente
+    // Esto evita borrar slots futuros sin reservas cuando se guardan otros campos del taller
     if (form.modeloAcceso === 'recurrente') {
-      await fetch(`/api/workshops/${id}/generate-slots`, { method: 'POST' }).catch(() => null)
+      const nuevaPlantilla = JSON.stringify(
+        slots.map(s => ({ dia: s.dia, horaInicio: s.horaInicio, horaFin: s.horaFin }))
+      )
+      if (nuevaPlantilla !== originalPlantilla) {
+        await fetch(`/api/workshops/${id}/generate-slots`, { method: 'POST' }).catch(() => null)
+        setOriginalPlantilla(nuevaPlantilla)
+      }
     }
 
     setSaving(false)
