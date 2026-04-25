@@ -38,16 +38,33 @@ export async function POST(req: NextRequest) {
     if (!workshop) return NextResponse.json({ error: 'Taller no encontrado' }, { status: 404 })
 
     if (workshop.modeloAcceso === 'recurrente') {
-      if (!session?.user?.id || !session.user.email) {
-        return NextResponse.json(
-          { error: 'Debes iniciar sesión para suscribirte a un taller recurrente' },
-          { status: 401 }
-        )
+      let recurrenteStudentId: string
+      let recurrenteStudentEmail: string
+
+      if (session?.user?.id && session.user.email) {
+        recurrenteStudentId = session.user.id
+        recurrenteStudentEmail = session.user.email
+      } else {
+        const gName = typeof body.name === 'string' ? body.name.trim() : ''
+        const gEmail = typeof body.email === 'string' ? body.email.trim() : ''
+        if (!gName || !gEmail) {
+          return NextResponse.json(
+            { error: 'Ingresa tu nombre y email para continuar' },
+            { status: 400 }
+          )
+        }
+        if (!EMAIL_RE.test(gEmail)) {
+          return NextResponse.json({ error: 'Email inválido' }, { status: 400 })
+        }
+        const guest = await findOrCreateGuestUser(gName, gEmail)
+        recurrenteStudentId = guest.userId
+        recurrenteStudentEmail = guest.email
       }
+
       const subResult = await SubscriptionService.createWithPayment(
         workshopId,
-        session.user.id,
-        session.user.email
+        recurrenteStudentId,
+        recurrenteStudentEmail
       )
       if (subResult.free) {
         return NextResponse.json({

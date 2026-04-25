@@ -59,16 +59,25 @@ export default function PrecioCard({
   const [montoVoluntario, setMontoVoluntario] = useState<string>(String(sugerido))
 
   const { data: session } = useSession()
+  const isGuest = !session?.user
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [guestName, setGuestName] = useState('')
+  const [guestEmail, setGuestEmail] = useState('')
 
   // ── Checkout suscripción (recurrente) ────────────────────────────────
   async function handleSubscribir() {
-    // Suscripciones requieren sesión (necesitan cuenta para renovación y seguimiento)
-    if (!session?.user) {
-      router.push(`/login?callbackUrl=/talleres/${workshopSlug}`)
-      return
+    // Invitado: validar campos antes de continuar
+    if (isGuest) {
+      if (!guestName.trim() || !guestEmail.trim()) {
+        setError('Ingresa tu nombre y email para continuar')
+        return
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail.trim())) {
+        setError('Email inválido')
+        return
+      }
     }
     setLoading(true)
     setError('')
@@ -76,6 +85,10 @@ export default function PrecioCard({
       const body: Record<string, unknown> = { workshopId }
       if (modalidadPrecio === 'paquetes' && paqueteSeleccionado) {
         body.paqueteId = paqueteSeleccionado
+      }
+      if (isGuest) {
+        body.name = guestName.trim()
+        body.email = guestEmail.trim()
       }
       const res = await fetch('/api/subscriptions/checkout', {
         method: 'POST',
@@ -87,7 +100,7 @@ export default function PrecioCard({
         setError(data.error || 'Error al suscribirse')
         return
       }
-      if (data.free) { router.push('/alumno?pago=ok'); return }
+      if (data.free) { router.push(isGuest ? '/?pago=ok&revisa=email' : '/alumno?pago=ok'); return }
       if (data.initPoint) { window.location.href = data.initPoint; return }
     } finally {
       setLoading(false)
@@ -265,6 +278,38 @@ export default function PrecioCard({
       {renderPrecio()}
       {renderPlanInfo()}
       {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded">{error}</p>}
+      {/* Formulario de invitado para suscripciones recurrentes */}
+      {modeloAcceso === 'recurrente' && isGuest && (
+        <div className="space-y-2 border-t pt-4">
+          <p className="text-sm font-medium text-gray-700">Tus datos</p>
+          <p className="text-xs text-gray-500">
+            Recibirás un enlace mágico al correo para acceder a tus clases tras el pago.
+          </p>
+          <input
+            type="text"
+            placeholder="Nombre completo"
+            value={guestName}
+            onChange={e => setGuestName(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            autoComplete="name"
+          />
+          <input
+            type="email"
+            placeholder="tu@email.cl"
+            value={guestEmail}
+            onChange={e => setGuestEmail(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            autoComplete="email"
+          />
+          <p className="text-xs text-gray-400">
+            ¿Ya tienes cuenta?{' '}
+            <a href={`/login?callbackUrl=/talleres/${workshopSlug}`} className="text-purple-600 hover:underline">
+              Inicia sesión
+            </a>
+          </p>
+        </div>
+      )}
+
       {renderCTA()}
 
       {/* Clase de prueba */}
