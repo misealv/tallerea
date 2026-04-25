@@ -75,14 +75,14 @@ export default function CalendarioTallerista() {
   async function openDetail(slot: SlotItem) {
     setDetail(slot)
     setInscritos([])
-    if (slot.reservas > 0) {
-      setLoadingInscritos(true)
-      try {
-        const res = await fetch(`/api/tallerista/calendar/students?workshopId=${slot.workshopId}&slotIndex=${slot.slotIndex}`)
-        const data = await res.json()
-        if (data.data) setInscritos(data.data)
-      } catch { /* silent */ } finally { setLoadingInscritos(false) }
-    }
+    // Siempre cargar alumnos: no depender del contador reservas que puede estar desactualizado
+    // (enrollments puntuales/prueba no incrementan slot.reservas en el schema)
+    setLoadingInscritos(true)
+    try {
+      const res = await fetch(`/api/tallerista/calendar/students?workshopId=${slot.workshopId}&slotIndex=${slot.slotIndex}`)
+      const data = await res.json()
+      if (data.data) setInscritos(data.data)
+    } catch { /* silent */ } finally { setLoadingInscritos(false) }
   }
 
   async function cancelarReserva(insc: Inscrito) {
@@ -317,8 +317,8 @@ export default function CalendarioTallerista() {
               </p>
             )}
 
-            {/* Lista de inscritos */}
-            {detail.reservas > 0 && (
+            {/* Lista de inscritos — siempre visible, el conteo real viene del fetch */}
+            {(loadingInscritos || inscritos.length > 0) && (
               <div>
                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
                   Alumnos inscritos
