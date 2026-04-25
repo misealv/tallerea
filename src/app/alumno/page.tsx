@@ -64,13 +64,13 @@ export default async function AlumnoDashboard() {
   await dbConnect()
   const studentId = session.user.id
 
-  // Cargar datos del alumno en paralelo
   // Resolver detalles de clases de prueba pagadas
   async function resolveClasePrueba(enrolls: EnrollmentLean[]): Promise<ClasePruebaDetail[]> {
     const pruebas = enrolls.filter(e => (e as unknown as { esClasePrueba?: boolean }).esClasePrueba)
     const details: ClasePruebaDetail[] = []
     for (const e of pruebas) {
-      const w = e.workshopId as WorkshopRef
+      const w = e.workshopId as WorkshopRef | null
+      if (!w?.slug) continue
       const wDoc = await Workshop.findOne({ slug: w.slug })
         .select('ownerId locationId slots')
         .lean<{ ownerId: Types.ObjectId; locationId?: Types.ObjectId; slots: SlotInfo[] }>()
@@ -118,7 +118,10 @@ export default async function AlumnoDashboard() {
       .lean<BookingLean[]>(),
   ])
 
-  const clasesPrueba = await resolveClasePrueba(enrollments)
+  const clasesPrueba = await resolveClasePrueba(enrollments).catch((err) => {
+    console.error('[alumno] Error cargando detalles de clase de prueba:', err)
+    return [] as ClasePruebaDetail[]
+  })
 
   return (
     <div className="space-y-8">
