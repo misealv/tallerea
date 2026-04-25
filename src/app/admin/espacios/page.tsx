@@ -42,7 +42,8 @@ export default function AdminEspaciosPage() {
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Espacios ({accounts.length})</h1>
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[600px]">
           <thead className="bg-gray-50 text-left text-gray-600">
             <tr>
               <th className="px-4 py-3">Nombre</th>
@@ -77,6 +78,7 @@ export default function AdminEspaciosPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )

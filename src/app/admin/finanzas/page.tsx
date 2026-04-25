@@ -122,7 +122,8 @@ export default function AdminFinanzasPage() {
         <div className="p-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-900">Desglose por profesor</h2>
         </div>
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[600px]">
           <thead className="bg-gray-50 text-left text-gray-600">
             <tr>
               <th className="px-4 py-3">Profesor</th>
@@ -144,6 +145,7 @@ export default function AdminFinanzasPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Tabla de transacciones completa */}

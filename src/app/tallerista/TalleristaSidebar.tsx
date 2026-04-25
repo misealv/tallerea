@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
+import { useState, useEffect } from 'react'
 
 const navItems = [
   { href: '/tallerista',              label: 'Dashboard',       icon: '📊', exact: true },
@@ -21,9 +22,13 @@ interface Props {
 
 export default function TalleristaSidebar({ userName }: Props) {
   const pathname = usePathname()
+  const [open, setOpen] = useState(false)
 
-  return (
-    <aside className="w-60 bg-white border-r border-gray-200 flex flex-col min-h-screen shrink-0">
+  // Cerrar drawer al navegar
+  useEffect(() => { setOpen(false) }, [pathname])
+
+  const sidebarContent = (
+    <>
       {/* Logo */}
       <div className="p-5 border-b border-gray-100">
         <Link href="/" className="text-xl font-bold text-purple-700">Tallerea</Link>
@@ -76,6 +81,51 @@ export default function TalleristaSidebar({ userName }: Props) {
           Salir
         </button>
       </div>
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* Botón hamburguesa — solo móvil */}
+      <button
+        onClick={() => setOpen(true)}
+        className="md:hidden fixed top-4 left-4 z-40 bg-white border border-gray-200 rounded-lg p-2 shadow-sm"
+        aria-label="Abrir menú"
+      >
+        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      {/* Overlay — solo móvil cuando está abierto */}
+      {open && (
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/40"
+          onClick={() => setOpen(false)}
+        />
+      )}
+
+      {/* Drawer móvil */}
+      <aside className={`
+        fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 flex flex-col
+        transform transition-transform duration-200 ease-in-out
+        md:hidden
+        ${open ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <button
+          onClick={() => setOpen(false)}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+          aria-label="Cerrar menú"
+        >
+          ✕
+        </button>
+        {sidebarContent}
+      </aside>
+
+      {/* Sidebar desktop */}
+      <aside className="hidden md:flex w-60 bg-white border-r border-gray-200 flex-col min-h-screen shrink-0">
+        {sidebarContent}
+      </aside>
+    </>
   )
 }

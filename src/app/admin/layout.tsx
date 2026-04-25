@@ -17,14 +17,14 @@ export default async function AdminLayout({
           <a href="/" className="text-xl font-bold text-purple-700">Tallerea</a>
           <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">Admin</span>
         </div>
-        <nav className="flex gap-4 text-sm">
-          <a href="/admin" className="text-gray-600 hover:text-purple-700">Dashboard</a>
-          <a href="/admin/espacios" className="text-gray-600 hover:text-purple-700">Espacios</a>
-          <a href="/admin/usuarios" className="text-gray-600 hover:text-purple-700">Usuarios</a>
-          <a href="/admin/finanzas" className="text-gray-600 hover:text-purple-700">Finanzas</a>
-          <a href="/admin/liquidaciones" className="text-gray-600 hover:text-purple-700">Liquidaciones</a>
-          <a href="/admin/talleristas" className="text-gray-600 hover:text-purple-700">Talleristas</a>
-          <a href="/admin/configuracion" className="text-gray-600 hover:text-purple-700">Configuración</a>
+        <nav className="flex gap-3 text-sm overflow-x-auto max-w-[60vw] md:max-w-none scrollbar-none">
+          <a href="/admin" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Dashboard</a>
+          <a href="/admin/espacios" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Espacios</a>
+          <a href="/admin/usuarios" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Usuarios</a>
+          <a href="/admin/finanzas" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Finanzas</a>
+          <a href="/admin/liquidaciones" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Liq.</a>
+          <a href="/admin/talleristas" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Talleristas</a>
+          <a href="/admin/configuracion" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Config</a>
         </nav>
       </header>
       <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>

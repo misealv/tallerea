@@ -32,7 +32,7 @@ export default async function TalleristaLayout({ children }: { children: React.R
   return (
     <div className="min-h-screen flex bg-gray-50">
       <TalleristaSidebar userName={session.user.name ?? session.user.email ?? ''} />
-      <main className="flex-1 p-8 overflow-auto">{children}</main>
+      <main className="flex-1 pt-16 md:pt-6 px-4 pb-6 md:px-8 overflow-auto min-w-0">{children}</main>
     </div>
   )
 }
