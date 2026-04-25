@@ -72,6 +72,7 @@ export default function CalendarioTallerista() {
   const [loading, setLoading] = useState(true)
   const [colorMap, setColorMap] = useState<Map<string, number>>(new Map())
   const [detail, setDetail] = useState<SlotItem | null>(null)
+  const [canceling, setCanceling] = useState(false)
 
   const fetchSlots = useCallback(async (from: Date) => {
     setLoading(true)
@@ -96,6 +97,33 @@ export default function CalendarioTallerista() {
   }, [])
 
   useEffect(() => { fetchSlots(weekStart) }, [weekStart, fetchSlots])
+
+  async function toggleCancelar(slot: SlotItem) {
+    setCanceling(true)
+    try {
+      const res = await fetch('/api/tallerista/calendar', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workshopId: slot.workshopId,
+          slotIndex: slot.slotIndex,
+          cancelado: !slot.cancelado,
+        }),
+      })
+      if (!res.ok) throw new Error('Error al actualizar')
+      // Actualizar estado local
+      setSlots(prev => prev.map(s =>
+        s.workshopId === slot.workshopId && s.slotIndex === slot.slotIndex
+          ? { ...s, cancelado: !s.cancelado }
+          : s
+      ))
+      setDetail(prev => prev ? { ...prev, cancelado: !prev.cancelado } : null)
+    } catch {
+      alert('No se pudo actualizar la sesión. Intenta nuevamente.')
+    } finally {
+      setCanceling(false)
+    }
+  }
 
   const weekDays = GRID_DAY_IDX.map((_, i) => {
     const d = new Date(weekStart)
@@ -249,14 +277,30 @@ export default function CalendarioTallerista() {
             {detail.cancelado && (
               <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">Sesión cancelada</p>
             )}
+            {!detail.cancelado && detail.reservas > 0 && (
+              <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded">
+                ⚠️ Hay {detail.reservas} inscrito{detail.reservas !== 1 ? 's' : ''}. Cancelar notificará a los alumnos.
+              </p>
+            )}
             <div className="flex gap-2 pt-2">
               <a href={`/tallerista/talleres/${detail.workshopId}/inscritos`}
                 className="flex-1 text-center text-sm bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 py-2 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/50">
                 Ver inscritos
               </a>
+              <button
+                onClick={() => toggleCancelar(detail)}
+                disabled={canceling}
+                className={`flex-1 text-sm py-2 rounded-lg font-medium transition disabled:opacity-50 ${
+                  detail.cancelado
+                    ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/50'
+                    : 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50'
+                }`}
+              >
+                {canceling ? '…' : detail.cancelado ? 'Restaurar' : 'Cancelar'}
+              </button>
               <button onClick={() => setDetail(null)}
-                className="flex-1 text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
-                Cerrar
+                className="px-3 text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
+                ✕
               </button>
             </div>
           </div>

@@ -10,6 +10,41 @@ import { Types } from 'mongoose'
 export const dynamic = 'force-dynamic'
 
 interface SlotLean { horaInicio: string; horaFin: string; fecha?: Date; reservas: number; cancelado: boolean }
+
+// PATCH /api/tallerista/calendar — cancelar o restaurar un slot individual
+export async function PATCH(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const role = session.user.role
+  const estado = (session.user as { tallerEstado?: string }).tallerEstado
+  if (role !== 'admin' && estado !== 'aprobado') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  let body: { workshopId?: string; slotIndex?: number; cancelado?: boolean }
+  try { body = await req.json() } catch { return NextResponse.json({ error: 'Body inválido' }, { status: 400 }) }
+
+  const { workshopId, slotIndex, cancelado } = body
+  if (!workshopId || typeof slotIndex !== 'number' || typeof cancelado !== 'boolean') {
+    return NextResponse.json({ error: 'Faltan campos: workshopId, slotIndex, cancelado' }, { status: 400 })
+  }
+
+  await dbConnect()
+
+  // Verificar ownership
+  const workshop = await Workshop.findOne({ _id: workshopId, ownerId: session.user.id, activo: true })
+  if (!workshop) return NextResponse.json({ error: 'Taller no encontrado' }, { status: 404 })
+
+  if (slotIndex < 0 || slotIndex >= workshop.slots.length) {
+    return NextResponse.json({ error: 'slotIndex fuera de rango' }, { status: 400 })
+  }
+
+  workshop.slots[slotIndex].cancelado = cancelado
+  await workshop.save()
+
+  return NextResponse.json({ ok: true, cancelado })
+}
 interface WorkshopLean {
   _id: Types.ObjectId
   titulo: string
