@@ -57,33 +57,27 @@ interface BookingLean {
   estado: string
 }
 
-export default async function AlumnoDashboard() {
-  const session = await getServerSession(authOptions)
-  if (!session) redirect('/alumno/acceso')
+const DIAS_LABEL: Record<string, string> = {
+  lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves',
+  viernes: 'Viernes', sabado: 'Sábado', domingo: 'Domingo',
+}
 
-  await dbConnect()
-  const studentId = session.user.id
-
-  // Resolver detalles de clases de prueba pagadas
-  async function resolveClasePrueba(enrolls: EnrollmentLean[]): Promise<ClasePruebaDetail[]> {
-    const pruebas = enrolls.filter(e => (e as unknown as { esClasePrueba?: boolean }).esClasePrueba)
-    const details: ClasePruebaDetail[] = []
-    for (const e of pruebas) {
+async function resolveClasePrueba(enrolls: EnrollmentLean[]): Promise<ClasePruebaDetail[]> {
+  const pruebas = enrolls.filter(e => (e as unknown as { esClasePrueba?: boolean }).esClasePrueba)
+  const details: ClasePruebaDetail[] = []
+  for (const e of pruebas) {
+    try {
       const w = e.workshopId as WorkshopRef | null
       if (!w?.slug) continue
       const wDoc = await Workshop.findOne({ slug: w.slug })
         .select('ownerId locationId slots')
         .lean<{ ownerId: Types.ObjectId; locationId?: Types.ObjectId; slots: SlotInfo[] }>()
       if (!wDoc) continue
-      const slot: SlotInfo | undefined = e.slotIndex !== null ? wDoc.slots[e.slotIndex!] : undefined
+      const slot: SlotInfo | undefined = e.slotIndex != null ? wDoc.slots[e.slotIndex] : undefined
       const [owner, loc] = await Promise.all([
         User.findById(wDoc.ownerId).select('name').lean<OwnerRef>(),
         wDoc.locationId ? Location.findById(wDoc.locationId).select('nombre direccion comuna ciudad').lean<LocationRef>() : null,
       ])
-      const DIAS_LABEL: Record<string, string> = {
-        lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves',
-        viernes: 'Viernes', sabado: 'Sábado', domingo: 'Domingo',
-      }
       details.push({
         titulo: w.titulo,
         slug: w.slug,
@@ -96,9 +90,20 @@ export default async function AlumnoDashboard() {
         monto: e.monto,
         enrollmentId: String(e._id),
       })
+    } catch {
+      // Si falla una inscripción, continuar con las demás
+      continue
     }
-    return details
   }
+  return details
+}
+
+export default async function AlumnoDashboard() {
+  const session = await getServerSession(authOptions)
+  if (!session) redirect('/alumno/acceso')
+
+  await dbConnect()
+  const studentId = session.user.id
 
   const [user, enrollments, subscriptions, upcomingBookings] = await Promise.all([
     User.findById(studentId).select('name creditoDisponible').lean<{ name: string; creditoDisponible: number }>(),
