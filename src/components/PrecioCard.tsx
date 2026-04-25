@@ -245,7 +245,7 @@ export default function PrecioCard({
       if (!pq) return null
       return (
         <div className="text-xs text-center text-gray-500 border-t pt-3">
-          {pq.sesionesIncluidas} sesión{pq.sesionesIncluidas !== 1 ? 'es' : ''} · {pq.duracionDias} días por ciclo
+          {pq.sesionesIncluidas} {pq.sesionesIncluidas !== 1 ? 'sesiones' : 'sesión'} · {pq.duracionDias} {pq.duracionDias !== 1 ? 'días' : 'día'} por ciclo
         </div>
       )
     }
