@@ -19,6 +19,11 @@ interface EnrollmentConfirmationInput {
   monto: number
   fechaInicio?: string
   horarios?: { dia: string; horaInicio: string; horaFin: string }[]
+  // Detalles del slot reservado (clase de prueba o sesión puntual)
+  slotFecha?: string    // ej: "sábado 3 de mayo"
+  slotHora?: string     // ej: "10:00 - 11:30"
+  direccion?: string    // nombre del lugar + dirección
+  profesorNombre?: string
   // Si presente, el alumno es invitado: incluir CTA con magic link para activar cuenta
   magicUrl?: string
 }
@@ -63,8 +68,60 @@ export async function sendEnrollmentConfirmation(input: EnrollmentConfirmationIn
           <p style="margin: 4px 0;"><strong>Monto:</strong> $${input.monto.toLocaleString('es-CL')}</p>
           ${input.fechaInicio ? `<p style="margin: 4px 0;"><strong>Inicio:</strong> ${input.fechaInicio}</p>` : ''}
           ${horariosText ? `<p style="margin: 4px 0;"><strong>Horarios:</strong> ${horariosText}</p>` : ''}
+          ${input.slotFecha ? `<p style="margin: 4px 0;"><strong>Fecha:</strong> ${input.slotFecha}</p>` : ''}
+          ${input.slotHora ? `<p style="margin: 4px 0;"><strong>Horario:</strong> ${input.slotHora}</p>` : ''}
+          ${input.profesorNombre ? `<p style="margin: 4px 0;"><strong>Profesor/a:</strong> ${input.profesorNombre}</p>` : ''}
+          ${input.direccion ? `<p style="margin: 4px 0;"><strong>Dirección:</strong> ${input.direccion}</p>` : ''}
         </div>
         ${accessBlock}
+        <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
+      </div>
+    `,
+  })
+}
+
+// Notificación al profesor cuando un alumno reserva su clase de prueba
+export async function sendClasePruebaProfesor({
+  profesorEmail,
+  profesorNombre,
+  studentName,
+  studentEmail,
+  workshopTitle,
+  slotFecha,
+  slotHora,
+  dashboardUrl,
+}: {
+  profesorEmail: string
+  profesorNombre: string
+  studentName: string
+  studentEmail: string
+  workshopTitle: string
+  slotFecha?: string
+  slotHora?: string
+  dashboardUrl: string
+}) {
+  if (!process.env.RESEND_API_KEY) return
+
+  const resend = getResend()
+
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: profesorEmail,
+    subject: `Nueva clase de prueba reservada: ${workshopTitle}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7c3aed;">¡Nueva clase de prueba reservada!</h2>
+        <p>Hola <strong>${profesorNombre}</strong>,</p>
+        <p>Un alumno reservó una clase de prueba en <strong>${workshopTitle}</strong>.</p>
+        <div style="background: #f9fafb; border-radius: 12px; padding: 20px; margin: 16px 0;">
+          <p style="margin: 4px 0;"><strong>Alumno:</strong> ${studentName}</p>
+          <p style="margin: 4px 0;"><strong>Email:</strong> ${studentEmail}</p>
+          ${slotFecha ? `<p style="margin: 4px 0;"><strong>Fecha:</strong> ${slotFecha}</p>` : ''}
+          ${slotHora ? `<p style="margin: 4px 0;"><strong>Horario:</strong> ${slotHora}</p>` : ''}
+        </div>
+        <a href="${dashboardUrl}" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin-top: 8px;">
+          Ver en mi panel
+        </a>
         <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
       </div>
     `,

@@ -4,7 +4,7 @@ import { EnrollmentService } from '@/services/EnrollmentService'
 import { WorkshopService } from '@/services/WorkshopService'
 import { FinanceService } from '@/services/FinanceService'
 import { createPaymentPreference } from '@/lib/mercadopago'
-import { sendEnrollmentConfirmation } from '@/lib/resend'
+import { sendEnrollmentConfirmation, sendClasePruebaProfesor } from '@/lib/resend'
 import { issueMagicLink } from '@/lib/issueMagicLink'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
 import User from '@/models/User'
@@ -224,6 +224,55 @@ export const PaymentService = {
       _id: string; titulo: string; slug: string; ownerId: string; precio: number
     }
 
+    // Resolver detalles del slot reservado (para clase de prueba o slot puntual)
+    let slotFecha: string | undefined
+    let slotHora: string | undefined
+    let direccion: string | undefined
+    let profesorNombre: string | undefined
+    let profesorEmail: string | undefined
+
+    try {
+      const workshopFull = await Workshop.findById(workshop._id)
+        .populate<{ ownerId: { _id: string; name: string; email: string } }>('ownerId', 'name email')
+        .populate<{ locationId: { nombre: string; direccion: string; comuna: string } }>('locationId', 'nombre direccion comuna')
+        .lean() as {
+          slots?: Array<{ dia?: string; fecha?: Date; horaInicio: string; horaFin: string }>
+          ownerId?: { _id: string; name: string; email: string }
+          locationId?: { nombre?: string; direccion?: string; comuna?: string }
+        } | null
+
+      if (workshopFull) {
+        // Slot reservado
+        const slotIdx = enrollment.slotIndex
+        const slot = (slotIdx != null && workshopFull.slots?.[slotIdx]) ? workshopFull.slots[slotIdx] : null
+        if (slot) {
+          if (slot.fecha) {
+            slotFecha = new Intl.DateTimeFormat('es-CL', {
+              weekday: 'long', day: 'numeric', month: 'long',
+              timeZone: 'America/Santiago',
+            }).format(new Date(slot.fecha))
+          } else if (slot.dia) {
+            slotFecha = slot.dia
+          }
+          slotHora = `${slot.horaInicio} - ${slot.horaFin}`
+        }
+
+        // Profesor
+        if (workshopFull.ownerId) {
+          profesorNombre = workshopFull.ownerId.name
+          profesorEmail = workshopFull.ownerId.email
+        }
+
+        // Dirección
+        const loc = workshopFull.locationId
+        if (loc?.direccion) {
+          direccion = [loc.nombre, loc.direccion, loc.comuna].filter(Boolean).join(', ')
+        }
+      }
+    } catch {
+      // No bloquear por fallo de resolución de detalles
+    }
+
     // Enviar email de confirmación (try/catch independiente)
     let generatedMagicUrl: string | undefined
     try {
@@ -247,8 +296,27 @@ export const PaymentService = {
         workshopTitle: workshop.titulo,
         workshopSlug: workshop.slug,
         monto: enrollment.monto,
+        slotFecha,
+        slotHora,
+        direccion,
+        profesorNombre,
         magicUrl: generatedMagicUrl,
       })
+
+      // Notificar al profesor si hay datos disponibles
+      if (profesorEmail && profesorNombre) {
+        const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+        await sendClasePruebaProfesor({
+          profesorEmail,
+          profesorNombre,
+          studentName: student.name,
+          studentEmail: student.email,
+          workshopTitle: workshop.titulo,
+          slotFecha,
+          slotHora,
+          dashboardUrl: `${baseUrl}/tallerista`,
+        }).catch(() => { /* no bloquear */ })
+      }
     } catch {
       // No bloquear el flujo por fallo de email
     }
