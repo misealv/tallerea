@@ -148,13 +148,16 @@ export const SlotGeneratorService = {
       return workshop
     }
 
-    // Mantener slots existentes que ya tienen reservas
-    const existingWithBookings = workshop.slots.filter((s: ISlot) => s.reservas > 0)
-    const existingDates = new Set(existingWithBookings.map((s: ISlot) => s.fecha?.toISOString()))
-
-    // Solo agregar slots nuevos que no colisionen con existentes con reservas
-    const filtered = newSlots.filter(s => !existingDates.has(s.fecha?.toISOString()))
-    workshop.slots = [...existingWithBookings, ...filtered] as ISlot[]
+    // Mantener TODOS los slots existentes (con o sin reservas).
+    // Solo agregar slots nuevos cuya (fecha + horaInicio) no exista ya en el array.
+    // Esto evita duplicados si applyGeneratedSlots se llama más de una vez.
+    const existingKeys = new Set(
+      workshop.slots.map((s: ISlot) => `${s.fecha?.toISOString()}-${s.horaInicio}`)
+    )
+    const filtered = newSlots.filter(
+      s => !existingKeys.has(`${s.fecha?.toISOString()}-${s.horaInicio}`)
+    )
+    workshop.slots = [...workshop.slots, ...filtered] as ISlot[]
 
     // Calcular fechaFin
     if (workshop.slots.length > 0) {
