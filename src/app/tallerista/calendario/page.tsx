@@ -35,7 +35,7 @@ interface SlotItem {
   slotIndex: number; horaInicio: string; horaFin: string
   fecha: string; cancelado: boolean; reservas: number; cupo: number
 }
-interface Inscrito { name: string; email: string; estado: string }
+interface Inscrito { bookingId: string; name: string; email: string; estado: string }
 
 export default function CalendarioTallerista() {
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()))
@@ -46,6 +46,7 @@ export default function CalendarioTallerista() {
   const [canceling, setCanceling] = useState(false)
   const [inscritos, setInscritos] = useState<Inscrito[]>([])
   const [loadingInscritos, setLoadingInscritos] = useState(false)
+  const [cancelingBookingId, setCancelingBookingId] = useState<string | null>(null)
 
   const fetchSlots = useCallback(async (from: Date) => {
     setLoading(true)
@@ -79,6 +80,30 @@ export default function CalendarioTallerista() {
         if (data.data) setInscritos(data.data)
       } catch { /* silent */ } finally { setLoadingInscritos(false) }
     }
+  }
+
+  async function cancelarReserva(insc: Inscrito) {
+    if (!detail) return
+    if (!confirm(`¿Anular la reserva de ${insc.name}? El alumno quedará fuera de esta sesión.`)) return
+    setCancelingBookingId(insc.bookingId)
+    try {
+      const res = await fetch('/api/tallerista/calendar/students', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: insc.bookingId, workshopId: detail.workshopId, slotIndex: detail.slotIndex }),
+      })
+      if (!res.ok) throw new Error()
+      // Actualizar lista local
+      setInscritos(prev => prev.filter(i => i.bookingId !== insc.bookingId))
+      // Actualizar contador de reservas en slots y modal
+      setSlots(prev => prev.map(s =>
+        s.workshopId === detail.workshopId && s.slotIndex === detail.slotIndex
+          ? { ...s, reservas: Math.max(0, s.reservas - 1) }
+          : s
+      ))
+      setDetail(prev => prev ? { ...prev, reservas: Math.max(0, prev.reservas - 1) } : null)
+    } catch { alert('No se pudo anular la reserva.') }
+    finally { setCancelingBookingId(null) }
   }
 
   async function toggleCancelar(slot: SlotItem) {
@@ -277,16 +302,24 @@ export default function CalendarioTallerista() {
                 ) : inscritos.length === 0 ? (
                   <p className="text-xs text-gray-400 text-center py-3">Sin datos</p>
                 ) : (
-                  <ul className="space-y-1 max-h-44 overflow-y-auto">
-                    {inscritos.map((insc, i) => (
-                      <li key={i} className="flex items-center gap-2.5 text-xs bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2">
+                  <ul className="space-y-1 max-h-52 overflow-y-auto">
+                    {inscritos.map((insc) => (
+                      <li key={insc.bookingId} className="flex items-center gap-2.5 text-xs bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2">
                         <div className="w-7 h-7 rounded-full bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 flex items-center justify-center text-[11px] font-bold shrink-0">
                           {insc.name?.charAt(0)?.toUpperCase() ?? '?'}
                         </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="font-medium text-gray-800 dark:text-gray-200 truncate">{insc.name}</p>
                           <p className="text-gray-400 truncate">{insc.email}</p>
                         </div>
+                        <button
+                          onClick={() => cancelarReserva(insc)}
+                          disabled={cancelingBookingId === insc.bookingId}
+                          title="Anular reserva"
+                          className="shrink-0 text-[10px] font-medium px-2 py-1 rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 disabled:opacity-40 transition"
+                        >
+                          {cancelingBookingId === insc.bookingId ? '…' : 'Anular'}
+                        </button>
                       </li>
                     ))}
                   </ul>
