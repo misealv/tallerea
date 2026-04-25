@@ -11,6 +11,7 @@ function PagoExitosoContent() {
   const estado = searchParams.get('estado') // 'error' | 'pendiente' | null (= exitoso)
   const [segundos, setSegundos] = useState(5)
   const [verifying, setVerifying] = useState(false)
+  const [magicUrl, setMagicUrl] = useState<string | null>(null)
 
   // [FALLBACK] Verificar pago vía API (en caso de que el webhook no haya llegado)
   // MP redirige con ?payment_id=... ó ?collection_id=...
@@ -28,10 +29,11 @@ function PagoExitosoContent() {
       .then(async r => {
         const data = await r.json().catch(() => ({}))
         if (!r.ok) throw new Error(data?.error || 'Error verificando pago')
+        // Si el servicio generó un magic link (alumno invitado), guardarlo para mostrar en pantalla
+        if (data.magicUrl) setMagicUrl(data.magicUrl)
         return data
       })
       .catch(err => {
-        // No bloqueamos UI: si el webhook ya procesó, todo OK; si no, el usuario verá retraso
         console.error('[verify]', err)
       })
       .finally(() => setVerifying(false))
@@ -109,16 +111,37 @@ function PagoExitosoContent() {
         <div className="bg-white rounded-xl border border-gray-200 p-8 max-w-md w-full text-center space-y-5">
           <div className="text-5xl">🎉</div>
           <h1 className="text-2xl font-bold text-gray-900">¡Pago confirmado!</h1>
-          <p className="text-gray-600">
-            Te enviamos un correo con un <strong>enlace mágico</strong> para acceder a tus talleres.
-            Revisa tu bandeja de entrada (y la carpeta spam).
-          </p>
-          <p className="text-sm text-gray-400">
-            El enlace es válido por <strong>15 minutos</strong> y es de un solo uso.
-          </p>
+
+          {magicUrl ? (
+            <>
+              <p className="text-gray-600">
+                Tu inscripción está lista. Ingresa a tus talleres con este botón:
+              </p>
+              <a
+                href={magicUrl}
+                className="inline-block w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
+              >
+                Acceder a mis talleres →
+              </a>
+              <p className="text-xs text-gray-400">
+                También te enviamos este enlace por correo. Es de un solo uso y válido por <strong>15 minutos</strong>.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-gray-600">
+                Te enviamos un correo con un <strong>enlace de acceso</strong> a tus talleres.
+                Revisa tu bandeja de entrada (y la carpeta spam).
+              </p>
+              <p className="text-sm text-gray-400">
+                El enlace es válido por <strong>15 minutos</strong> y es de un solo uso.
+              </p>
+            </>
+          )}
+
           <a
             href="/talleres"
-            className="inline-block mt-4 text-purple-600 hover:underline text-sm"
+            className="inline-block text-purple-600 hover:underline text-sm"
           >
             Volver al catálogo de talleres
           </a>

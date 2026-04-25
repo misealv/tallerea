@@ -195,13 +195,13 @@ export const PaymentService = {
 
   // [FINANCE RISK] Procesa pago aprobado: crea PaymentBreakdown + actualiza enrollment + email
   // [IDEMPOTENCIA] Si ya está pagado con el mismo paymentId, retorna sin reprocesar.
-  async handleApprovedPayment(enrollmentId: string, paymentId: string): Promise<void> {
+  async handleApprovedPayment(enrollmentId: string, paymentId: string): Promise<{ magicUrl?: string }> {
     await dbConnect()
 
     // [IDEMPOTENCIA] Verificar estado actual antes de mutar
     const current = await EnrollmentService.getById(enrollmentId)
-    if (!current) return
-    if (current.estado === 'pagado' && current.pagoRef === String(paymentId)) return
+    if (!current) return {}
+    if (current.estado === 'pagado' && current.pagoRef === String(paymentId)) return {}
 
     await EnrollmentService.update(enrollmentId, {
       estado: 'pagado',
@@ -218,24 +218,24 @@ export const PaymentService = {
     }
 
     const enrollment = await EnrollmentService.getById(enrollmentId)
-    if (!enrollment) return
+    if (!enrollment) return {}
 
     const workshop = enrollment.workshopId as unknown as {
       _id: string; titulo: string; slug: string; ownerId: string; precio: number
     }
 
     // Enviar email de confirmación (try/catch independiente)
+    let generatedMagicUrl: string | undefined
     try {
       const student = enrollment.studentId as unknown as { _id: string; name: string; email: string }
 
       // Si el alumno no tiene password (es invitado), emitir magic link para activar cuenta
-      let magicUrl: string | undefined
       const fullStudent = await User.findById(student._id).select('password').lean<{ password?: string }>()
       const isGuest = !fullStudent?.password
       if (isGuest) {
         try {
           const result = await issueMagicLink(String(student._id))
-          magicUrl = result.magicUrl
+          generatedMagicUrl = result.magicUrl
         } catch {
           // Si falla emisión, enviar email igual sin magic link
         }
@@ -247,11 +247,13 @@ export const PaymentService = {
         workshopTitle: workshop.titulo,
         workshopSlug: workshop.slug,
         monto: enrollment.monto,
-        magicUrl,
+        magicUrl: generatedMagicUrl,
       })
     } catch {
       // No bloquear el flujo por fallo de email
     }
+
+    return { magicUrl: generatedMagicUrl }
   },
 
   // [FINANCE RISK] Procesa pago aprobado de suscripción recurrente

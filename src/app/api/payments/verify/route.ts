@@ -38,15 +38,18 @@ export async function POST(req: NextRequest) {
     }
 
     // Rutear igual que el webhook (idempotente por diseño en handleApproved*)
+    let magicUrl: string | undefined
     if (ref.startsWith('sub:')) {
       await PaymentService.handleApprovedSubscription(ref.slice(4), String(id))
     } else if (ref.startsWith('enr:')) {
-      await PaymentService.handleApprovedPayment(ref.slice(4), String(id))
+      const result = await PaymentService.handleApprovedPayment(ref.slice(4), String(id))
+      magicUrl = result.magicUrl
     } else {
-      await PaymentService.handleApprovedPayment(ref, String(id))
+      const result = await PaymentService.handleApprovedPayment(ref, String(id))
+      magicUrl = result.magicUrl
     }
 
-    return NextResponse.json({ status: 'approved', processed: true, ref })
+    return NextResponse.json({ status: 'approved', processed: true, ref, magicUrl })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error interno'
     console.error('[VERIFY_ERROR]', message)

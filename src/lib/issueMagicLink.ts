@@ -35,7 +35,8 @@ export async function issueMagicLink(userId: string): Promise<IssueMagicLinkResu
   }
 
   const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
-  const magicUrl = `${baseUrl}/magic?token=${rawToken}`
+  // Apunta a /completar-registro para que el alumno cree su contraseña al activar el link
+  const magicUrl = `${baseUrl}/completar-registro?token=${rawToken}`
 
   return { magicUrl, expiresAt }
 }
