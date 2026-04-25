@@ -34,7 +34,7 @@ export const EnrollmentService = {
   async getById(id: string): Promise<IEnrollment | null> {
     await dbConnect()
     return Enrollment.findOne({ _id: id, activo: true })
-      .populate('workshopId', 'titulo slug tipo precio')
+      .populate('workshopId', 'titulo slug tipo precio ownerId precioModalidad')
       .populate('studentId', 'name email phone')
       .lean<IEnrollment>()
   },

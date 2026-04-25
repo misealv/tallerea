@@ -34,9 +34,9 @@ export async function createPaymentPreference(input: CreatePreferenceInput) {
       ],
       payer: { email: input.payerEmail },
       back_urls: {
-        success: `${baseUrl}/alumno?pago=ok`,
-        failure: `${baseUrl}/alumno?pago=error`,
-        pending: `${baseUrl}/alumno?pago=pendiente`,
+        success: `${baseUrl}/pago/exitoso`,
+        failure: `${baseUrl}/pago/exitoso?estado=error`,
+        pending: `${baseUrl}/pago/exitoso?estado=pendiente`,
       },
       auto_return: 'approved',
       external_reference: input.externalRef,
