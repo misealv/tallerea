@@ -10,7 +10,7 @@ import { Types } from 'mongoose'
 
 export const dynamic = 'force-dynamic'
 
-interface SlotLean { horaInicio: string; horaFin: string; fecha?: Date; reservas: number; cancelado: boolean }
+interface SlotLean { dia?: string; horaInicio: string; horaFin: string; fecha?: Date; reservas: number; cancelado: boolean }
 
 // PATCH /api/tallerista/calendar — cancelar o restaurar un slot individual
 export async function PATCH(req: NextRequest) {
@@ -87,15 +87,43 @@ export async function GET(req: NextRequest) {
     const workshops = await Workshop.find({
       ownerId: session.user.id,
       activo: true,
-    }).select('_id titulo slug cupoPorSesion slots').lean<WorkshopLean[]>()
+    }).select('_id titulo slug cupoPorSesion slots fechaInicio fechaFin').lean<WorkshopLean[]>()
 
-    // [N+1 FIX] Pre-calcular slots en rango por workshop y hacer UNA sola query de Bookings
-    const workshopSlotsMap = new Map<string, { slotIdx: number; slot: SlotLean }[]>()
+    // Offset en días desde el lunes para cada día de semana
+    const DIA_OFFSET: Record<string, number> = {
+      lunes: 0, martes: 1, miercoles: 2, jueves: 3, viernes: 4, sabado: 5, domingo: 6,
+    }
+
+    // [N+1 FIX] Pre-calcular slots en rango por workshop
+    // Soporta dos modelos:
+    //   1. Slot con `fecha` concreta  → filtra por rango directamente
+    //   2. Slot con `dia` (día de semana, sin fecha) → proyecta la fecha virtual en la semana solicitada
+    const workshopSlotsMap = new Map<string, { slotIdx: number; slot: SlotLean; virtualFecha: string }[]>()
     const workshopIdsWithSlots: Types.ObjectId[] = []
+
     for (const w of workshops) {
-      const inRange = w.slots
-        .map((s, i) => ({ slotIdx: i, slot: s }))
-        .filter(({ slot }) => slot.fecha && new Date(slot.fecha) >= from && new Date(slot.fecha) < to)
+      const inRange: { slotIdx: number; slot: SlotLean; virtualFecha: string }[] = []
+
+      w.slots.forEach((s, i) => {
+        if (s.fecha) {
+          // Slot con fecha concreta
+          const d = new Date(s.fecha)
+          if (d >= from && d < to) {
+            inRange.push({ slotIdx: i, slot: s, virtualFecha: d.toISOString().slice(0, 10) })
+          }
+        } else if (s.dia && DIA_OFFSET[s.dia] !== undefined) {
+          // Slot con día de semana → proyectar en la semana [from, to)
+          const projected = new Date(from.getTime() + DIA_OFFSET[s.dia] * 24 * 60 * 60 * 1000)
+          if (projected >= from && projected < to) {
+            inRange.push({
+              slotIdx: i,
+              slot: s,
+              virtualFecha: projected.toISOString().slice(0, 10),
+            })
+          }
+        }
+      })
+
       if (inRange.length > 0) {
         workshopSlotsMap.set(String(w._id), inRange)
         workshopIdsWithSlots.push(w._id)
@@ -137,7 +165,7 @@ export async function GET(req: NextRequest) {
     for (const w of workshops) {
       const slotsInRange = workshopSlotsMap.get(String(w._id))
       if (!slotsInRange) continue
-      for (const { slot: s, slotIdx: i } of slotsInRange) {
+      for (const { slot: s, slotIdx: i, virtualFecha } of slotsInRange) {
         const key = `${String(w._id)}:${i}`
         result.push({
           workshopId: String(w._id),
@@ -146,9 +174,7 @@ export async function GET(req: NextRequest) {
           slotIndex: i,
           horaInicio: s.horaInicio,
           horaFin: s.horaFin,
-          // [TZ] Devolver fecha como YYYY-MM-DD: los slots se guardan como medianoche UTC-3
-          // => ISO string empieza con la fecha correcta al extraer los primeros 10 chars del UTC+0
-          fecha: s.fecha ? new Date(s.fecha).toISOString().slice(0, 10) : null,
+          fecha: virtualFecha,
           cancelado: s.cancelado,
           reservas: bookingsByKey.get(key) ?? s.reservas,
           cupo: w.cupoPorSesion,
