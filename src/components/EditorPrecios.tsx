@@ -35,6 +35,32 @@ export default function EditorPrecios({ value, onChange, modeloAcceso, comisionP
   const [nuevoPaquete, setNuevoPaquete] = useState({
     nombre: '', precio: '', sesionesIncluidas: '', duracionDias: '30',
   })
+  // Índice del paquete en edición inline (-1 = ninguno)
+  const [editIdx, setEditIdx] = useState<number>(-1)
+  const [editValues, setEditValues] = useState({ nombre: '', precio: '', sesionesIncluidas: '', duracionDias: '30' })
+
+  function startEdit(i: number) {
+    const pq = (value.paquetes ?? [])[i]
+    setEditIdx(i)
+    setEditValues({
+      nombre: pq.nombre,
+      precio: String(pq.precio),
+      sesionesIncluidas: String(pq.sesionesIncluidas),
+      duracionDias: String(pq.duracionDias ?? 30),
+    })
+  }
+
+  function saveEdit(i: number) {
+    const nombre = editValues.nombre.trim()
+    const precio = Math.round(Number(editValues.precio))
+    const sesiones = Math.round(Number(editValues.sesionesIncluidas))
+    const dias = Math.round(Number(editValues.duracionDias)) || 30
+    if (!nombre || isNaN(precio) || precio < 0 || isNaN(sesiones) || sesiones < 1) return
+    const next = [...(value.paquetes ?? [])]
+    next[i] = { ...next[i], nombre, precio, sesionesIncluidas: sesiones, duracionDias: dias }
+    onChange({ ...value, paquetes: next })
+    setEditIdx(-1)
+  }
 
   function setModal(m: ModalidadPrecio) {
     onChange({ ...value, modalidadPrecio: m })
@@ -238,42 +264,110 @@ export default function EditorPrecios({ value, onChange, modeloAcceso, comisionP
           {(value.paquetes ?? []).length > 0 && (
             <div className="space-y-2">
               {(value.paquetes ?? []).map((pq, i) => (
-                <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-md p-3 text-sm">
-                  <div className="flex-1">
-                    <span className="font-medium">{pq.nombre}</span>
-                    <span className="text-gray-500 ml-2">
-                      {pq.sesionesIncluidas} ses · {CLP(pq.precio)}
-                    </span>
-                    {comisionPct !== undefined && (
-                      <span className="ml-2 text-xs text-indigo-600 font-medium">
-                        Precio público:{' '}
-                        {value.precioModalidad === 'neto' && pq.precio > 0
-                          ? CLP(Math.round(pq.precio * 100 / (100 - comisionPct)))
-                          : CLP(pq.precio)}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = [...(value.paquetes ?? [])]
-                      next[i] = { ...next[i], activo: !next[i].activo }
-                      onChange({ ...value, paquetes: next })
-                    }}
-                    className={`text-xs px-2 py-0.5 rounded ${pq.activo ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}
-                  >
-                    {pq.activo ? 'Activo' : 'Inactivo'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = (value.paquetes ?? []).filter((_, idx) => idx !== i)
-                      onChange({ ...value, paquetes: next })
-                    }}
-                    className="text-red-500 hover:text-red-700 text-xs"
-                  >
-                    Eliminar
-                  </button>
+                <div key={i} className="bg-gray-50 rounded-md p-3 text-sm space-y-2">
+                  {editIdx === i ? (
+                    // Modo edición inline
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Nombre</label>
+                          <input
+                            type="text"
+                            value={editValues.nombre}
+                            onChange={e => setEditValues(p => ({ ...p, nombre: e.target.value }))}
+                            className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">
+                            {value.precioModalidad === 'neto' ? 'Precio neto (lo que recibes)' : 'Precio (CLP)'}
+                          </label>
+                          <input
+                            type="number" min={0} step={1}
+                            value={editValues.precio}
+                            onChange={e => setEditValues(p => ({ ...p, precio: e.target.value }))}
+                            className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                          />
+                          {comisionPct !== undefined && value.precioModalidad === 'neto' && Number(editValues.precio) > 0 && (
+                            <p className="text-xs text-indigo-600 mt-0.5">
+                              Precio público: {CLP(Math.round(Number(editValues.precio) * 100 / (100 - comisionPct)))}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Sesiones incluidas</label>
+                          <input
+                            type="number" min={1} step={1}
+                            value={editValues.sesionesIncluidas}
+                            onChange={e => setEditValues(p => ({ ...p, sesionesIncluidas: e.target.value }))}
+                            className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Duración (días)</label>
+                          <input
+                            type="number" min={1} step={1}
+                            value={editValues.duracionDias}
+                            onChange={e => setEditValues(p => ({ ...p, duracionDias: e.target.value }))}
+                            className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => saveEdit(i)}
+                          className="text-xs bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700">
+                          Guardar
+                        </button>
+                        <button type="button" onClick={() => setEditIdx(-1)}
+                          className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1">
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    // Modo vista
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <span className="font-medium">{pq.nombre}</span>
+                        <span className="text-gray-500 ml-2">
+                          {pq.sesionesIncluidas} ses · {CLP(pq.precio)}
+                        </span>
+                        {comisionPct !== undefined && (
+                          <span className="ml-2 text-xs text-indigo-600 font-medium">
+                            Precio público:{' '}
+                            {value.precioModalidad === 'neto' && pq.precio > 0
+                              ? CLP(Math.round(pq.precio * 100 / (100 - comisionPct)))
+                              : CLP(pq.precio)}
+                          </span>
+                        )}
+                      </div>
+                      <button type="button" onClick={() => startEdit(i)}
+                        className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-0.5 rounded border border-indigo-200 hover:border-indigo-400">
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = [...(value.paquetes ?? [])]
+                          next[i] = { ...next[i], activo: !next[i].activo }
+                          onChange({ ...value, paquetes: next })
+                        }}
+                        className={`text-xs px-2 py-0.5 rounded ${pq.activo ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}
+                      >
+                        {pq.activo ? 'Activo' : 'Inactivo'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = (value.paquetes ?? []).filter((_, idx) => idx !== i)
+                          onChange({ ...value, paquetes: next })
+                        }}
+                        className="text-red-500 hover:text-red-700 text-xs"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
