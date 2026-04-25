@@ -90,8 +90,16 @@ export default function NuevoTallerPage() {
 
   const [preciosData, setPreciosData] = useState<EditorPreciosValue>({
     modalidadPrecio: 'fijo',
+    precioModalidad: 'bruto',
     precioFijo: { monto: 0 },
   })
+  const [comisionPct, setComisionPct] = useState<number>(15)
+  useEffect(() => {
+    fetch('/api/admin/config')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.comisionPct !== undefined) setComisionPct(d.comisionPct) })
+      .catch(() => {})
+  }, [])
 
   const [p2, setP2] = useState<Paso2Data>({
     descripcion:         '',
@@ -170,7 +178,7 @@ export default function NuevoTallerPage() {
       tipo:        p1.tipo,
       modalidad:   p1.modalidad,
       precio:      preciosData.modalidadPrecio === 'fijo' ? (preciosData.precioFijo?.monto ?? 0) : 0,
-      precioModalidad: p1.precioModalidad,
+      precioModalidad: preciosData.precioModalidad ?? 'bruto',
       modeloAcceso: p1.modeloAcceso,
       // Modelo de precios v2
       modalidadPrecio: preciosData.modalidadPrecio,
@@ -316,6 +324,7 @@ export default function NuevoTallerPage() {
             value={preciosData}
             onChange={setPreciosData}
             modeloAcceso={p1.modeloAcceso}
+            comisionPct={comisionPct}
           />
 
           {/* Política */}

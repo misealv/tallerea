@@ -67,6 +67,7 @@ export default function EditarTallerPage() {
     modalidadPrecio: 'fijo',
     precioFijo: { monto: 0 },
   })
+  const [comisionPct, setComisionPct] = useState<number>(15)
   const [slots, setSlots] = useState<SlotData[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -103,6 +104,7 @@ export default function EditarTallerPage() {
         // Cargar datos de precios v2
         setPreciosData({
           modalidadPrecio: w.modalidadPrecio ?? (w.precio === 0 ? 'gratuito' : 'fijo'),
+          precioModalidad: w.precioModalidad ?? 'bruto',
           precioFijo:       w.precioFijo       ?? (w.precio !== undefined ? { monto: w.precio } : undefined),
           aporteVoluntario: w.aporteVoluntario ?? undefined,
           paquetes:         w.paquetes         ?? undefined,
@@ -137,6 +139,11 @@ export default function EditarTallerPage() {
       .then(r => r.json())
       .then(d => setLocations(d.data ?? []))
       .catch(() => {})
+
+    fetch('/api/admin/config')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.comisionPct !== undefined) setComisionPct(d.comisionPct) })
+      .catch(() => {})
   }, [id])
 
   function up<K extends keyof FormData>(k: K, v: FormData[K]) {
@@ -157,7 +164,7 @@ export default function EditarTallerPage() {
       tipo: form.tipo,
       modalidad: form.modalidad,
       precio: preciosData.modalidadPrecio === 'fijo' ? (preciosData.precioFijo?.monto ?? 0) : 0,
-      precioModalidad: form.precioModalidad,
+      precioModalidad: preciosData.precioModalidad ?? form.precioModalidad ?? 'bruto',
       descripcion: form.descripcion.trim(),
       duracionSesion: parseInt(form.duracionSesion) || 90,
       cupoPorSesion: parseInt(form.cupoPorSesion) || 10,
@@ -257,6 +264,7 @@ export default function EditarTallerPage() {
           value={preciosData}
           onChange={setPreciosData}
           modeloAcceso={form.modeloAcceso}
+          comisionPct={comisionPct}
         />
 
         {/* Descripción */}
