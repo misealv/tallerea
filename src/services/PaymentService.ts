@@ -53,7 +53,15 @@ export const PaymentService = {
     } else if (mp === 'gratuito') {
       montoBase = 0
     } else if (mp === 'fijo') {
-      montoBase = workshop.precioFijo?.monto ?? workshop.precio ?? 0
+      const precioBase = workshop.precioFijo?.monto ?? workshop.precio ?? 0
+      // [FINANCE RISK] Si precioModalidad es 'neto', el precio guardado es lo que recibe el profesor.
+      // Convertir a precio bruto (lo que paga el alumno) antes de cobrar.
+      if (workshop.precioModalidad === 'neto' && precioBase > 0) {
+        const comisionPct = await SiteConfigService.getComisionPct()
+        montoBase = FinanceService.calcularPrecioDesdeNeto(precioBase, comisionPct)
+      } else {
+        montoBase = precioBase
+      }
     } else {
       // paquetes no pasan por aquí (van por SubscriptionService), fallo explícito
       throw new Error('Talleres con paquetes deben usar el flujo de suscripción')

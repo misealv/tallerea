@@ -34,9 +34,10 @@ export async function GET(req: NextRequest) {
       if (!workshop) return NextResponse.json({ data: [] })
       // Calcular precio público considerando modalidad neto
       const comisionPct = await SiteConfigService.getComisionPct()
-      const precioPublico = workshop.precioModalidad === 'neto'
-        ? Math.round(workshop.precio * 100 / (100 - comisionPct))
-        : workshop.precio
+      const precioBase = workshop.precioFijo?.monto ?? workshop.precio ?? 0
+      const precioPublico = workshop.precioModalidad === 'neto' && precioBase > 0
+        ? Math.round(precioBase * 100 / (100 - comisionPct))
+        : precioBase
       return NextResponse.json({ data: [{ ...workshop, precioPublico }] })
     }
 

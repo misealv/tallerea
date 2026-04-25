@@ -214,7 +214,14 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               workshopSlug={workshop.slug}
               modeloAcceso={workshop.modeloAcceso ?? 'puntual'}
               modalidadPrecio={workshop.modalidadPrecio ?? (workshop.precio === 0 ? 'gratuito' : 'fijo')}
-              precioFijo={workshop.precioFijo?.monto ?? workshop.precio}
+              precioFijo={(() => {
+                // [FINANCE RISK] Si precioModalidad es 'neto', convertir a precio bruto (lo que paga el alumno)
+                const base = workshop.precioFijo?.monto ?? workshop.precio ?? 0
+                if (workshop.precioModalidad === 'neto' && base > 0) {
+                  return Math.round(base * 100 / (100 - comisionPct))
+                }
+                return base
+              })()}
               aporteVoluntario={workshop.aporteVoluntario ? {
                 sugerido: workshop.aporteVoluntario.sugerido,
                 minimo:   workshop.aporteVoluntario.minimo,
