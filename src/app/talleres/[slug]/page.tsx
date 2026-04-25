@@ -6,6 +6,7 @@ import { SiteConfigService } from '@/services/SiteConfigService'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import PrecioCard from '@/components/PrecioCard'
+import PublicWeeklyCalendar from '@/components/PublicWeeklyCalendar'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,16 +37,6 @@ const tipoIcon: Record<string, string> = {
 const diaLabel: Record<string, string> = {
   lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves',
   viernes: 'Viernes', sabado: 'Sábado', domingo: 'Domingo',
-}
-
-const diaSemanaCorto = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
-
-function formatFechaSlot(fecha: Date): { dia: string; fecha: string } {
-  const d = new Date(fecha)
-  return {
-    dia: diaSemanaCorto[d.getDay()],
-    fecha: d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }),
-  }
 }
 
 export default async function WorkshopDetailPage({ params }: PageProps) {
@@ -99,20 +90,16 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
 
             {/* Horarios (slots) */}
             {(() => {
-              const now = new Date()
-              const cupo = workshop.cupoPorSesion || 0
-
-              // Slots concretos con fecha, futuros y no cancelados
-              const slotsFuturos = (workshop.slots || [])
-                .filter((s: { fecha?: Date; cancelado?: boolean }) =>
-                  s.fecha && new Date(s.fecha) > now && !s.cancelado
-                )
-                .sort((a: { fecha?: Date }, b: { fecha?: Date }) =>
-                  new Date(a.fecha!).getTime() - new Date(b.fecha!).getTime()
-                )
-
-              const proximos = slotsFuturos.slice(0, 10)
-              const restantes = slotsFuturos.length - proximos.length
+              const slotsConFecha = (workshop.slots || [])
+                .filter((s: { fecha?: Date }) => !!s.fecha)
+                .map((s: { fecha?: Date; dia?: string; horaInicio: string; horaFin: string; reservas?: number; cancelado?: boolean }) => ({
+                  fecha: s.fecha ? new Date(s.fecha).toISOString() : undefined,
+                  dia: s.dia,
+                  horaInicio: s.horaInicio,
+                  horaFin: s.horaFin,
+                  reservas: s.reservas ?? 0,
+                  cancelado: !!s.cancelado,
+                }))
 
               // Plantilla semanal (patrón) — si no hay slots con fecha
               const plantilla = workshop.plantillaSemanal || []
@@ -120,49 +107,24 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                 (s: { fecha?: Date; dia?: string }) => !s.fecha && s.dia
               )
 
-              if (proximos.length === 0 && plantilla.length === 0 && slotsSinFecha.length === 0) {
+              if (slotsConFecha.length === 0 && plantilla.length === 0 && slotsSinFecha.length === 0) {
                 return null
               }
 
               return (
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 mb-3">
-                    {proximos.length > 0 ? 'Próximas sesiones disponibles' : 'Horarios'}
+                    {slotsConFecha.length > 0 ? 'Calendario de sesiones' : 'Horarios'}
                   </h2>
 
-                  {proximos.length > 0 && (
-                    <>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        {proximos.map((s: { fecha?: Date; horaInicio: string; horaFin: string; reservas: number }, i: number) => {
-                          const disponible = cupo - (s.reservas || 0)
-                          const lleno = disponible <= 0
-                          const fmt = formatFechaSlot(s.fecha!)
-                          return (
-                            <div
-                              key={i}
-                              className={`rounded-lg border px-3 py-2 ${
-                                lleno ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-purple-200 bg-purple-50'
-                              }`}
-                            >
-                              <div className="text-xs text-gray-500 capitalize">{fmt.dia}</div>
-                              <div className="font-semibold text-gray-900 text-sm">{fmt.fecha}</div>
-                              <div className="text-sm text-gray-700">{s.horaInicio} – {s.horaFin}</div>
-                              <div className={`text-xs mt-1 ${lleno ? 'text-red-600' : 'text-green-700'}`}>
-                                {lleno ? 'Sin cupos' : `${disponible} de ${cupo} disponibles`}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                      {restantes > 0 && (
-                        <p className="text-sm text-gray-500 mt-2">
-                          +{restantes} sesión{restantes === 1 ? '' : 'es'} más disponible{restantes === 1 ? '' : 's'}
-                        </p>
-                      )}
-                    </>
+                  {slotsConFecha.length > 0 && (
+                    <PublicWeeklyCalendar
+                      slots={slotsConFecha}
+                      cupoPorSesion={workshop.cupoPorSesion || 0}
+                    />
                   )}
 
-                  {proximos.length === 0 && (plantilla.length > 0 || slotsSinFecha.length > 0) && (
+                  {slotsConFecha.length === 0 && (plantilla.length > 0 || slotsSinFecha.length > 0) && (
                     <div className="space-y-2">
                       {(plantilla.length > 0 ? plantilla : slotsSinFecha).map(
                         (s: { dia?: string; horaInicio: string; horaFin: string }, i: number) => (
