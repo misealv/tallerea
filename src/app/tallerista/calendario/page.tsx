@@ -338,14 +338,17 @@ export default function CalendarioTallerista() {
                           <p className="font-medium text-gray-800 dark:text-gray-200 truncate">{insc.name}</p>
                           <p className="text-gray-400 truncate">{insc.email}</p>
                         </div>
-                        <button
-                          onClick={() => cancelarReserva(insc)}
-                          disabled={cancelingBookingId === insc.bookingId}
-                          title="Anular reserva"
-                          className="shrink-0 text-[10px] font-medium px-2 py-1 rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 disabled:opacity-40 transition"
-                        >
-                          {cancelingBookingId === insc.bookingId ? '…' : 'Anular'}
-                        </button>
+                        {/* Solo bookings (no enrollments puntuales/prueba) admiten anulación desde el calendario */}
+                        {!insc.bookingId.startsWith('e:') && (
+                          <button
+                            onClick={() => cancelarReserva(insc)}
+                            disabled={cancelingBookingId === insc.bookingId}
+                            title="Anular reserva"
+                            className="shrink-0 text-[10px] font-medium px-2 py-1 rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 disabled:opacity-40 transition"
+                          >
+                            {cancelingBookingId === insc.bookingId ? '…' : 'Anular'}
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ul>

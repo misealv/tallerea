@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth'
 import dbConnect from '@/lib/db'
 import Workshop from '@/models/Workshop'
 import Booking from '@/models/Booking'
+import Enrollment from '@/models/Enrollment'
 import { Types } from 'mongoose'
 
 export const dynamic = 'force-dynamic'
@@ -109,10 +110,26 @@ export async function GET(req: NextRequest) {
         }).select('workshopId slotIndex studentId').lean<BookingLean[]>()
       : []
 
-    // Indexar bookings por workshopId+slotIndex
+    // [FIX] También contar Enrollments puntuales y clasePrueba por slot
+    // (Booking solo existe para suscripciones recurrentes; Enrollment cubre puntual y prueba)
+    interface EnrollmentSlotLean { workshopId: Types.ObjectId; slotIndex: number | null }
+    const allEnrollments = workshopIdsWithSlots.length > 0
+      ? await Enrollment.find({
+          workshopId: { $in: workshopIdsWithSlots },
+          estado: { $nin: ['cancelado'] },
+          slotIndex: { $ne: null },
+          activo: true,
+        }).select('workshopId slotIndex').lean<EnrollmentSlotLean[]>()
+      : []
+
+    // Indexar bookings + enrollments por workshopId+slotIndex
     const bookingsByKey = new Map<string, number>()
     for (const b of allBookings) {
       const key = `${String(b.workshopId)}:${b.slotIndex}`
+      bookingsByKey.set(key, (bookingsByKey.get(key) ?? 0) + 1)
+    }
+    for (const e of allEnrollments) {
+      const key = `${String(e.workshopId)}:${e.slotIndex}`
       bookingsByKey.set(key, (bookingsByKey.get(key) ?? 0) + 1)
     }
 
