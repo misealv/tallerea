@@ -23,12 +23,10 @@ interface Props {
 const DIA_JS: Record<string, number> = {
   domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6,
 }
-const DIAS_ORDEN = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'] as const
 const DIA_LABEL: Record<string, string> = {
   lunes: 'Lun', martes: 'Mar', miercoles: 'Mié', jueves: 'Jue',
   viernes: 'Vie', sabado: 'Sáb', domingo: 'Dom',
 }
-const MES_LABEL = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
 const MES_LABEL_FULL = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
 
 function toLocal(s: string): Date {
@@ -51,12 +49,6 @@ function toISODate(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-function getMondayISO(d: Date): string {
-  const day = new Date(d)
-  const jsDay = day.getDay()
-  day.setDate(day.getDate() - (jsDay === 0 ? 6 : jsDay - 1))
-  return toISODate(day)
-}
 
 interface Ocurrencia {
   slotIndex: number
@@ -86,123 +78,141 @@ function generarOcurrencias(slots: Slot[], fechaInicio: string, semanas = 8): Oc
 }
 
 export default function SlotCalendarPicker({ slots, fechaInicio, selectedSlotIndex, selectedFecha, onSelect, cupoPorSesion }: Props) {
-  const ocurrencias = useMemo(() => generarOcurrencias(slots, fechaInicio, 8), [slots, fechaInicio])
+  const ocurrencias = useMemo(() => generarOcurrencias(slots, fechaInicio, 12), [slots, fechaInicio])
 
-  const semanaMap = useMemo(() => {
+  // Agrupar por mes para mostrar como secciones
+  const mesesMap = useMemo(() => {
     const map = new Map<string, Ocurrencia[]>()
     for (const o of ocurrencias) {
-      const key = getMondayISO(o.fecha)
+      const key = `${o.fecha.getFullYear()}-${String(o.fecha.getMonth() + 1).padStart(2, '0')}`
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(o)
     }
     return map
   }, [ocurrencias])
 
-  const semanas = useMemo(() => Array.from(semanaMap.keys()).sort(), [semanaMap])
-  const diasConSlots = useMemo(() => DIAS_ORDEN.filter(d => slots.some(s => s.dia === d)), [slots])
+  const meses = useMemo(() => Array.from(mesesMap.keys()).sort(), [mesesMap])
 
   if (!ocurrencias.length) return null
 
   return (
-    <div className="space-y-3">
-      <h3 className="font-semibold text-gray-900">Elige tu fecha</h3>
+    <div className="space-y-4">
+      <h3 className="font-semibold text-gray-900 text-base">Elige tu fecha</h3>
 
-      <div className="overflow-x-auto border border-gray-200 rounded-lg">
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-3 py-2 text-left text-xs text-gray-500 font-medium whitespace-nowrap">Semana</th>
-              {diasConSlots.map(d => (
-                <th key={d} className="px-3 py-2 text-center text-xs text-gray-700 font-semibold">
-                  {DIA_LABEL[d]}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {semanas.map((lunesISO, sIdx) => {
-              const ocurrSemana = semanaMap.get(lunesISO) ?? []
-              const lunes = toLocal(lunesISO)
-              const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6)
-              const mL = lunes.getMonth(); const mD = domingo.getMonth()
-              const weekLabel = mL === mD
-                ? `${lunes.getDate()}–${domingo.getDate()} ${MES_LABEL[mL]}`
-                : `${lunes.getDate()} ${MES_LABEL[mL]} – ${domingo.getDate()} ${MES_LABEL[mD]}`
+      <div className="space-y-5 max-h-[480px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-purple-200">
+        {meses.map(mesKey => {
+          const ocurrMes = mesesMap.get(mesKey) ?? []
+          const [anio, mesNum] = mesKey.split('-')
+          const mesLabel = MES_LABEL_FULL[parseInt(mesNum) - 1]
 
-              return (
-                <tr key={lunesISO} className={`border-b border-gray-100 last:border-0 ${sIdx % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
-                  <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap align-middle">{weekLabel}</td>
-                  {diasConSlots.map(dia => {
-                    const o = ocurrSemana.find(oc => oc.slot.dia === dia)
-                    if (!o) return <td key={dia} className="px-3 py-2" />
+          return (
+            <div key={mesKey}>
+              {/* Header de mes */}
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-sm font-bold text-gray-700 capitalize">
+                  {mesLabel} {anio}
+                </span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
 
-                    const cupoMax = o.slot.cupoMax ?? cupoPorSesion ?? 0
-                    const cupoDisp = o.slot.cupoDisponible !== undefined
-                      ? o.slot.cupoDisponible
-                      : cupoMax > 0
-                        ? Math.max(0, cupoMax - (o.slot.reservas ?? 0))
-                        : 0
-                    const disponible = cupoDisp
-                    const full = cupoMax > 0 ? disponible <= 0 : false
-                    const selected = selectedSlotIndex === o.slotIndex && selectedFecha === o.fechaISO
-                    const pct = cupoMax > 0
-                      ? Math.round(((cupoMax - disponible) / cupoMax) * 100)
+              {/* Grid de tarjetas */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {ocurrMes.map(o => {
+                  const cupoMax = o.slot.cupoMax ?? cupoPorSesion ?? 0
+                  const cupoDisp = o.slot.cupoDisponible !== undefined
+                    ? o.slot.cupoDisponible
+                    : cupoMax > 0
+                      ? Math.max(0, cupoMax - (o.slot.reservas ?? 0))
                       : 0
+                  const full = cupoMax > 0 ? cupoDisp <= 0 : false
+                  const selected = selectedSlotIndex === o.slotIndex && selectedFecha === o.fechaISO
+                  const pct = cupoMax > 0 ? Math.round(((cupoMax - cupoDisp) / cupoMax) * 100) : 0
+                  const casi = !full && cupoMax > 0 && pct >= 75
 
-                    return (
-                      <td key={dia} className="px-2 py-2 text-center">
-                        <button
-                          type="button"
-                          disabled={full}
-                          onClick={() => onSelect(o.slotIndex, o.fechaISO)}
-                          className={`w-full rounded-lg px-2 py-2.5 text-xs transition-all border ${
-                            selected
-                              ? 'bg-purple-600 text-white border-purple-600 ring-2 ring-purple-300'
-                              : full
-                              ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
-                              : 'bg-white text-purple-900 border-purple-200 hover:bg-purple-50 hover:border-purple-400 cursor-pointer'
-                          }`}
-                        >
-                          <div className="font-bold text-base leading-none">{o.fecha.getDate()}</div>
-                          <div className={`text-[10px] mt-0.5 ${selected ? 'text-purple-200' : 'text-gray-500'}`}>
-                            {o.slot.horaInicio}
+                  return (
+                    <button
+                      key={`${o.slotIndex}-${o.fechaISO}`}
+                      type="button"
+                      disabled={full}
+                      onClick={() => onSelect(o.slotIndex, o.fechaISO)}
+                      className={`relative rounded-xl border-2 px-3 py-3 text-left transition-all ${
+                        selected
+                          ? 'bg-purple-600 border-purple-600 text-white shadow-md ring-2 ring-purple-300 ring-offset-1'
+                          : full
+                          ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed opacity-60'
+                          : 'bg-white border-purple-100 hover:border-purple-400 hover:bg-purple-50 cursor-pointer'
+                      }`}
+                    >
+                      {/* Día de la semana */}
+                      <div className={`text-xs font-medium uppercase tracking-wide mb-0.5 ${
+                        selected ? 'text-purple-200' : full ? 'text-gray-400' : 'text-purple-500'
+                      }`}>
+                        {DIA_LABEL[o.slot.dia]}
+                      </div>
+
+                      {/* Número de día */}
+                      <div className={`text-2xl font-bold leading-none ${
+                        selected ? 'text-white' : full ? 'text-gray-400' : 'text-gray-900'
+                      }`}>
+                        {o.fecha.getDate()}
+                      </div>
+
+                      {/* Hora */}
+                      <div className={`text-sm mt-1 font-medium ${
+                        selected ? 'text-purple-100' : full ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        {o.slot.horaInicio}–{o.slot.horaFin}
+                      </div>
+
+                      {/* Disponibilidad */}
+                      {cupoMax > 0 && (
+                        <div className="mt-2">
+                          <div className={`h-1.5 rounded-full overflow-hidden ${selected ? 'bg-white/30' : 'bg-gray-100'}`}>
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                selected ? 'bg-white' : pct > 80 ? 'bg-orange-400' : 'bg-purple-500'
+                              }`}
+                              style={{ width: `${pct}%` }}
+                            />
                           </div>
-                          {cupoMax > 0 && (
-                            <>
-                              <div className={`mt-1.5 h-1 rounded-full overflow-hidden ${selected ? 'bg-white/30' : 'bg-gray-200'}`}>
-                                <div
-                                  className={`h-full rounded-full ${
-                                    selected ? 'bg-white' : pct > 80 ? 'bg-orange-400' : 'bg-purple-500'
-                                  }`}
-                                  style={{ width: `${pct}%` }}
-                                />
-                              </div>
-                              <div className={`text-[10px] mt-0.5 ${selected ? 'text-purple-200' : 'text-gray-400'}`}>
-                                {full ? 'Lleno' : `${disponible}/${cupoMax}`}
-                              </div>
-                            </>
-                          )}
-                        </button>
-                      </td>
-                    )
-                  })}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                          <div className={`text-xs mt-1 ${
+                            selected ? 'text-purple-200' : casi ? 'text-orange-500 font-medium' : 'text-gray-400'
+                          }`}>
+                            {full ? 'Sin cupos' : casi ? `¡Solo ${cupoDisp} cupos!` : `${cupoDisp} de ${cupoMax} disponibles`}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Badge seleccionado */}
+                      {selected && (
+                        <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-white flex items-center justify-center">
+                          <svg className="w-3 h-3 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
       </div>
 
+      {/* Resumen selección */}
       {selectedFecha && selectedSlotIndex !== null && (() => {
         const o = ocurrencias.find(oc => oc.slotIndex === selectedSlotIndex && oc.fechaISO === selectedFecha)
         if (!o) return null
         return (
-          <div className="flex items-center gap-2 text-sm text-purple-700 bg-purple-50 rounded-lg px-3 py-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-purple-600 flex-shrink-0" />
-            <span className="font-medium">
-              {DIA_LABEL[o.slot.dia]} {o.fecha.getDate()} de {MES_LABEL_FULL[o.fecha.getMonth()]} · {o.slot.horaInicio}–{o.slot.horaFin}
-            </span>
-            <span className="text-purple-400 text-xs">({(o.slot.cupoDisponible ?? 0)} cupos)</span>
+          <div className="flex items-center gap-2.5 bg-purple-50 border border-purple-200 rounded-xl px-4 py-3">
+            <span className="w-3 h-3 rounded-full bg-purple-600 flex-shrink-0" />
+            <div className="text-sm">
+              <span className="font-semibold text-purple-900">
+                {DIA_LABEL[o.slot.dia]} {o.fecha.getDate()} de {MES_LABEL_FULL[o.fecha.getMonth()]}
+              </span>
+              <span className="text-purple-600 ml-1">· {o.slot.horaInicio}–{o.slot.horaFin}</span>
+            </div>
           </div>
         )
       })()}
