@@ -1,12 +1,12 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 import { WorkshopService } from '@/services/WorkshopService'
 import { SiteConfigService } from '@/services/SiteConfigService'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import PrecioCard from '@/components/PrecioCard'
 import PublicWeeklyCalendar from '@/components/PublicWeeklyCalendar'
+import WorkshopGallery from '@/components/WorkshopGallery'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,12 +64,12 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
           <span className="text-gray-800">{workshop.titulo}</span>
         </nav>
 
-        {/* Imagen hero */}
-        <div className="h-64 md:h-80 bg-gray-100 rounded-xl flex items-center justify-center text-7xl mb-6 overflow-hidden relative">
-          {workshop.imagenes?.[0]
-            ? <Image src={workshop.imagenes[0]} alt={workshop.titulo} fill className="object-cover" sizes="(max-width: 768px) 100vw, 800px" />
-            : tipoIcon[workshop.tipo] || '✨'}
-        </div>
+        {/* Galería de imágenes */}
+        <WorkshopGallery
+          imagenes={workshop.imagenes ?? []}
+          titulo={workshop.titulo}
+          fallbackEmoji={tipoIcon[workshop.tipo] || '✨'}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-[1fr_300px] gap-8">
           {/* Columna principal */}
