@@ -427,6 +427,53 @@ export async function sendSesionCancelada({
   })
 }
 
+/**
+ * [PREPAGADO] Notifica al alumno que sus clases prepagadas se agotaron
+ * y le envía link de pago MP para continuar (respetando precioSnapshot original).
+ */
+export async function sendPrepaidExhausted({
+  email,
+  name,
+  workshopTitulo,
+  initPoint,
+  monto,
+  cantidad,
+}: {
+  email: string
+  name: string
+  workshopTitulo: string
+  initPoint: string
+  monto: number
+  cantidad: number
+}) {
+  if (!process.env.RESEND_API_KEY) return
+
+  const resend = getResend()
+  const montoFmt = monto.toLocaleString('es-CL')
+
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: email,
+    subject: `Completaste tus ${cantidad} clases en "${workshopTitulo}" — continúa con un clic`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7c3aed;">¡Felicitaciones por completar tu ciclo!</h2>
+        <p>Hola <strong>${name}</strong>,</p>
+        <p>Ya asististe a las <strong>${cantidad} clases</strong> de tu paquete de <strong>${workshopTitulo}</strong>.</p>
+        <p>Para seguir asistiendo, paga el siguiente paquete con el mismo precio que acordaste:</p>
+        <p style="font-size: 24px; font-weight: bold; color: #7c3aed; margin: 16px 0;">
+          $${montoFmt} CLP
+        </p>
+        <a href="${initPoint}" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 16px 0;">
+          Pagar y continuar
+        </a>
+        <p style="color: #6b7280; font-size: 14px;">Si tienes dudas o prefieres otro arreglo, contacta directamente a tu profesor.</p>
+        <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
+      </div>
+    `,
+  })
+}
+
 export async function sendSubscriptionRenovar({
   email,
   name,

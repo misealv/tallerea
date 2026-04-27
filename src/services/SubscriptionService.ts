@@ -7,7 +7,7 @@ import User from '@/models/User'
 import { FinanceService } from '@/services/FinanceService'
 import { SiteConfigService } from '@/services/SiteConfigService'
 import { createPaymentPreference } from '@/lib/mercadopago'
-import { sendSubscriptionVencida, sendSubscriptionRenovar } from '@/lib/resend'
+import { sendSubscriptionVencida, sendSubscriptionRenovar, sendPrepaidExhausted } from '@/lib/resend'
 
 interface PaginatedResult<T> {
   data: T[]
@@ -273,7 +273,55 @@ export const SubscriptionService = {
       { new: true }
     ).lean<ISubscription>()
 
+    // [PREPAGADO] Si quedó agotado tras este consumo → notificar al alumno con link MP
+    if (
+      updated?.clasesPrepagadas &&
+      updated.clasesPrepagadas.consumidas >= updated.clasesPrepagadas.cantidad
+    ) {
+      // Fire-and-forget: nunca bloquear el flujo de Booking si falla la notificación
+      this.notifyPrepaidExhausted(String(updated._id)).catch((err) => {
+        console.error('[PREPAGADO] notifyPrepaidExhausted failed', err)
+      })
+    }
+
     return updated // null si no tiene saldo prepagado activo
+  },
+
+  /**
+   * [PREPAGADO] Genera un link MP con precioSnapshot y envía email al alumno.
+   * Se invoca al detectar saldo agotado. NO bloquea el flujo si falla.
+   */
+  async notifyPrepaidExhausted(subscriptionId: string): Promise<void> {
+    await dbConnect()
+
+    const sub = await Subscription.findById(subscriptionId).lean<ISubscription>()
+    if (!sub?.clasesPrepagadas) return
+    if (!sub.precioSnapshot || sub.precioSnapshot <= 0) return // sin precio acordado
+
+    const [student, workshop] = await Promise.all([
+      User.findById(sub.studentId).select('name email').lean<{ name: string; email: string } | null>(),
+      Workshop.findById(sub.workshopId).select('titulo').lean<{ titulo: string } | null>(),
+    ])
+    if (!student?.email || !workshop) return
+
+    // Crear preferencia MP con precioSnapshot — externalRef sub:<id> ya conocido por el webhook
+    const preference = await createPaymentPreference({
+      externalRef: `sub:${subscriptionId}:prepaid-renewal`,
+      workshopTitle: workshop.titulo,
+      amount: sub.precioSnapshot,
+      payerEmail: student.email,
+    })
+
+    if (!preference?.init_point) return
+
+    await sendPrepaidExhausted({
+      email: student.email,
+      name: student.name || 'Alumno',
+      workshopTitulo: workshop.titulo,
+      initPoint: preference.init_point,
+      monto: sub.precioSnapshot,
+      cantidad: sub.clasesPrepagadas.cantidad,
+    })
   },
 
   /**

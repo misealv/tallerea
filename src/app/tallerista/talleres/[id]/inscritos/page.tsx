@@ -14,8 +14,8 @@ export const dynamic = 'force-dynamic'
 
 interface StudentRef { name: string; email: string }
 interface EnrollmentLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; monto: number; slotIndex: number | null; createdAt: Date }
-interface SubLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; sesionesUsadas: number; sesionesTotales: number; fechaVencimiento: Date; monto: number }
-interface BookingLean { _id: Types.ObjectId; studentId: StudentRef; slotIndex: number; fecha: Date; estado: string }
+interface SubLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; sesionesUsadas: number; sesionesTotales: number; fechaVencimiento: Date; monto: number; clasesPrepagadas?: { cantidad: number; consumidas: number }; origenInscripcion?: string }
+interface BookingLean { _id: Types.ObjectId; studentId: StudentRef; subscriptionId: Types.ObjectId; slotIndex: number; fecha: Date; estado: string }
 interface WorkshopLean { _id: Types.ObjectId; titulo: string; ownerId?: Types.ObjectId; accountId?: Types.ObjectId; slots: { horaInicio: string; horaFin: string; fecha?: Date }[] }
 
 const ESTADO_COLOR: Record<string, string> = {
@@ -87,6 +87,41 @@ export default async function InscritosPage({ params }: { params: { id: string }
                   <td className="px-4 py-2 text-gray-400">{new Date(e.createdAt).toLocaleDateString('es-CL')}</td>
                 </tr>
               ))}</tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* Suscripciones activas */}
+      <section>
+        <h2 className="text-base font-semibold text-gray-700 mb-3">Suscripciones ({subscriptions.length})</h2>
+        {subscriptions.length === 0 ? <p className="text-sm text-gray-400">Sin suscripciones.</p> : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead><tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
+                <th className="px-4 py-2">Alumno</th><th className="px-4 py-2">Acceso</th>
+                <th className="px-4 py-2">Estado</th><th className="px-4 py-2">Vence</th>
+              </tr></thead>
+              <tbody>{subscriptions.map(s => {
+                const prepaid = s.clasesPrepagadas
+                const prepaidActivo = prepaid && prepaid.consumidas < prepaid.cantidad
+                return (
+                  <tr key={String(s._id)} className="border-t border-gray-100">
+                    <td className="px-4 py-2 font-medium text-gray-800">{(s.studentId as StudentRef).name}</td>
+                    <td className="px-4 py-2">
+                      {prepaidActivo ? (
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                          Prepagada — {prepaid!.cantidad - prepaid!.consumidas}/{prepaid!.cantidad}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-500">{s.sesionesTotales - s.sesionesUsadas}/{s.sesionesTotales} sesiones</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[s.estado] ?? ''}`}>{s.estado}</span></td>
+                    <td className="px-4 py-2 text-gray-400">{new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}</td>
+                  </tr>
+                )
+              })}</tbody>
             </table>
           </div>
         )}

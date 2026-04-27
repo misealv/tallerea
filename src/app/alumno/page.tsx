@@ -47,6 +47,7 @@ interface SubscriptionLean {
   sesionesDisponibles: number
   sesionesTotales: number
   fechaVencimiento: Date
+  clasesPrepagadas?: { cantidad: number; consumidas: number }
 }
 
 interface BookingLean {
@@ -261,15 +262,29 @@ export default async function AlumnoDashboard() {
           <p className="text-sm text-gray-400">Sin suscripciones activas.</p>
         ) : (
           <div className="space-y-3">
-            {subscriptions.map(s => (
+            {subscriptions.map(s => {
+              const prepaid = s.clasesPrepagadas
+              const prepaidActivo = prepaid && prepaid.consumidas < prepaid.cantidad
+              return (
               <div key={String(s._id)} className="bg-white border border-gray-200 rounded-xl px-5 py-4">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="font-medium text-gray-900 text-sm">{(s.workshopId as WorkshopRef).titulo}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {s.sesionesDisponibles} de {s.sesionesTotales} sesiones disponibles
-                      · Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}
-                    </p>
+                    {prepaidActivo ? (
+                      <p className="text-xs mt-0.5">
+                        <span className="inline-block bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                          Prepagada — {prepaid!.cantidad - prepaid!.consumidas}/{prepaid!.cantidad}
+                        </span>
+                        <span className="text-gray-500 ml-2">
+                          · Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {s.sesionesDisponibles} de {s.sesionesTotales} sesiones disponibles
+                        · Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}
+                      </p>
+                    )}
                   </div>
                   <Link
                     href={`/alumno/reservas?sub=${String(s._id)}&workshop=${encodeURIComponent((s.workshopId as WorkshopRef).slug)}`}
@@ -279,7 +294,8 @@ export default async function AlumnoDashboard() {
                   </Link>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </section>
