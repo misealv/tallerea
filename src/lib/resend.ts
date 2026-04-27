@@ -384,7 +384,6 @@ export async function sendSesionCancelada({
   studentEmail,
   studentName,
   workshopTitle,
-  workshopSlug,
   fecha,
   horaInicio,
   horaFin,
@@ -393,7 +392,6 @@ export async function sendSesionCancelada({
   studentEmail: string
   studentName: string
   workshopTitle: string
-  workshopSlug: string
   fecha: string    // ej: "lunes 4 de mayo de 2026"
   horaInicio: string
   horaFin: string
@@ -432,9 +430,9 @@ export async function sendSesionCancelada({
           <p style="margin: 4px 0;"><strong>Fecha:</strong> ${fecha}</p>
           <p style="margin: 4px 0;"><strong>Horario:</strong> ${horaInicio} – ${horaFin}</p>
         </div>
-        <p>Si tienes dudas o necesitas más información, puedes responder este correo o ver el taller en la plataforma.</p>
-        <a href="${baseUrl}/talleres/${workshopSlug}" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
-          Ver taller
+        <p>Si tienes dudas o necesitas más información, puedes responder este correo o ver tus reservas en tu panel de alumno.</p>
+        <a href="${baseUrl}/alumno/reservas" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
+          Ver mis reservas
         </a>
         <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
       </div>

@@ -96,7 +96,6 @@ export async function PATCH(req: NextRequest) {
             studentEmail: s.email,
             studentName: s.name,
             workshopTitle: workshop.titulo,
-            workshopSlug: workshop.slug,
             fecha: slotFecha,
             horaInicio: slot.horaInicio,
             horaFin: slot.horaFin,
