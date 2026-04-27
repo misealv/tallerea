@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { signOut } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
@@ -31,6 +31,9 @@ export default function AlumnoNavbar({ userName }: AlumnoNavbarProps) {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
 
+  // Cerrar drawer al navegar (incluye mismo path con query params distintos)
+  useEffect(() => { setOpen(false) }, [pathname])
+
   const initials = getInitials(userName || 'A')
 
   // /alumno exacto para el link de Inicio; resto por prefix
@@ -44,7 +47,7 @@ export default function AlumnoNavbar({ userName }: AlumnoNavbarProps) {
         {/* Logo */}
         <Link href="/alumno" className="flex items-center gap-2 shrink-0">
           <span className="font-bold text-purple-700 text-lg">Tallerea</span>
-          <span className="hidden xs:inline-block text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+          <span className="hidden sm:inline-block text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
             Alumno
           </span>
         </Link>
