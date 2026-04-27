@@ -262,7 +262,17 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
 
           <button
             onClick={handleInscribirse}
-            disabled={submitting || (!esPuntual && workshop.slots?.length > 0 ? selectedSlotIdx === null : workshop.cupoDisponible <= 0)}
+            disabled={submitting || (() => {
+              if (esPuntual) {
+                // puntual: cupo en el slot, no en la raíz
+                const cupo = slotPuntual?.cupoDisponible ?? workshop.cupoDisponible ?? 1
+                return cupo <= 0
+              }
+              // recurrente con slots: requiere selección
+              if (workshop.slots?.length > 0) return selectedSlotIdx === null
+              // sin slots: cupo raíz
+              return workshop.cupoDisponible <= 0
+            })()}
             className="w-full bg-purple-600 text-white py-3.5 rounded-xl font-bold text-base hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors shadow-sm"
           >
             {submitting
