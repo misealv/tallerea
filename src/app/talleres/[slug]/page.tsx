@@ -20,15 +20,51 @@ export async function generateMetadata({ params }: PageProps) {
   const { slug } = await params
   const workshop = await WorkshopService.getBySlug(slug)
   if (!workshop) return { title: 'Tallerea' }
-  const loc = workshop.locationId as unknown as { comuna?: string } | null
+  const loc = workshop.locationId as unknown as { comuna?: string; ciudad?: string } | null
+  const owner = workshop.ownerId as unknown as { name?: string } | null
+
+  const titulo = workshop.titulo
+  const locLabel = loc?.comuna ? ` en ${loc.comuna}` : ''
+  const pageTitle = `${titulo}${locLabel} — Tallerea`
+  const descripcion = workshop.descripcion?.slice(0, 300) ?? ''
+  const resumen = workshop.descripcion?.slice(0, 155) ?? ''
+
+  // Imagen OG: primera foto del taller, o imagen de perfil del dueño, o fallback
+  const ogImage = workshop.imagenes?.[0] ?? null
+
+  const ogImages = ogImage
+    ? [{ url: ogImage, width: 1200, height: 630, alt: titulo }]
+    : []
+
   return {
-    title: `${workshop.titulo}${loc?.comuna ? ` en ${loc.comuna}` : ''} — Tallerea`,
-    description: workshop.descripcion.slice(0, 155),
+    title: pageTitle,
+    description: resumen,
     openGraph: {
-      title: workshop.titulo,
-      description: workshop.descripcion.slice(0, 155),
-      images: workshop.imagenes?.[0] ? [workshop.imagenes[0]] : [],
+      title: titulo,
+      description: descripcion,
+      url: `https://tallerea.cl/talleres/${slug}`,
+      siteName: 'Tallerea',
+      locale: 'es_CL',
+      type: 'website',
+      images: ogImages,
     },
+    twitter: {
+      card: 'summary_large_image',
+      title: titulo,
+      description: resumen,
+      images: ogImage ? [ogImage] : [],
+    },
+    alternates: {
+      canonical: `https://tallerea.cl/talleres/${slug}`,
+    },
+    other: {
+      // WhatsApp y iMessage leen estas etiquetas directamente
+      'og:image:type': 'image/jpeg',
+    },
+    // Datos para el tallerista (útil para SEO)
+    ...(owner?.name && {
+      authors: [{ name: owner.name }],
+    }),
   }
 }
 
