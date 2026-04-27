@@ -25,7 +25,7 @@ export async function createPaymentPreference(input: CreatePreferenceInput) {
   // Dividir nombre en first/last para que MP pre-rellene el formulario
   const nameParts = (input.payerName ?? '').trim().split(/\s+/)
   const firstName = nameParts[0] ?? ''
-  const lastName = nameParts.slice(1).join(' ') || firstName
+  const lastName = nameParts.slice(1).join(' ') || ''
 
   const preference = await preferenceClient.create({
     body: {

@@ -41,7 +41,7 @@ export const WorkshopService = {
     if (filters?.ownerId) query.ownerId = filters.ownerId
     if (filters?.dia) query['slots.dia'] = filters.dia
     if (filters?.clasePrueba) query['clasePrueba.habilitada'] = true
-    if (filters?.conCupo) query.cupoPorSesion = { $gt: 0 }
+    if (filters?.conCupo) query['slots.cupoDisponible'] = { $gt: 0 }
     if (filters?.horario) {
       const rangos = { manana: ['08','09','10','11','12'], tarde: ['13','14','15','16','17','18'], noche: ['19','20','21','22'] }
       const horas = rangos[filters.horario]

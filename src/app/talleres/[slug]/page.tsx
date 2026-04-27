@@ -136,7 +136,7 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               priceCurrency: 'CLP',
               price: (() => {
                 const esNeto = workshop.precioModalidad === 'neto'
-                const bruto = esNeto ? Math.round((workshop.precio ?? 0) * 100 / (100 - 15)) : (workshop.precio ?? 0)
+                const bruto = esNeto ? Math.round((workshop.precio ?? 0) * 100 / (100 - comisionPct)) : (workshop.precio ?? 0)
                 return bruto
               })(),
               availability: (workshop.cupoPorSesion ?? 0) > 0

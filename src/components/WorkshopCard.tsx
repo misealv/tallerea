@@ -77,7 +77,7 @@ export default function WorkshopCard({
 
         {displaySlots && displaySlots.length > 0 && (
           <p className="text-xs text-gray-500">
-            {displaySlots.map(h => `${h.dia} ${h.horaInicio}`).slice(0, 2).join(' · ')}
+            {displaySlots.map(h => h.dia ? `${h.dia} ${h.horaInicio}` : h.horaInicio).slice(0, 2).join(' · ')}
           </p>
         )}
 
