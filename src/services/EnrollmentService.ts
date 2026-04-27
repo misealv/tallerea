@@ -333,7 +333,8 @@ export const EnrollmentService = {
           )
         }
         if (updated.modifiedCount === 0) throw new Error('No hay cupos disponibles en este horario')
-      } else {
+      } else if (!workshop.slots || workshop.slots.length === 0) {
+        // Taller sin slots: verificar cupoDisponible a nivel de workshop
         const updated = await Workshop.updateOne(
           { _id: workshopId, cupoDisponible: { $gt: 0 } },
           { $inc: { cupoDisponible: -1 } },
@@ -341,6 +342,8 @@ export const EnrollmentService = {
         )
         if (updated.modifiedCount === 0) throw new Error('No hay cupos disponibles')
       }
+      // Si hay slots pero slotIndex === null (clase de prueba sin horario específico):
+      // no se bloquea cupo de ningún slot — el tallerista coordina el horario con el alumno.
 
       const [enrollment] = await Enrollment.create([{
         workshopId,
