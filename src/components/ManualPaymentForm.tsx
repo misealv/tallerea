@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface WorkshopOption {
   _id: string
@@ -14,6 +15,7 @@ interface ManualPaymentFormProps {
 }
 
 export default function ManualPaymentForm({ workshops, onSuccess }: ManualPaymentFormProps) {
+  const router = useRouter()
   const [workshopId, setWorkshopId] = useState(workshops[0]?._id ?? '')
   const [studentId,  setStudentId]  = useState('')
   const [studentEmail, setStudentEmail] = useState('')
@@ -117,6 +119,8 @@ export default function ManualPaymentForm({ workshops, onSuccess }: ManualPaymen
       setFecha(new Date().toISOString().slice(0, 10))
       if (fileRef.current) fileRef.current.value = ''
       onSuccess?.()
+      // Refrescar el Server Component para mostrar el nuevo registro
+      router.refresh()
       setTimeout(() => setSuccess(false), 4000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al guardar')

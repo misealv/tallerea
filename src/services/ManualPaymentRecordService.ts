@@ -2,6 +2,7 @@ import 'server-only'
 import dbConnect from '@/lib/db'
 import ManualPaymentRecord, { IManualPaymentRecordDoc } from '@/models/ManualPaymentRecord'
 import Workshop from '@/models/Workshop'
+import User from '@/models/User'
 import { Types } from 'mongoose'
 import type { ManualPaymentCreateInput } from '@/schemas/manualPayment'
 
@@ -17,6 +18,16 @@ export const ManualPaymentRecordService = {
       activo: true,
     }).lean()
     if (!workshop) throw new Error('Taller no encontrado o no autorizado')
+
+    // Validar que dependentId pertenece al studentId (spec: sección 5 seguridad)
+    if (data.dependentId) {
+      const titular = await User.findOne({
+        _id: data.studentId,
+        'dependents._id': new Types.ObjectId(data.dependentId),
+        'dependents.activo': true,
+      }).select('_id').lean()
+      if (!titular) throw new Error('El dependiente no pertenece al alumno indicado')
+    }
 
     const record = await new ManualPaymentRecord({
       ownerId: new Types.ObjectId(ownerId),

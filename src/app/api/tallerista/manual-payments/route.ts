@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { revalidatePath } from 'next/cache'
 import { ManualPaymentRecordService } from '@/services/ManualPaymentRecordService'
 import { ManualPaymentCreateSchema } from '@/schemas/manualPayment'
 
@@ -45,6 +46,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const record = await ManualPaymentRecordService.create(session.user.id, parsed.data)
+    revalidatePath('/tallerista/finanzas')
     return NextResponse.json(record, { status: 201 })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error interno'
