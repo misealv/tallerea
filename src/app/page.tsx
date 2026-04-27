@@ -75,13 +75,14 @@ export default async function Home() {
                   const precioPublico = toBruto(w.precio ?? 0)
 
                   // Precio desde: mínimo entre precio fijo y paquetes (sin clase de prueba)
-                  const candidatos: number[] = [precioPublico]
+                  // Si modalidadPrecio es 'paquetes', el precio base es 0 → no incluirlo
+                  const candidatos: number[] = w.modalidadPrecio === 'paquetes' ? [] : [precioPublico]
                   if (w.paquetes?.length) {
                     w.paquetes.forEach((p: { precio: number; activo: boolean }) => {
                       if (p.activo) candidatos.push(toBruto(p.precio))
                     })
                   }
-                  const precioDesde = Math.min(...candidatos)
+                  const precioDesde = candidatos.length > 0 ? Math.min(...candidatos) : precioPublico
 
                   return (
                     <WorkshopCard
