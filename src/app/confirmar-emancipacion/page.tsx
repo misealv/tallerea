@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 // Token de emancipación llega en ?token=... desde el email del apoderado.
@@ -20,6 +20,14 @@ function decodeTokenPreview(token: string): {
 }
 
 export default function ConfirmarEmancipacionPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><p className="text-gray-400">Cargando...</p></div>}>
+      <ConfirmarEmancipacion />
+    </Suspense>
+  )
+}
+
+function ConfirmarEmancipacion() {
   const searchParams = useSearchParams()
   const token = searchParams.get('token') ?? ''
   const preview = token ? decodeTokenPreview(token) : null
