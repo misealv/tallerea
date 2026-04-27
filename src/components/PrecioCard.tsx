@@ -325,7 +325,6 @@ export default function PrecioCard({
         </button>
       )}
 
-      <p className="text-xs text-center text-gray-400">Comisión de servicio: {comisionPct}%</p>
     </div>
   )
 }
