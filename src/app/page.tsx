@@ -48,7 +48,7 @@ export default async function Home() {
               <Link
                 key={cat.slug}
                 href={`/talleres?tipo=${cat.slug}`}
-                className="flex flex-col items-center p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100"
+                className="flex flex-col items-center p-4 bg-white rounded-xl shadow-sm hover:shadow-md hover:-translate-y-1 hover:border-purple-200 active:scale-95 transition-all duration-200 border border-gray-100"
               >
                 <span className="text-3xl mb-1.5">{cat.emoji}</span>
                 <span className="text-xs font-medium text-gray-700 text-center leading-tight">{cat.name}</span>

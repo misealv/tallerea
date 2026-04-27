@@ -43,12 +43,19 @@ export default function WorkshopCard({
   const esGratis = precioMostrar === 0
 
   return (
-    <Link href={`/talleres/${slug}`} className="group block bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
+    <Link href={`/talleres/${slug}`} className="group block bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-xl hover:-translate-y-1 hover:border-purple-200 transition-all duration-300">
       {/* Imagen */}
-      <div className="h-44 bg-gray-100 flex items-center justify-center text-5xl relative">
+      <div className="h-44 bg-gray-100 flex items-center justify-center text-5xl relative overflow-hidden">
         {imagen
-          ? <Image src={getCloudinaryUrl(imagen, TRANSFORM.card) ?? imagen} alt={titulo} fill className="object-cover" sizes="(max-width: 768px) 100vw, 33vw" priority={priority} />
-          : tipoIcon[tipo] || '✨'}
+          ? <Image src={getCloudinaryUrl(imagen, TRANSFORM.card) ?? imagen} alt={titulo} fill className="object-cover group-hover:scale-105 transition-transform duration-500" sizes="(max-width: 768px) 100vw, 33vw" priority={priority} />
+          : <span className="group-hover:scale-110 transition-transform duration-300 inline-block">{tipoIcon[tipo] || '✨'}</span>}
+
+        {/* Overlay oscuro con CTA al hacer hover */}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors duration-300 flex items-center justify-center">
+          <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-white text-purple-700 text-xs font-semibold px-4 py-1.5 rounded-full shadow-lg">
+            Ver taller →
+          </span>
+        </div>
 
         {/* Badge clase de prueba */}
         {clasePruebaDisponible && (
