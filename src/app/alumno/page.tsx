@@ -10,11 +10,13 @@ import User from '@/models/User'
 import Workshop from '@/models/Workshop'
 import Location from '@/models/Location'
 import CancelBookingButton from '@/components/CancelBookingButton'
+import TallerCard from '@/components/TallerCard'
 import { Types } from 'mongoose'
 
 export const dynamic = 'force-dynamic'
 
 interface WorkshopRef { titulo: string; slug: string }
+interface WorkshopWithMedia { titulo: string; slug: string; imagenes: string[]; ownerId: Types.ObjectId }
 interface WorkshopWithSlots { titulo: string; slug: string; slots: Array<{ horaInicio: string; horaFin: string; cancelado?: boolean }> }
 interface OwnerRef { name: string }
 interface LocationRef { nombre: string; direccion: string; comuna: string; ciudad: string }
@@ -54,6 +56,7 @@ interface SubscriptionLean {
 interface BookingLean {
   _id: Types.ObjectId
   workshopId: WorkshopWithSlots
+  subscriptionId: Types.ObjectId
   slotIndex: number
   fecha: Date
   estado: string
@@ -115,7 +118,7 @@ export default async function AlumnoDashboard() {
       .limit(5)
       .lean<EnrollmentLean[]>() as Promise<EnrollmentLean[]>,
     Subscription.find({ studentId, estado: 'activa', activo: true })
-      .populate('workshopId', 'titulo slug')
+      .populate('workshopId', 'titulo slug imagenes ownerId')
       .sort({ fechaVencimiento: 1 })
       .lean<SubscriptionLean[]>(),
     Booking.find({ studentId, estado: 'reservada', fecha: { $gte: new Date() }, activo: true })
@@ -137,12 +140,28 @@ export default async function AlumnoDashboard() {
     return [] as ClasePruebaDetail[]
   })
 
+  // Batch-fetch nombres de profesores (para las cards de taller)
+  const ownerIds = subscriptions
+    .map(s => (s.workshopId as unknown as WorkshopWithMedia).ownerId)
+    .filter((id): id is Types.ObjectId => Boolean(id))
+  const profDocs = ownerIds.length > 0
+    ? await User.find({ _id: { $in: ownerIds } }).select('name').lean<{ _id: Types.ObjectId; name: string }[]>()
+    : []
+  const profMap = new Map(profDocs.map(p => [String(p._id), p.name]))
+
   // Filtrar bookings cuyo slot fue cancelado pero el booking no se actualizó aún (datos inconsistentes)
   const activeUpcomingBookings = upcomingBookings.filter(b => {
     const w = b.workshopId as WorkshopWithSlots
     const slot = w.slots?.[b.slotIndex]
     return !slot?.cancelado
   })
+
+  // Mapa de subscriptionId → próximo booking para usarlo en cada TallerCard
+  const bookingBySub = new Map<string, BookingLean>()
+  for (const b of activeUpcomingBookings) {
+    const subId = String(b.subscriptionId)
+    if (!bookingBySub.has(subId)) bookingBySub.set(subId, b)
+  }
 
   // Variables pre-computadas para el hero unificado
   const totalDisponibles = subscriptions.reduce((acc, s) => {
@@ -193,80 +212,6 @@ export default async function AlumnoDashboard() {
       )}
 
       {/* Clases de prueba compradas */}
-      {clasesPrueba.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold text-gray-800 mb-3">Mis clases de prueba</h2>
-          <div className="space-y-4">
-            {clasesPrueba.map(cp => (
-              <div key={cp.enrollmentId} className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 space-y-3">
-                {/* Encabezado */}
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Clase de prueba</span>
-                    <h3 className="font-bold text-gray-900 mt-0.5">{cp.titulo}</h3>
-                  </div>
-                  <span className="shrink-0 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Pagado</span>
-                </div>
-                {/* Detalles */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                  {/* Horario */}
-                  {cp.horaInicio && (
-                    <div className="flex items-start gap-2">
-                      <span className="text-amber-500 shrink-0">🕐</span>
-                      <div>
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Horario</p>
-                        <p className="text-gray-800 font-medium">
-                          {cp.diaSemana ?? ''}
-                          {cp.fechaSlot
-                            ? ` ${new Date(cp.fechaSlot + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })}`
-                            : ''}
-                        </p>
-                        <p className="text-gray-600">{cp.horaInicio} – {cp.horaFin} hrs</p>
-                      </div>
-                    </div>
-                  )}
-                  {/* Profesor */}
-                  <div className="flex items-start gap-2">
-                    <span className="text-amber-500 shrink-0">👤</span>
-                    <div>
-                      <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Profesor/a</p>
-                      <p className="text-gray-800 font-medium">{cp.profesorNombre}</p>
-                    </div>
-                  </div>
-                  {/* Dirección */}
-                  {cp.direccion && (
-                    <div className="flex items-start gap-2 sm:col-span-2">
-                      <span className="text-amber-500 shrink-0">📍</span>
-                      <div>
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Dirección</p>
-                        <p className="text-gray-800">{cp.direccion}</p>
-                      </div>
-                    </div>
-                  )}
-                  {/* Precio pagado */}
-                  <div className="flex items-start gap-2">
-                    <span className="text-amber-500 shrink-0">💳</span>
-                    <div>
-                      <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Monto pagado</p>
-                      <p className="text-gray-800 font-medium">${cp.monto.toLocaleString('es-CL')}</p>
-                    </div>
-                  </div>
-                </div>
-                {/* CTA suscripción */}
-                <div className="pt-1 border-t border-amber-200">
-                  <Link
-                    href={`/talleres/${cp.slug}`}
-                    className="text-sm text-purple-700 font-semibold hover:underline"
-                  >
-                    Suscribirme al taller completo →
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
       {/* Hero unificado: próxima clase / sin reserva / bienvenida */}
       {proximaBooking !== null && proximaWorkshop && proximaFecha ? (
         // Estado: hay clase reservada → hero morado
@@ -319,8 +264,8 @@ export default async function AlumnoDashboard() {
               </Link>
             </>
           ) : (
-            // Solo tiene clase de prueba arriba — los detalles ya se ven en su sección
-            <p className="text-sm text-gray-600 mt-1">Tu clase de prueba está arriba con todos los detalles.</p>
+            // Solo tiene clase de prueba — los detalles ya se ven en su card de "Mis talleres"
+            <p className="text-sm text-gray-600 mt-1">Tu clase de prueba aparece en “Mis talleres” con todos los detalles.</p>
           )}
         </div>
       ) : (
@@ -338,64 +283,55 @@ export default async function AlumnoDashboard() {
         </div>
       )}
 
-      {/* Mis talleres (suscripciones activas) — solo si hay suscripciones */}
-      {subscriptions.length > 0 && (
+
+      {/* Mis talleres: suscripciones activas + clases de prueba unificadas */}
+      {(subscriptions.length > 0 || clasesPrueba.length > 0) && (
         <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-gray-800">Mis talleres</h2>
-          </div>
+          <h2 className="text-lg font-semibold text-gray-800 mb-3">Mis talleres</h2>
           <div className="space-y-3">
             {subscriptions.map(s => {
               const prepaid = s.clasesPrepagadas
               const prepaidActivo = prepaid && prepaid.consumidas < prepaid.cantidad
-              const workshopRef = s.workshopId as WorkshopRef
-              // Contar cancelaciones del prof en este taller (últimos 30 días)
-              const devueltas = cancelledByProf.filter(b => (b.workshopId as WorkshopRef).slug === workshopRef.slug).length
-              // Sesiones disponibles efectivas
+              const wMedia = s.workshopId as unknown as WorkshopWithMedia
+              const devueltas = cancelledByProf.filter(b => (b.workshopId as WorkshopRef).slug === wMedia.slug).length
               const disponibles = prepaidActivo ? (prepaid!.cantidad - prepaid!.consumidas) : s.sesionesDisponibles
+              const profesorNombre = profMap.get(String(wMedia.ownerId)) ?? 'Tallerista'
+              const proxBooking = bookingBySub.get(String(s._id))
+              const proxSlot = proxBooking ? (proxBooking.workshopId as WorkshopWithSlots).slots?.[proxBooking.slotIndex] : undefined
+              // Si esta sub es la del hero superior, ocultar fecha aquí para evitar duplicación
+              const isHeroBooking = proximaBooking !== null && String(proximaBooking.subscriptionId) === String(s._id)
               return (
-              <div key={String(s._id)} className={`bg-white rounded-xl px-4 py-4 border ${devueltas > 0 ? 'border-amber-300' : 'border-gray-200'}`}>
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <p className="font-medium text-gray-900 text-sm leading-snug">{workshopRef.titulo}</p>
-                  {/* Contador de sesiones disponibles */}
-                  <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${disponibles > 0 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500'}`}>
-                    🎟️ {disponibles} {disponibles === 1 ? 'clase' : 'clases'}
-                  </span>
-                </div>
-
-                {/* Aviso devolución */}
-                {devueltas > 0 && (
-                  <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5 mb-2 flex items-center gap-1.5">
-                    <span>⚡</span>
-                    {devueltas === 1 ? '1 sesión devuelta por tu profesor — ya disponible' : `${devueltas} sesiones devueltas por tu profesor — ya disponibles`}
-                  </p>
-                )}
-
-                {prepaidActivo ? (
-                  <p className="text-xs text-gray-500 mb-3">
-                    Prepagada ·{' '}
-                    {prepaid!.caducaEn ? (
-                      <span className={new Date(prepaid!.caducaEn) < new Date() ? 'text-red-600 font-medium' : ''}>
-                        {new Date(prepaid!.caducaEn) < new Date() ? 'Caducó' : 'Caduca'} el {new Date(prepaid!.caducaEn).toLocaleDateString('es-CL')}
-                      </span>
-                    ) : (
-                      <>Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}</>
-                    )}
-                  </p>
-                ) : (
-                  <p className="text-xs text-gray-500 mb-3">
-                    {s.sesionesTotales} totales · Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}
-                  </p>
-                )}
-                <Link
-                  href={`/alumno/reservas?sub=${String(s._id)}&workshop=${encodeURIComponent(workshopRef.slug)}`}
-                  className={`flex items-center justify-center gap-1 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors ${disponibles > 0 ? 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800' : 'bg-gray-300 cursor-not-allowed pointer-events-none'}`}
-                >
-                  {disponibles > 0 ? 'Reservar otra clase' : 'Ya usaste todas tus clases · Renovar'}
-                </Link>
-              </div>
+                <TallerCard
+                  key={String(s._id)}
+                  titulo={wMedia.titulo}
+                  slug={wMedia.slug}
+                  imageUrl={wMedia.imagenes?.[0]}
+                  profesorNombre={profesorNombre}
+                  clasesRestantes={disponibles}
+                  sesionesTotales={s.sesionesTotales}
+                  fechaVencimiento={s.fechaVencimiento}
+                  caducaEn={prepaid?.caducaEn}
+                  subscriptionId={String(s._id)}
+                  proximaBooking={proxBooking && proxSlot ? { horaInicio: proxSlot.horaInicio, horaFin: proxSlot.horaFin, fecha: proxBooking.fecha } : null}
+                  hideProximaBooking={isHeroBooking}
+                  devueltas={devueltas}
+                />
               )
             })}
+            {clasesPrueba.map(cp => (
+              <TallerCard
+                key={cp.enrollmentId}
+                titulo={cp.titulo}
+                slug={cp.slug}
+                profesorNombre={cp.profesorNombre}
+                esClasePrueba
+                horaInicioSlot={cp.horaInicio || undefined}
+                horaFinSlot={cp.horaFin || undefined}
+                fechaSlotStr={cp.fechaSlot}
+                diaSemana={cp.diaSemana || undefined}
+                montoPagado={cp.monto}
+              />
+            ))}
           </div>
         </section>
       )}

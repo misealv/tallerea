@@ -22,4 +22,6 @@ export const TRANSFORM = {
   gallery: 'c_fill,g_auto,w_1200,h_675,q_auto,f_auto',
   // Thumbnails de la galería (64x48px)
   thumbnail: 'c_fill,g_auto,w_128,h_96,q_auto,f_auto',
+  // Card pequeña en dashboard alumno (~64x64px display, retina 2x)
+  dashboardCard: 'c_fill,g_auto,w_128,h_128,q_auto,f_auto',
 } as const
