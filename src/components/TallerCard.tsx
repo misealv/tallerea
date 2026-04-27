@@ -113,6 +113,17 @@ export default function TallerCard({
               <span className={`text-sm font-semibold ${clasesRestantes > 0 ? 'text-purple-700' : 'text-gray-400'}`}>
                 {clasesRestantes} {clasesRestantes === 1 ? 'clase restante' : 'clases restantes'}
               </span>
+              {/* Tooltip CSS puro — diferencia clases vs saldo a favor */}
+              <div className="relative group inline-flex items-center">
+                <span
+                  className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 text-gray-400 text-[10px] font-bold cursor-default select-none hover:bg-gray-200 transition-colors"
+                  aria-label="Información sobre clases"
+                >?</span>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-800 text-white text-xs rounded-lg px-3 py-2 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-20 shadow-lg">
+                  Estas clases ya están pagadas para este taller. Son distintas del saldo a favor (CLP).
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                </div>
+              </div>
             </div>
             {caducaEn ? (
               <span className={`text-xs ${hasCaducado ? 'text-red-600 font-medium' : 'text-gray-400'}`}>

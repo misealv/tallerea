@@ -197,17 +197,45 @@ export default async function AlumnoDashboard() {
       {/* Tarjeta saldo a favor */}
       {(user?.creditoDisponible ?? 0) > 0 && (
         <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">💰 Saldo a favor</p>
-            <Link href="/alumno/credito" className="text-xs text-green-700 underline">Ver historial</Link>
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">💰</span>
+              <p className="text-sm font-semibold text-green-800 uppercase tracking-wide">Saldo a favor</p>
+            </div>
+            {/* Tooltip CSS puro — explicación del saldo */}
+            <div className="relative group inline-flex items-center shrink-0">
+              <span
+                className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100 text-green-500 text-[10px] font-bold cursor-default select-none hover:bg-green-200 transition-colors"
+                aria-label="¿Qué es el saldo a favor?"
+              >?</span>
+              <div className="absolute bottom-full right-0 mb-2 w-64 bg-gray-800 text-white text-xs rounded-lg px-3 py-2.5 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-20 shadow-lg">
+                El saldo a favor son CLP que te devolvimos por una cancelación. Solo sirve para comprar nuevos talleres o paquetes — no se puede usar para pagar clases ya inscritas.
+                <div className="absolute top-full right-3 border-4 border-transparent border-t-gray-800" />
+              </div>
+            </div>
           </div>
-          <p className="text-2xl font-bold text-green-800">
-            ${(user?.creditoDisponible ?? 0).toLocaleString('es-CL')} CLP
+          <p className="text-3xl font-bold text-green-800 leading-tight">
+            ${(user?.creditoDisponible ?? 0).toLocaleString('es-CL')}
+            <span className="text-base font-normal text-green-600 ml-1">CLP</span>
           </p>
-          <p className="text-xs text-green-600 mt-1.5">
-            Es dinero a tu favor por una devolución. Se descuenta automáticamente cuando compres tu próximo taller.
+          <p className="text-xs text-green-700 mt-2 leading-relaxed">
+            Es dinero a tu favor por una devolución. Se descuenta automáticamente cuando compres tu próximo taller.{' '}
+            <span className="font-medium">No sirve para pagar clases ya inscritas.</span>
           </p>
-          <Link href="/talleres" className="inline-block mt-2 text-xs text-green-800 font-semibold hover:underline">Explorar talleres →</Link>
+          <div className="flex gap-2 mt-3">
+            <Link
+              href="/talleres"
+              className="flex-1 text-center text-xs font-semibold text-white bg-green-700 hover:bg-green-800 py-2 rounded-lg transition-colors"
+            >
+              Explorar talleres
+            </Link>
+            <Link
+              href="/alumno/credito"
+              className="flex-1 text-center text-xs font-semibold text-green-800 border border-green-300 hover:bg-green-100 py-2 rounded-lg transition-colors"
+            >
+              Ver historial
+            </Link>
+          </div>
         </div>
       )}
 
