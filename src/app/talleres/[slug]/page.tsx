@@ -450,7 +450,6 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               } : undefined}
               cupoPorSesion={workshop.cupoPorSesion}
               plan={workshop.plan ?? null}
-              comisionPct={comisionPct}
             />
           </div>
         </div>

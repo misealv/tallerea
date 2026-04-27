@@ -30,7 +30,6 @@ interface Props {
   clasePrueba?: ClasePrueba
   cupoPorSesion?: number
   plan?: { sesionesIncluidas: number; vigencia: string } | null
-  comisionPct: number
 }
 
 const CLP = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n)
@@ -46,7 +45,6 @@ export default function PrecioCard({
   clasePrueba,
   cupoPorSesion,
   plan,
-  comisionPct,
 }: Props) {
   const router = useRouter()
 
