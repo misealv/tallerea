@@ -404,10 +404,19 @@ export async function sendSesionCancelada({
   const resend = getResend()
   const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
   const firstName = studentName.split(' ')[0]
+
+  // Escapar entidades HTML para evitar XSS en clientes de email
+  function esc(s: string) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  }
+  const safeFirst    = esc(firstName)
+  const safeTitle    = esc(workshopTitle)
+  const safeDependent = dependentNombre ? esc(dependentNombre) : undefined
+
   // Si la sesión era para un dependiente, personalizar saludo y cuerpo
-  const saludoHtml = dependentNombre
-    ? `<p>Hola <strong>${firstName}</strong>,</p><p>El tallerista canceló la siguiente sesión de <strong>${workshopTitle}</strong> para <strong>${dependentNombre}</strong>:</p>`
-    : `<p>Hola <strong>${firstName}</strong>,</p><p>El tallerista canceló la siguiente sesión de <strong>${workshopTitle}</strong>:</p>`
+  const saludoHtml = safeDependent
+    ? `<p>Hola <strong>${safeFirst}</strong>,</p><p>El tallerista canceló la siguiente sesión de <strong>${safeTitle}</strong> para <strong>${safeDependent}</strong>:</p>`
+    : `<p>Hola <strong>${safeFirst}</strong>,</p><p>El tallerista canceló la siguiente sesión de <strong>${safeTitle}</strong>:</p>`
 
   await resend.emails.send({
     from: FROM_EMAIL,
@@ -418,8 +427,8 @@ export async function sendSesionCancelada({
         <h2 style="color: #7c3aed;">Sesión cancelada</h2>
         ${saludoHtml}
         <div style="background: #fef2f2; border-left: 4px solid #ef4444; border-radius: 8px; padding: 16px 20px; margin: 16px 0;">
-          <p style="margin: 4px 0;"><strong>Taller:</strong> ${workshopTitle}</p>
-          ${dependentNombre ? `<p style="margin: 4px 0;"><strong>Alumno:</strong> ${dependentNombre}</p>` : ''}
+          <p style="margin: 4px 0;"><strong>Taller:</strong> ${safeTitle}</p>
+          ${safeDependent ? `<p style="margin: 4px 0;"><strong>Alumno:</strong> ${safeDependent}</p>` : ''}
           <p style="margin: 4px 0;"><strong>Fecha:</strong> ${fecha}</p>
           <p style="margin: 4px 0;"><strong>Horario:</strong> ${horaInicio} – ${horaFin}</p>
         </div>

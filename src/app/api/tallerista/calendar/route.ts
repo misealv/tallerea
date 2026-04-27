@@ -75,14 +75,24 @@ export async function PATCH(req: NextRequest) {
         const students = await User.find({ _id: { $in: allStudentIds } })
           .select('name email').lean<UserEmailLean[]>()
 
-        // Mapa studentId → dependentNombreSnapshot (solo de bookings, enrollments no tienen dependiente)
-        const dependentMap = new Map<string, string>()
+        // Mapa studentId → lista de dependentes (un titular puede tener varios hijos en el mismo slot)
+        const dependentMap = new Map<string, string[]>()
         for (const b of bookings) {
-          if (b.dependentNombreSnapshot) dependentMap.set(String(b.studentId), b.dependentNombreSnapshot)
+          if (b.dependentNombreSnapshot) {
+            const k = String(b.studentId)
+            const arr = dependentMap.get(k) ?? []
+            if (!arr.includes(b.dependentNombreSnapshot)) arr.push(b.dependentNombreSnapshot)
+            dependentMap.set(k, arr)
+          }
         }
 
-        await Promise.allSettled(students.map(s =>
-          sendSesionCancelada({
+        await Promise.allSettled(students.map(s => {
+          const deps = dependentMap.get(String(s._id))
+          // Si hay varios dependientes, concatenar con " y "
+          const dependentNombre = deps && deps.length > 0
+            ? deps.length === 1 ? deps[0] : deps.slice(0, -1).join(', ') + ' y ' + deps[deps.length - 1]
+            : undefined
+          return sendSesionCancelada({
             studentEmail: s.email,
             studentName: s.name,
             workshopTitle: workshop.titulo,
@@ -90,9 +100,9 @@ export async function PATCH(req: NextRequest) {
             fecha: slotFecha,
             horaInicio: slot.horaInicio,
             horaFin: slot.horaFin,
-            dependentNombre: dependentMap.get(String(s._id)),
+            dependentNombre,
           })
-        ))
+        }))
       }
     } catch {
       // Error de email no bloquea la respuesta
