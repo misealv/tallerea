@@ -10,7 +10,7 @@ import PublicWeeklyCalendar from '@/components/PublicWeeklyCalendar'
 import WorkshopGallery from '@/components/WorkshopGallery'
 import ClasePruebaCTA from '@/components/ClasePruebaCTA'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 3600 // 1 hora — Googlebot obtiene página cacheada en edge
 
 interface PageProps {
   params: Promise<{ slug: string }>
@@ -104,6 +104,62 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
 
   return (
     <>
+      {/* JSON-LD Schema.org — Course + Offer para rich snippets en Google */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'Course',
+            name: workshop.titulo,
+            description: workshop.descripcion,
+            url: `https://tallerea.cl/talleres/${workshop.slug}`,
+            image: workshop.imagenes?.[0] ?? undefined,
+            ...(workshop.reviewsCount > 0 && {
+              aggregateRating: {
+                '@type': 'AggregateRating',
+                ratingValue: workshop.reviewsAvg.toFixed(1),
+                reviewCount: workshop.reviewsCount,
+                bestRating: 5,
+                worstRating: 1,
+              },
+            }),
+            provider: {
+              '@type': 'Person',
+              name: owner?.name ?? 'Tallerea',
+              ...(owner?.taller?.slug && {
+                url: `https://tallerea.cl/talleristas/${owner.taller.slug}`,
+              }),
+            },
+            offers: {
+              '@type': 'Offer',
+              priceCurrency: 'CLP',
+              price: (() => {
+                const esNeto = workshop.precioModalidad === 'neto'
+                const bruto = esNeto ? Math.round((workshop.precio ?? 0) * 100 / (100 - 15)) : (workshop.precio ?? 0)
+                return bruto
+              })(),
+              availability: (workshop.cupoPorSesion ?? 0) > 0
+                ? 'https://schema.org/InStock'
+                : 'https://schema.org/SoldOut',
+              url: `https://tallerea.cl/talleres/${workshop.slug}`,
+            },
+            ...(loc && {
+              location: {
+                '@type': 'Place',
+                name: loc.nombre,
+                address: {
+                  '@type': 'PostalAddress',
+                  addressLocality: loc.comuna,
+                  addressRegion: loc.ciudad,
+                  addressCountry: 'CL',
+                },
+              },
+            }),
+            inLanguage: 'es',
+          }),
+        }}
+      />
       <Navbar />
       <main className="max-w-4xl mx-auto px-4 py-8">
         {/* Breadcrumb */}

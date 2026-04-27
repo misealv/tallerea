@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+# Bloquear rutas privadas
+Disallow: /admin/
+Disallow: /alumno/
+Disallow: /tallerista/
+Disallow: /magic/
+Disallow: /api/
+
+# Sitemap
+Sitemap: https://tallerea.cl/sitemap.xml

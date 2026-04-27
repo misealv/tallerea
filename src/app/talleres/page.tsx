@@ -6,7 +6,7 @@ import Footer from '@/components/Footer'
 import WorkshopCard from '@/components/WorkshopCard'
 import SearchFilters from '@/components/SearchFilters'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 300 // 5 min — listado se mantiene fresco sin penalizar performance
 
 export const metadata = {
   title: 'Buscar talleres de arte — Tallerea',
