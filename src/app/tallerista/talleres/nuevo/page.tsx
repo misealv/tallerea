@@ -380,14 +380,14 @@ export default function NuevoTallerPage() {
               folder="tallerea/workshops"
               images={p2.imagenes}
               onChange={imgs => up2('imagenes', imgs)}
-              max={10}
+              max={5}
               label="Subir fotos"
             />
             <StockImagePicker
               tipo={p1.tipo}
               titulo={p1.titulo}
               currentCount={p2.imagenes.length}
-              max={10}
+              max={5}
               onImport={url => up2('imagenes', [...p2.imagenes, url])}
             />
           </div>

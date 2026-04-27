@@ -319,14 +319,14 @@ export default function EditarTallerPage() {
             folder="tallerea/workshops"
             images={form.imagenes}
             onChange={imgs => up('imagenes', imgs)}
-            max={10}
+            max={5}
             label="Subir fotos"
           />
           <StockImagePicker
             tipo={form.tipo}
             titulo={form.titulo}
             currentCount={form.imagenes.length}
-            max={10}
+            max={5}
             onImport={url => up('imagenes', [...form.imagenes, url])}
           />
         </div>
