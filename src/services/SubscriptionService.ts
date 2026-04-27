@@ -1,9 +1,10 @@
+import 'server-only'
 import mongoose from 'mongoose'
 import dbConnect from '@/lib/db'
 import Subscription, { ISubscription } from '@/models/Subscription'
 import Booking from '@/models/Booking'
 import Workshop from '@/models/Workshop'
-import User from '@/models/User'
+import User, { IDependent } from '@/models/User'
 import { FinanceService } from '@/services/FinanceService'
 import { SiteConfigService } from '@/services/SiteConfigService'
 import { createPaymentPreference } from '@/lib/mercadopago'
@@ -498,5 +499,195 @@ export const SubscriptionService = {
   async delete(id: string): Promise<void> {
     await dbConnect()
     await Subscription.findByIdAndUpdate(id, { activo: false })
+  },
+
+  /**
+   * Inscripción manual de un alumno por parte del tallerista (taller recurrente).
+   * - Encuentra o crea el User por email.
+   * - Opcionalmente agrega/usa un dependiente.
+   * - Crea Subscription en estado 'activa', sin PaymentBreakdown.
+   * - [FINANCE RISK] NO genera PaymentBreakdown ni modifica liquidaciones.
+   * - Envía magic link al email del titular (sin opt-out).
+   */
+  async createManual(input: {
+    ownerId: string
+    workshopId: string
+    studentEmail: string
+    studentNombre: string
+    dependentNombre?: string
+    dependentFechaNacimiento?: Date
+    dependentNotas?: string
+    precioEspecial: boolean
+    precioSnapshot?: number
+    notaPrecioEspecial?: string
+    clasesPrepagadas?: {
+      cantidad: number
+      fechaPago: Date
+      metodoPago: string
+      montoDeclarado?: number
+      notaTallerista?: string
+    }
+    notaTallerista?: string
+  }): Promise<ISubscription> {
+    await dbConnect()
+
+    // Validar workshop y ownership
+    const workshop = await Workshop.findOne({ _id: input.workshopId, activo: true })
+    if (!workshop) throw new Error('Taller no encontrado')
+    const ownerIdStr = String(workshop.ownerId ?? workshop.accountId ?? '')
+    if (ownerIdStr !== input.ownerId) throw new Error('No tienes permiso sobre este taller')
+    if (workshop.modeloAcceso !== 'recurrente') {
+      throw new Error('createManual de Subscription es solo para talleres recurrentes. Usa EnrollmentService.createManual para puntuales.')
+    }
+
+    // Precio especial requiere snapshot
+    if (input.precioEspecial && (input.precioSnapshot == null || input.precioSnapshot < 0)) {
+      throw new Error('[FINANCE RISK] precioSnapshot es obligatorio cuando precioEspecial=true')
+    }
+    if (input.precioSnapshot != null && !Number.isInteger(input.precioSnapshot)) {
+      throw new Error('[FINANCE RISK] precioSnapshot debe ser un entero (CLP)')
+    }
+
+    // Clases prepagadas: requiere origenInscripcion='manual' — se valida en pre-save
+    if (input.clasesPrepagadas) {
+      if (!Number.isInteger(input.clasesPrepagadas.cantidad) || input.clasesPrepagadas.cantidad < 1) {
+        throw new Error('[PREPAGADO] cantidad debe ser entero positivo')
+      }
+      if (input.clasesPrepagadas.montoDeclarado != null && !Number.isInteger(input.clasesPrepagadas.montoDeclarado)) {
+        throw new Error('[FINANCE RISK] montoDeclarado debe ser entero (CLP)')
+      }
+    }
+
+    // Encontrar o crear User titular
+    const emailNorm = input.studentEmail.toLowerCase().trim()
+    let studentUser = await User.findOne({ email: emailNorm })
+    const isNewUser = !studentUser
+    if (!studentUser) {
+      studentUser = await new User({
+        name: input.studentNombre.trim(),
+        email: emailNorm,
+        role: 'user',
+        activo: true,
+        dependents: [],
+        creditoDisponible: 0,
+      }).save()
+    }
+    const studentId = String(studentUser._id)
+
+    // Manejar dependiente
+    let dependentId: string | undefined
+    let dependentNombreSnapshot: string | undefined
+    if (input.dependentNombre?.trim()) {
+      const nombre = input.dependentNombre.trim()
+      const existing = studentUser.dependents.find(
+        (d: IDependent) => d.activo && d.nombre.toLowerCase() === nombre.toLowerCase()
+      )
+      if (existing) {
+        dependentId = String(existing._id)
+        dependentNombreSnapshot = existing.nombre
+      } else {
+        const { Types } = await import('mongoose')
+        studentUser.dependents.push({
+          _id: new Types.ObjectId(),
+          nombre,
+          fechaNacimiento: input.dependentFechaNacimiento,
+          notas: input.dependentNotas?.trim(),
+          activo: true,
+          createdAt: new Date(),
+        })
+        await studentUser.save()
+        const added = studentUser.dependents[studentUser.dependents.length - 1]
+        dependentId = String(added._id)
+        dependentNombreSnapshot = added.nombre
+      }
+    }
+
+    // Verificar duplicado: suscripción activa para mismo taller+titular+dependiente
+    const dupFilter: Record<string, unknown> = {
+      workshopId: input.workshopId,
+      studentId,
+      estado: 'activa',
+      activo: true,
+    }
+    if (dependentId) dupFilter.dependentId = dependentId
+    else dupFilter.dependentId = { $exists: false }
+    const dup = await Subscription.findOne(dupFilter)
+    if (dup) throw new Error('El alumno ya tiene una suscripción activa en este taller')
+
+    // Calcular vencimiento y sesiones desde plan (si hay clasesPrepagadas, sesiones = cantidad)
+    const ahora = new Date()
+    let fechaVencimiento: Date
+    let sesionesTotales: number
+    let sesionesDisponibles: number
+
+    if (input.clasesPrepagadas) {
+      // Taller prepagado: el vencimiento es técnico (1 año); las sesiones vienen del paquete
+      sesionesTotales = input.clasesPrepagadas.cantidad
+      sesionesDisponibles = input.clasesPrepagadas.cantidad
+      fechaVencimiento = new Date(ahora)
+      fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1)
+    } else if (workshop.plan) {
+      sesionesTotales = workshop.plan.sesionesIncluidas
+      sesionesDisponibles = workshop.plan.sesionesIncluidas
+      fechaVencimiento = calcularVencimiento(workshop.plan.vigencia, ahora)
+    } else {
+      // Taller recurrente sin plan ni prepagado: sesión infinita técnica
+      sesionesTotales = 999
+      sesionesDisponibles = 999
+      fechaVencimiento = new Date(ahora)
+      fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1)
+    }
+
+    const montoFinal = input.precioEspecial
+      ? (input.precioSnapshot ?? 0)
+      : (workshop.precioFijo?.monto ?? workshop.precio ?? 0)
+
+    // Construir clasesPrepagadas doc
+    const clasesPrepagadasDoc = input.clasesPrepagadas ? {
+      cantidad: input.clasesPrepagadas.cantidad,
+      consumidas: 0,
+      fechaPago: input.clasesPrepagadas.fechaPago,
+      metodoPago: input.clasesPrepagadas.metodoPago,
+      montoDeclarado: input.clasesPrepagadas.montoDeclarado,
+      notaTallerista: input.clasesPrepagadas.notaTallerista?.trim(),
+      creadoPor: new mongoose.Types.ObjectId(input.ownerId),
+    } : undefined
+
+    const subscription = await new Subscription({
+      workshopId: input.workshopId,
+      studentId,
+      estado: 'activa',
+      sesionesTotales,
+      sesionesUsadas: 0,
+      sesionesDisponibles,
+      fechaCompra: ahora,
+      fechaVencimiento,
+      pagoRef: 'manual',
+      monto: montoFinal,
+      autoRenovar: false,
+      precioSnapshot: input.precioEspecial ? input.precioSnapshot : undefined,
+      origenInscripcion: 'manual',
+      inscritoPor: input.ownerId,
+      precioEspecial: input.precioEspecial,
+      notaPrecioEspecial: input.notaPrecioEspecial?.trim(),
+      notaTallerista: input.notaTallerista?.trim(),
+      ...(dependentId ? { dependentId, dependentNombreSnapshot } : {}),
+      ...(clasesPrepagadasDoc ? { clasesPrepagadas: clasesPrepagadasDoc } : {}),
+      activo: true,
+    }).save()
+
+    // Emitir magic link (fire-and-forget si falla)
+    if (isNewUser || !studentUser.password) {
+      try {
+        const { issueMagicLink } = await import('@/lib/issueMagicLink')
+        const { sendMagicLink } = await import('@/lib/resend')
+        const { magicUrl } = await issueMagicLink(studentId)
+        await sendMagicLink({ email: emailNorm, magicUrl })
+      } catch {
+        // No bloquear la inscripción por fallo de email
+      }
+    }
+
+    return subscription.toObject() as ISubscription
   },
 }

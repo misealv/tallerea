@@ -62,10 +62,18 @@ export default async function InscritosPage({ params }: { params: { id: string }
 
   return (
     <div className="space-y-10 max-w-3xl">
-      <div>
-        <Link href="/tallerista/talleres" className="text-sm text-indigo-600 hover:underline">← Mis talleres</Link>
-        <h1 className="mt-3 text-2xl font-bold text-gray-900">{workshop.titulo}</h1>
-        <p className="text-sm text-gray-500 mt-1">Inscritos y reservas activas</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <Link href="/tallerista/talleres" className="text-sm text-indigo-600 hover:underline">← Mis talleres</Link>
+          <h1 className="mt-3 text-2xl font-bold text-gray-900">{workshop.titulo}</h1>
+          <p className="text-sm text-gray-500 mt-1">Inscritos y reservas activas</p>
+        </div>
+        <Link
+          href={`/tallerista/talleres/${params.id}/inscribir`}
+          className="shrink-0 mt-6 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+        >
+          + Inscribir alumno
+        </Link>
       </div>
 
       {/* Inscripciones puntuales */}

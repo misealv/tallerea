@@ -1,9 +1,10 @@
+import 'server-only'
 import mongoose from 'mongoose'
 import dbConnect from '@/lib/db'
 import Enrollment, { IEnrollment } from '@/models/Enrollment'
 import Workshop from '@/models/Workshop'
+import User, { IDependent, IUser } from '@/models/User'
 import { CreditService } from '@/services/CreditService'
-import '@/models/User'
 
 interface PaginatedResult<T> {
   data: T[]
@@ -360,5 +361,161 @@ export const EnrollmentService = {
     } finally {
       session.endSession()
     }
+  },
+
+  /**
+   * Inscripción manual de un alumno por parte del tallerista (clase puntual).
+   * - Encuentra o crea el User por email.
+   * - Opcionalmente agrega/usa un dependiente.
+   * - Crea Enrollment con origenInscripcion='manual', estado='pagado', inscritoPor=ownerId.
+   * - [FINANCE RISK] NO genera PaymentBreakdown ni modifica liquidaciones.
+   * - Envía magic link al email del titular (sin opt-out).
+   */
+  async createManual(input: {
+    ownerId: string
+    workshopId: string
+    studentEmail: string
+    studentNombre: string
+    dependentNombre?: string
+    dependentFechaNacimiento?: Date
+    dependentNotas?: string
+    slotIndex: number | null
+    montoPagado: number
+    notaTallerista?: string
+  }): Promise<IEnrollment> {
+    await dbConnect()
+
+    // Validar workshop y ownership
+    const workshop = await Workshop.findOne({ _id: input.workshopId, activo: true })
+    if (!workshop) throw new Error('Taller no encontrado')
+    const ownerIdStr = String(workshop.ownerId ?? workshop.accountId ?? '')
+    if (ownerIdStr !== input.ownerId) throw new Error('No tienes permiso sobre este taller')
+    if (workshop.modeloAcceso !== 'puntual') {
+      throw new Error('createManual de Enrollment es solo para talleres puntuales. Usa SubscriptionService.createManual para recurrentes.')
+    }
+
+    // Validar slot
+    const slotIndex = input.slotIndex ?? null
+    if (slotIndex !== null) {
+      const slot = workshop.slots[slotIndex]
+      if (!slot) throw new Error('Slot no encontrado')
+      if (slot.cancelado) throw new Error('Esa sesión está cancelada')
+      if (slot.cupoDisponible <= 0) throw new Error('No hay cupo en esa sesión')
+    }
+
+    // Encontrar o crear User titular
+    const emailNorm = input.studentEmail.toLowerCase().trim()
+    let studentUser = await User.findOne({ email: emailNorm })
+    const isNewUser = !studentUser
+    if (!studentUser) {
+      studentUser = await new User({
+        name: input.studentNombre.trim(),
+        email: emailNorm,
+        role: 'user',
+        activo: true,
+        dependents: [],
+        creditoDisponible: 0,
+      }).save()
+    }
+    const studentId = String(studentUser._id)
+
+    // Manejar dependiente (agregar al User si no existe)
+    let dependentId: string | undefined
+    let dependentNombreSnapshot: string | undefined
+    if (input.dependentNombre?.trim()) {
+      const nombre = input.dependentNombre.trim()
+      // Reusar dependiente activo con el mismo nombre exacto (case-insensitive)
+      const existing = studentUser.dependents.find(
+        (d: IDependent) => d.activo && d.nombre.toLowerCase() === nombre.toLowerCase()
+      )
+      if (existing) {
+        dependentId = String(existing._id)
+        dependentNombreSnapshot = existing.nombre
+      } else {
+        const { Types } = await import('mongoose')
+        studentUser.dependents.push({
+          _id: new Types.ObjectId(),
+          nombre,
+          fechaNacimiento: input.dependentFechaNacimiento,
+          notas: input.dependentNotas?.trim(),
+          activo: true,
+          createdAt: new Date(),
+        })
+        await studentUser.save()
+        const added = studentUser.dependents[studentUser.dependents.length - 1]
+        dependentId = String(added._id)
+        dependentNombreSnapshot = added.nombre
+      }
+    }
+
+    // Verificar duplicado (Enrollment activo para mismo taller+slot+titular+dependiente)
+    const dupFilter: Record<string, unknown> = {
+      workshopId: input.workshopId,
+      studentId,
+      slotIndex,
+      activo: true,
+      estado: { $in: ['pendiente', 'pagado'] },
+    }
+    if (dependentId) dupFilter.dependentId = dependentId
+    else dupFilter.dependentId = { $exists: false }
+    const dup = await Enrollment.findOne(dupFilter)
+    if (dup) throw new Error('El alumno ya está inscrito en este horario')
+
+    // Crear Enrollment + decrementar cupo en transacción
+    const session = await mongoose.startSession()
+    session.startTransaction()
+    let created: IEnrollment
+    try {
+      const [enrollment] = await Enrollment.create([{
+        workshopId: input.workshopId,
+        studentId,
+        slotIndex,
+        monto: input.montoPagado,
+        creditoAplicado: 0,
+        esClasePrueba: false,
+        estado: 'pagado',
+        origenInscripcion: 'manual',
+        inscritoPor: input.ownerId,
+        notaTallerista: input.notaTallerista?.trim(),
+        ...(dependentId ? { dependentId, dependentNombreSnapshot } : {}),
+        activo: true,
+      }], { session })
+
+      if (slotIndex !== null) {
+        await Workshop.findByIdAndUpdate(
+          input.workshopId,
+          { $inc: { [`slots.${slotIndex}.cupoDisponible`]: -1 } },
+          { session }
+        )
+      } else if (workshop.cupoDisponible > 0) {
+        await Workshop.findByIdAndUpdate(
+          input.workshopId,
+          { $inc: { cupoDisponible: -1 } },
+          { session }
+        )
+      }
+
+      await session.commitTransaction()
+      created = enrollment
+    } catch (err) {
+      await session.abortTransaction()
+      throw err
+    } finally {
+      session.endSession()
+    }
+
+    // Emitir magic link (fire-and-forget si falla — la inscripción ya quedó creada)
+    if (isNewUser || !studentUser.password) {
+      try {
+        const { issueMagicLink } = await import('@/lib/issueMagicLink')
+        const { sendMagicLink } = await import('@/lib/resend')
+        const { magicUrl } = await issueMagicLink(studentId)
+        await sendMagicLink({ email: emailNorm, magicUrl })
+      } catch {
+        // No bloquear la inscripción por fallo de email
+      }
+    }
+
+    return created
   },
 }
