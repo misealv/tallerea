@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface Props {
   subscriptionId: string
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function EditarPrecioButton({ subscriptionId, precioActual, notaActual, onUpdated }: Props) {
+  const router = useRouter()
   const [open, setOpen]       = useState(false)
   const [precio, setPrecio]   = useState(String(precioActual))
   const [razon, setRazon]     = useState(notaActual ?? '')
@@ -38,6 +40,7 @@ export default function EditarPrecioButton({ subscriptionId, precioActual, notaA
       if (!res.ok) { setError(data.error ?? 'Error al guardar'); return }
       onUpdated?.(montoNum)
       setOpen(false)
+      router.refresh()  // refresca Server Component para mostrar precio actualizado
     } catch {
       setError('Error de red')
     } finally {

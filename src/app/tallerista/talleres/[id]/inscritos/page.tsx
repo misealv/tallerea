@@ -70,7 +70,9 @@ export default async function InscritosPage({
   const filtro = searchParams?.filtro
   const enrollmentsFiltrados = filtro === 'manual'
     ? enrollments.filter(e => e.origenInscripcion === 'manual')
-    : enrollments
+    : filtro === 'precio-especial'
+      ? []   // los puntuales no tienen precio especial — ocultar sección
+      : enrollments
   const subscriptionsFiltradas = filtro === 'precio-especial'
     ? subscriptions.filter(s => s.precioEspecial)
     : filtro === 'manual'

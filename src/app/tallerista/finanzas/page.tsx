@@ -6,6 +6,7 @@ import dbConnect from '@/lib/db'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
 import Enrollment from '@/models/Enrollment'
 import Subscription from '@/models/Subscription'
+import Workshop from '@/models/Workshop'
 import { Types } from 'mongoose'
 
 export const dynamic = 'force-dynamic'
@@ -53,19 +54,22 @@ export default async function FinanzasPage() {
   await dbConnect()
   const ownerId = session.user.id
 
+  // Obtener IDs de workshops del tallerista para scoping correcto
+  const workshopIds = await Workshop.find({ ownerId, activo: true }).distinct('_id')
+
   const [breakdowns, enrollmentsManuales, subscriptionesManuales] = await Promise.all([
     PaymentBreakdown.find({ ownerId, tipo: 'pago' })
       .populate('workshopId', 'titulo')
       .sort({ createdAt: -1 })
       .limit(50)
       .lean<BreakdownLean[]>(),
-    // Inscripciones manuales puntuales (no generan PaymentBreakdown)
-    Enrollment.find({ activo: true, origenInscripcion: 'manual', inscritoPor: ownerId })
+    // Inscripciones manuales puntuales: scoped por workshopId del owner
+    Enrollment.find({ workshopId: { $in: workshopIds }, activo: true, origenInscripcion: 'manual' })
       .populate('workshopId', 'titulo')
       .sort({ createdAt: -1 })
       .lean<EnrollmentManualLean[]>(),
-    // Suscripciones manuales
-    Subscription.find({ activo: true, origenInscripcion: 'manual', inscritoPor: ownerId })
+    // Suscripciones manuales: scoped por workshopId del owner
+    Subscription.find({ workshopId: { $in: workshopIds }, activo: true, origenInscripcion: 'manual' })
       .populate('workshopId', 'titulo')
       .sort({ createdAt: -1 })
       .lean<SubManualLean[]>(),
@@ -107,7 +111,7 @@ export default async function FinanzasPage() {
         <div className="bg-gray-50 border border-gray-200 rounded-xl px-5 py-4">
           <p className="text-xs text-gray-500 uppercase tracking-wide">Pagos manuales declarados</p>
           <p className="text-2xl font-bold text-gray-700 mt-1">${totalManualDeclarado.toLocaleString('es-CL')}</p>
-          <p className="text-xs text-gray-400 mt-0.5">No entra en liquidaciones</p>
+          <p className="text-xs text-gray-400 mt-0.5">Total histórico · No entra en liquidaciones</p>
         </div>
       </div>
 
