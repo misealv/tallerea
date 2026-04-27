@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import Link from 'next/link'
 
 export default async function AdminLayout({
   children,
@@ -14,17 +15,17 @@ export default async function AdminLayout({
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <a href="/" className="text-xl font-bold text-purple-700">Tallerea</a>
+          <Link href="/" className="text-xl font-bold text-purple-700">Tallerea</Link>
           <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">Admin</span>
         </div>
         <nav className="flex gap-3 text-sm overflow-x-auto max-w-[60vw] md:max-w-none scrollbar-none">
-          <a href="/admin" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Dashboard</a>
-          <a href="/admin/espacios" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Espacios</a>
-          <a href="/admin/usuarios" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Usuarios</a>
-          <a href="/admin/finanzas" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Finanzas</a>
-          <a href="/admin/liquidaciones" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Liq.</a>
-          <a href="/admin/talleristas" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Talleristas</a>
-          <a href="/admin/configuracion" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Config</a>
+          <Link href="/admin" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Dashboard</Link>
+          <Link href="/admin/espacios" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Espacios</Link>
+          <Link href="/admin/usuarios" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Usuarios</Link>
+          <Link href="/admin/finanzas" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Finanzas</Link>
+          <Link href="/admin/liquidaciones" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Liq.</Link>
+          <Link href="/admin/talleristas" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Talleristas</Link>
+          <Link href="/admin/configuracion" className="text-gray-600 hover:text-purple-700 whitespace-nowrap">Config</Link>
         </nav>
       </header>
       <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
