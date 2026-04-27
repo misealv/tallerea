@@ -8,6 +8,7 @@ import Footer from '@/components/Footer'
 import PrecioCard from '@/components/PrecioCard'
 import PublicWeeklyCalendar from '@/components/PublicWeeklyCalendar'
 import WorkshopGallery from '@/components/WorkshopGallery'
+import ClasePruebaCTA from '@/components/ClasePruebaCTA'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,6 +82,16 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
           titulo={workshop.titulo}
           fallbackEmoji={tipoIcon[workshop.tipo] || '✨'}
         />
+
+        {/* CTA Hero — clase de prueba */}
+        {workshop.clasePrueba?.habilitada && (
+          <ClasePruebaCTA
+            workshopId={String(workshop._id)}
+            workshopSlug={workshop.slug}
+            precio={workshop.clasePrueba.precio}
+            variant="hero"
+          />
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-[1fr_300px] gap-8">
           {/* Columna principal */}
@@ -335,6 +346,15 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
             />
           </div>
         </div>
+        {/* CTA Footer — clase de prueba */}
+        {workshop.clasePrueba?.habilitada && (
+          <ClasePruebaCTA
+            workshopId={String(workshop._id)}
+            workshopSlug={workshop.slug}
+            precio={workshop.clasePrueba.precio}
+            variant="footer"
+          />
+        )}
       </main>
       <Footer />
     </>
