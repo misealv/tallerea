@@ -51,7 +51,7 @@ export default function TallerCard({
   const hasCaducado = caducaEn ? new Date(caducaEn) < new Date() : false
 
   return (
-    <div className={`bg-white rounded-xl border overflow-hidden ${devueltas > 0 ? 'border-amber-300' : 'border-gray-200'}`}>
+    <div className={`bg-white rounded-xl border ${devueltas > 0 ? 'border-amber-300' : 'border-gray-200'}`}>
       {/* Encabezado: foto + título + profesor */}
       <div className="flex items-start gap-3 p-4 pb-3">
         {thumbUrl ? (
@@ -113,15 +113,19 @@ export default function TallerCard({
               <span className={`text-sm font-semibold ${clasesRestantes > 0 ? 'text-purple-700' : 'text-gray-400'}`}>
                 {clasesRestantes} {clasesRestantes === 1 ? 'clase restante' : 'clases restantes'}
               </span>
-              {/* Tooltip CSS puro — diferencia clases vs saldo a favor */}
+              {/* Tooltip accesible — funciona con hover, focus y tap (mobile) */}
               <div className="relative group inline-flex items-center">
-                <span
-                  className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 text-gray-400 text-[10px] font-bold cursor-default select-none hover:bg-gray-200 transition-colors"
-                  aria-label="Información sobre clases"
-                >?</span>
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-800 text-white text-xs rounded-lg px-3 py-2 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-20 shadow-lg">
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-xs font-bold cursor-help select-none hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-300 transition-colors"
+                  aria-label="Información sobre clases pagadas"
+                >?</button>
+                <div
+                  role="tooltip"
+                  className="absolute bottom-full left-0 mb-2 w-56 bg-gray-800 text-white text-xs rounded-lg px-3 py-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-20 shadow-lg"
+                >
                   Estas clases ya están pagadas para este taller. Son distintas del saldo a favor (CLP).
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                  <div className="absolute top-full left-3 border-4 border-transparent border-t-gray-800" />
                 </div>
               </div>
             </div>

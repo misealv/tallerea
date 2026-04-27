@@ -202,13 +202,17 @@ export default async function AlumnoDashboard() {
               <span className="text-xl">💰</span>
               <p className="text-sm font-semibold text-green-800 uppercase tracking-wide">Saldo a favor</p>
             </div>
-            {/* Tooltip CSS puro — explicación del saldo */}
+            {/* Tooltip accesible — funciona con hover, focus y tap (mobile) */}
             <div className="relative group inline-flex items-center shrink-0">
-              <span
-                className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100 text-green-500 text-[10px] font-bold cursor-default select-none hover:bg-green-200 transition-colors"
+              <button
+                type="button"
+                className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-100 text-green-700 text-sm font-bold cursor-help select-none hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors"
                 aria-label="¿Qué es el saldo a favor?"
-              >?</span>
-              <div className="absolute bottom-full right-0 mb-2 w-64 bg-gray-800 text-white text-xs rounded-lg px-3 py-2.5 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-20 shadow-lg">
+              >?</button>
+              <div
+                role="tooltip"
+                className="absolute bottom-full right-0 mb-2 w-64 bg-gray-800 text-white text-xs rounded-lg px-3 py-2.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-20 shadow-lg"
+              >
                 El saldo a favor son CLP que te devolvimos por una cancelación. Solo sirve para comprar nuevos talleres o paquetes — no se puede usar para pagar clases ya inscritas.
                 <div className="absolute top-full right-3 border-4 border-transparent border-t-gray-800" />
               </div>
@@ -239,7 +243,6 @@ export default async function AlumnoDashboard() {
         </div>
       )}
 
-      {/* Clases de prueba compradas */}
       {/* Hero unificado: próxima clase / sin reserva / bienvenida */}
       {proximaBooking !== null && proximaWorkshop && proximaFecha ? (
         // Estado: hay clase reservada → hero morado
