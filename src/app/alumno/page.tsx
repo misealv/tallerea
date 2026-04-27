@@ -144,8 +144,29 @@ export default async function AlumnoDashboard() {
     return !slot?.cancelado
   })
 
+  // Variables pre-computadas para el hero unificado
+  const totalDisponibles = subscriptions.reduce((acc, s) => {
+    const prepaid = s.clasesPrepagadas
+    return acc + (prepaid && prepaid.consumidas < prepaid.cantidad
+      ? prepaid.cantidad - prepaid.consumidas
+      : s.sesionesDisponibles)
+  }, 0)
+  const hasActiveTalleres = subscriptions.length > 0 || clasesPrueba.length > 0
+  const proximaBooking = activeUpcomingBookings[0] ?? null
+  const otrasBookingsCount = Math.max(0, activeUpcomingBookings.length - 1)
+
+  // Datos derivados del proximaBooking (evita IIFE en JSX)
+  let proximaWorkshop: WorkshopWithSlots | null = null
+  let proximaSlot: { horaInicio: string; horaFin: string; cancelado?: boolean } | undefined
+  let proximaFecha: Date | null = null
+  if (proximaBooking) {
+    proximaWorkshop = proximaBooking.workshopId as WorkshopWithSlots
+    proximaSlot = proximaWorkshop.slots?.[proximaBooking.slotIndex]
+    proximaFecha = new Date(proximaBooking.fecha)
+  }
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Saludo */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
@@ -246,101 +267,83 @@ export default async function AlumnoDashboard() {
         </section>
       )}
 
-      {/* Banner: sesiones canceladas por el profesor (últimos 30 días) */}
-      {cancelledByProf.length > 0 && (
-        <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-4 space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">⚠️</span>
-            <p className="font-semibold text-amber-800 text-sm">
-              Tu profesor canceló {cancelledByProf.length === 1 ? 'una sesión' : `${cancelledByProf.length} sesiones`}
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            {cancelledByProf.map(b => {
-              const w = b.workshopId as WorkshopRef
-              const fecha = new Date(b.fecha)
-              return (
-                <div key={String(b._id)} className="flex items-start gap-2 text-sm text-amber-900">
-                  <span className="shrink-0 text-amber-500">→</span>
-                  <span>
-                    <span className="font-medium">{w.titulo}</span>
-                    {' — '}
-                    <span className="capitalize">
-                      {fecha.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}
-                    </span>
-                    <span className="ml-1.5 inline-flex items-center bg-green-100 text-green-700 text-xs font-semibold px-2 py-0.5 rounded-full">
-                      ✓ 1 sesión devuelta
-                    </span>
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-          <p className="text-xs text-amber-700 pt-1">
-            Las sesiones devueltas ya están disponibles en tu suscripción. Puedes reservar otro horario.
+      {/* Hero unificado: próxima clase / sin reserva / bienvenida */}
+      {proximaBooking !== null && proximaWorkshop && proximaFecha ? (
+        // Estado: hay clase reservada → hero morado
+        <div className="bg-purple-600 rounded-2xl px-5 py-5 text-white">
+          <p className="text-xs font-semibold uppercase tracking-wide text-purple-200">Tu próxima clase</p>
+          <p className="font-bold text-lg mt-1 leading-tight">{proximaWorkshop.titulo}</p>
+          {proximaSlot && (
+            <p className="text-3xl font-bold mt-3 tabular-nums">{proximaSlot.horaInicio} – {proximaSlot.horaFin}</p>
+          )}
+          <p className="text-sm text-purple-200 mt-1 capitalize">
+            {proximaFecha.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
+          {otrasBookingsCount > 0 && (
+            <p className="text-xs text-purple-200 mt-2">
+              + {otrasBookingsCount} {otrasBookingsCount === 1 ? 'clase reservada' : 'clases reservadas'} más
+            </p>
+          )}
+          <div className="mt-4 pt-3 border-t border-purple-500">
+            <CancelBookingButton bookingId={String(proximaBooking._id)} />
+          </div>
+        </div>
+      ) : hasActiveTalleres ? (
+        // Estado: tiene talleres activos pero sin clase agendada → hero gris
+        <div className="bg-gray-100 border border-gray-200 rounded-2xl px-5 py-5">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Tu próxima clase</p>
+          {totalDisponibles > 0 && subscriptions.length > 0 ? (
+            <>
+              <p className="font-bold text-gray-900 text-base">No tienes clases agendadas</p>
+              <p className="text-sm text-gray-600 mt-2 mb-3">
+                Tienes <span className="font-semibold text-purple-700">{totalDisponibles} {totalDisponibles === 1 ? 'clase disponible' : 'clases disponibles'}</span> para reservar.
+              </p>
+              <Link
+                href={`/alumno/reservas?sub=${String(subscriptions[0]._id)}&workshop=${encodeURIComponent((subscriptions[0].workshopId as WorkshopRef).slug)}`}
+                className="inline-flex items-center gap-1 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 active:bg-purple-800 px-4 py-2.5 rounded-lg transition-colors"
+              >
+                Reserva tu próxima clase →
+              </Link>
+            </>
+          ) : subscriptions.length > 0 ? (
+            <>
+              <p className="font-bold text-gray-900 text-base">Ya usaste todas tus clases</p>
+              <p className="text-sm text-gray-600 mt-2 mb-3">
+                Renueva tu paquete o explora otros talleres.
+              </p>
+              <Link
+                href="/talleres"
+                className="inline-flex items-center gap-1 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 px-4 py-2.5 rounded-lg transition-colors"
+              >
+                Explorar talleres →
+              </Link>
+            </>
+          ) : (
+            // Solo tiene clase de prueba arriba — los detalles ya se ven en su sección
+            <p className="text-sm text-gray-600 mt-1">Tu clase de prueba está arriba con todos los detalles.</p>
+          )}
+        </div>
+      ) : (
+        // Estado: sin ningún taller → bienvenida con CTA explorar
+        <div className="bg-purple-50 border border-purple-100 rounded-2xl px-5 py-8 text-center">
+          <p className="text-3xl mb-2">🎨</p>
+          <p className="font-bold text-gray-900 text-lg mb-1">¡Bienvenido/a a Tallerea!</p>
+          <p className="text-sm text-gray-500 mb-4">Aún no tienes talleres. Explora y encuentra el tuyo.</p>
+          <Link
+            href="/talleres"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 px-5 py-2.5 rounded-lg transition-colors"
+          >
+            Explorar talleres →
+          </Link>
         </div>
       )}
 
-      {/* Próximas clases */}
-      <section>
-        <h2 className="text-lg font-semibold text-gray-800 mb-3">Tu próxima clase</h2>
-        {activeUpcomingBookings.length === 0 ? (
-          <p className="text-sm text-gray-400">
-            {subscriptions.length > 0
-              ? <>No tienes clases agendadas. <Link href={`/alumno/reservas?sub=${String(subscriptions[0]._id)}&workshop=${encodeURIComponent((subscriptions[0].workshopId as WorkshopRef).slug)}`} className="text-purple-600 underline">Reserva una de tus clases disponibles →</Link></>
-              : 'No tienes clases agendadas.'}
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {activeUpcomingBookings.map((b, idx) => {
-              const w = b.workshopId as WorkshopWithSlots
-              const slot = w.slots?.[b.slotIndex]
-              const fecha = new Date(b.fecha)
-              if (idx === 0) {
-                return (
-                  <div key={String(b._id)} className="bg-purple-600 rounded-2xl px-5 py-5 text-white">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-purple-200">Tu próxima clase</p>
-                    <p className="font-bold text-lg mt-1 leading-tight">{w.titulo}</p>
-                    {slot && (
-                      <p className="text-3xl font-bold mt-3 tabular-nums">{slot.horaInicio} – {slot.horaFin}</p>
-                    )}
-                    <p className="text-sm text-purple-200 mt-1 capitalize">
-                      {fecha.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}
-                    </p>
-                    <div className="mt-4 pt-3 border-t border-purple-500">
-                      <CancelBookingButton bookingId={String(b._id)} />
-                    </div>
-                  </div>
-                )
-              }
-              return (
-                <div key={String(b._id)} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-medium text-gray-900 text-sm truncate">{w.titulo}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      <span className="capitalize">
-                        {fecha.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' })}
-                      </span>
-                      {slot && <span className="ml-1.5 font-medium text-gray-700">{slot.horaInicio}</span>}
-                    </p>
-                  </div>
-                  <CancelBookingButton bookingId={String(b._id)} />
-                </div>
-              )
-            })}
+      {/* Mis talleres (suscripciones activas) — solo si hay suscripciones */}
+      {subscriptions.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-800">Mis talleres</h2>
           </div>
-        )}
-      </section>
-
-      {/* Mis talleres (suscripciones activas) */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-800">Mis talleres</h2>
-        </div>
-        {subscriptions.length === 0 ? (
-          <p className="text-sm text-gray-400">Aún no tienes talleres activos. <Link href="/talleres" className="text-purple-600 underline">Explorar talleres</Link></p>
-        ) : (
           <div className="space-y-3">
             {subscriptions.map(s => {
               const prepaid = s.clasesPrepagadas
@@ -394,42 +397,14 @@ export default async function AlumnoDashboard() {
               )
             })}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
-      {/* Inscripciones puntuales recientes */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-800">Clases puntuales</h2>
-          <Link href="/alumno/historial" className="text-xs text-purple-600 hover:underline">Ver todo</Link>
-        </div>
-        {enrollments.length === 0 ? (
-          <p className="text-sm text-gray-400">Aún no te has inscrito en ningún taller.{' '}
-            <Link href="/talleres" className="text-purple-600 underline">Explorar talleres</Link>
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {enrollments
-              .filter(e => !(e as unknown as { esClasePrueba?: boolean }).esClasePrueba)
-              .map(e => (
-                <div key={String(e._id)} className="bg-white border border-gray-200 rounded-xl px-5 py-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900 text-sm">{(e.workshopId as WorkshopRef).titulo}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Pagado · ${e.monto.toLocaleString('es-CL')}
-                    </p>
-                  </div>
-                  <Link
-                    href={`/talleres/${(e.workshopId as WorkshopRef).slug}`}
-                    className="text-xs text-gray-500 hover:text-purple-600"
-                  >
-                    Ver detalles del taller
-                  </Link>
-                </div>
-              ))}
-          </div>
-        )}
-      </section>
+      {/* Footer: accesos secundarios */}
+      <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs text-gray-400">
+        <Link href="/talleres" className="hover:text-purple-600 transition-colors">Explorar más talleres →</Link>
+        <Link href="/alumno/historial" className="hover:text-purple-600 transition-colors">Ver historial completo →</Link>
+      </div>
     </div>
   )
 }
