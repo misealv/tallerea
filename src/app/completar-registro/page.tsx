@@ -79,8 +79,8 @@ function CompletarRegistroContent() {
 
   // ── UI ──────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="bg-white rounded-xl border border-gray-200 p-8 max-w-md w-full space-y-6">
+    <div className="min-h-screen bg-gray-50 flex items-start sm:items-center justify-center px-4 py-10">
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-8 max-w-md w-full space-y-6">
 
         {stage === 'validando' && (
           <div className="text-center space-y-3">
@@ -107,54 +107,56 @@ function CompletarRegistroContent() {
 
         {(stage === 'formulario' || stage === 'guardando') && (
           <>
-            <div className="text-center space-y-1">
-              <div className="text-4xl">🔑</div>
-              <h1 className="text-2xl font-bold text-gray-900">Crea tu contraseña</h1>
-              <p className="text-gray-500 text-sm">
-                Así podrás iniciar sesión la próxima vez directamente.
-              </p>
+            {/* Bienvenida contextual */}
+            <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-4 text-center">
+              <div className="text-3xl mb-1">🎉</div>
+              <p className="font-semibold text-purple-900 text-base">¡Tu profesor te inscribió en un taller!</p>
+              <p className="text-purple-700 text-sm mt-0.5">Crea una contraseña para acceder a tu panel.</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Contraseña <span className="text-gray-400 font-normal">(mín. 8 caracteres)</span>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Contraseña
+                  <span className="text-gray-400 font-normal ml-1">(mín. 8 caracteres)</span>
                 </label>
                 <input
                   type="password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-purple-500"
                   required
                   minLength={8}
                   disabled={stage === 'guardando'}
                   autoFocus
+                  placeholder="Mínimo 8 caracteres"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                   Confirmar contraseña
                 </label>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-purple-500"
                   required
                   disabled={stage === 'guardando'}
+                  placeholder="Repite tu contraseña"
                 />
               </div>
 
               {formError && (
-                <p className="text-red-600 text-sm">{formError}</p>
+                <p className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">{formError}</p>
               )}
 
               <button
                 type="submit"
                 disabled={stage === 'guardando'}
-                className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-semibold px-6 py-2.5 rounded-lg transition-colors text-sm"
+                className="w-full bg-purple-600 hover:bg-purple-700 active:bg-purple-800 disabled:opacity-50 text-white font-bold px-6 py-3.5 rounded-xl transition-colors text-base"
               >
-                {stage === 'guardando' ? 'Guardando…' : 'Guardar contraseña y entrar →'}
+                {stage === 'guardando' ? 'Guardando…' : 'Crear contraseña y entrar →'}
               </button>
             </form>
           </>

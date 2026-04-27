@@ -15,6 +15,7 @@ import { Types } from 'mongoose'
 export const dynamic = 'force-dynamic'
 
 interface WorkshopRef { titulo: string; slug: string }
+interface WorkshopWithSlots { titulo: string; slug: string; slots: Array<{ horaInicio: string; horaFin: string }> }
 interface OwnerRef { name: string }
 interface LocationRef { nombre: string; direccion: string; comuna: string; ciudad: string }
 interface SlotInfo { dia?: string; horaInicio: string; horaFin: string; fecha?: Date }
@@ -52,7 +53,7 @@ interface SubscriptionLean {
 
 interface BookingLean {
   _id: Types.ObjectId
-  workshopId: WorkshopRef
+  workshopId: WorkshopWithSlots
   slotIndex: number
   fecha: Date
   estado: string
@@ -118,7 +119,7 @@ export default async function AlumnoDashboard() {
       .sort({ fechaVencimiento: 1 })
       .lean<SubscriptionLean[]>(),
     Booking.find({ studentId, estado: 'reservada', fecha: { $gte: new Date() }, activo: true })
-      .populate('workshopId', 'titulo slug')
+      .populate('workshopId', 'titulo slug slots')
       .sort({ fecha: 1 })
       .limit(5)
       .lean<BookingLean[]>(),
@@ -227,28 +228,57 @@ export default async function AlumnoDashboard() {
         </section>
       )}
 
-      {/* Próximas reservas */}
+      {/* Próximas sesiones */}
       <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-800">Próximas sesiones</h2>
-        </div>
+        <h2 className="text-lg font-semibold text-gray-800 mb-3">Próximas sesiones</h2>
         {upcomingBookings.length === 0 ? (
-          <p className="text-sm text-gray-400">Sin sesiones reservadas próximamente.</p>
+          <p className="text-sm text-gray-400">
+            Sin sesiones reservadas próximamente.{' '}
+            {subscriptions.length > 0 && (
+              <Link
+                href={`/alumno/reservas?sub=${String(subscriptions[0]._id)}&workshop=${encodeURIComponent((subscriptions[0].workshopId as WorkshopRef).slug)}`}
+                className="text-purple-600 underline"
+              >Reserva una →</Link>
+            )}
+          </p>
         ) : (
           <div className="space-y-3">
-            {upcomingBookings.map(b => (
-              <div key={String(b._id)} className="bg-white border border-gray-200 rounded-xl px-5 py-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900 text-sm">{(b.workshopId as WorkshopRef).titulo}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {new Date(b.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}
-                    {' · Sesión '}
-                    {b.slotIndex + 1}
-                  </p>
+            {upcomingBookings.map((b, idx) => {
+              const w = b.workshopId as WorkshopWithSlots
+              const slot = w.slots?.[b.slotIndex]
+              const fecha = new Date(b.fecha)
+              if (idx === 0) {
+                return (
+                  <div key={String(b._id)} className="bg-purple-600 rounded-2xl px-5 py-5 text-white">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-purple-200">Próxima sesión</p>
+                    <p className="font-bold text-lg mt-1 leading-tight">{w.titulo}</p>
+                    {slot && (
+                      <p className="text-3xl font-bold mt-3 tabular-nums">{slot.horaInicio} – {slot.horaFin}</p>
+                    )}
+                    <p className="text-sm text-purple-200 mt-1 capitalize">
+                      {fecha.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    </p>
+                    <div className="mt-4 pt-3 border-t border-purple-500">
+                      <CancelBookingButton bookingId={String(b._id)} />
+                    </div>
+                  </div>
+                )
+              }
+              return (
+                <div key={String(b._id)} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 text-sm truncate">{w.titulo}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      <span className="capitalize">
+                        {fecha.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' })}
+                      </span>
+                      {slot && <span className="ml-1.5 font-medium text-gray-700">{slot.horaInicio}</span>}
+                    </p>
+                  </div>
+                  <CancelBookingButton bookingId={String(b._id)} />
                 </div>
-                <CancelBookingButton bookingId={String(b._id)} />
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </section>
@@ -266,39 +296,34 @@ export default async function AlumnoDashboard() {
               const prepaid = s.clasesPrepagadas
               const prepaidActivo = prepaid && prepaid.consumidas < prepaid.cantidad
               return (
-              <div key={String(s._id)} className="bg-white border border-gray-200 rounded-xl px-5 py-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900 text-sm">{(s.workshopId as WorkshopRef).titulo}</p>
-                    {prepaidActivo ? (
-                      <p className="text-xs mt-0.5">
-                        <span className="inline-block bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                          Prepagada — {prepaid!.cantidad - prepaid!.consumidas}/{prepaid!.cantidad}
-                        </span>
-                        {prepaid!.caducaEn ? (
-                          <span className={`ml-2 ${new Date(prepaid!.caducaEn) < new Date() ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                            · {new Date(prepaid!.caducaEn) < new Date() ? 'Caducó' : 'Caduca'} el {new Date(prepaid!.caducaEn).toLocaleDateString('es-CL')}
-                          </span>
-                        ) : (
-                          <span className="text-gray-500 ml-2">
-                            · Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}
-                          </span>
-                        )}
-                      </p>
+              <div key={String(s._id)} className="bg-white border border-gray-200 rounded-xl px-4 py-4">
+                <p className="font-medium text-gray-900 text-sm">{(s.workshopId as WorkshopRef).titulo}</p>
+                {prepaidActivo ? (
+                  <p className="text-xs mt-1">
+                    <span className="inline-block bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                      Prepagada — {prepaid!.cantidad - prepaid!.consumidas}/{prepaid!.cantidad}
+                    </span>
+                    {prepaid!.caducaEn ? (
+                      <span className={`ml-2 ${new Date(prepaid!.caducaEn) < new Date() ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                        · {new Date(prepaid!.caducaEn) < new Date() ? 'Caducó' : 'Caduca'} el {new Date(prepaid!.caducaEn).toLocaleDateString('es-CL')}
+                      </span>
                     ) : (
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {s.sesionesDisponibles} de {s.sesionesTotales} sesiones disponibles
+                      <span className="text-gray-500 ml-2">
                         · Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}
-                      </p>
+                      </span>
                     )}
-                  </div>
-                  <Link
-                    href={`/alumno/reservas?sub=${String(s._id)}&workshop=${encodeURIComponent((s.workshopId as WorkshopRef).slug)}`}
-                    className="text-xs text-purple-600 hover:underline whitespace-nowrap ml-4"
-                  >
-                    Reservar sesión →
-                  </Link>
-                </div>
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {s.sesionesDisponibles} de {s.sesionesTotales} sesiones · Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}
+                  </p>
+                )}
+                <Link
+                  href={`/alumno/reservas?sub=${String(s._id)}&workshop=${encodeURIComponent((s.workshopId as WorkshopRef).slug)}`}
+                  className="mt-3 flex items-center justify-center gap-1 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors"
+                >
+                  Reservar sesión
+                </Link>
               </div>
               )
             })}
