@@ -15,12 +15,10 @@ interface Props {
 }
 
 function getMonday(d: Date): Date {
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  const mon = new Date(d)
-  mon.setDate(d.getDate() + diff)
-  mon.setHours(0, 0, 0, 0)
-  return mon
+  // Usar UTC para evitar desfase por zona horaria Chile (UTC-3/UTC-4)
+  const dayUTC = d.getUTCDay()
+  const diff = dayUTC === 0 ? -6 : 1 - dayUTC
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff))
 }
 
 function slotsBetween(slots: CalendarSlot[], from: Date, to: Date): CalendarSlot[] {

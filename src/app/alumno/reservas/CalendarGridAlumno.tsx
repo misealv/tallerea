@@ -69,10 +69,9 @@ export default function CalendarGridAlumno({
       .catch(() => null)
   }
 
-  // Construir los 7 días de la semana visible
+  // Construir los 7 días de la semana visible (aritmética en ms para mantener UTC)
   const weekDays = GRID_DAY_IDX.map((dayOfWeek, i) => {
-    const d = new Date(weekStart)
-    d.setDate(weekStart.getDate() + i)
+    const d = new Date(weekStart.getTime() + i * 86400000)
     return { date: d, dayOfWeek }
   })
 
@@ -80,7 +79,7 @@ export default function CalendarGridAlumno({
   const slotsByDay = new Map<number, CalendarSlot[]>()
   for (const s of slots) {
     const d = new Date(s.fecha)
-    const dow = d.getDay() // 0=Dom..6=Sáb
+    const dow = d.getUTCDay() // 0=Dom..6=Sáb (UTC — servidor en UTC timezone)
     const col = GRID_DAY_IDX.indexOf(dow)
     if (col >= 0) {
       const list = slotsByDay.get(col) ?? []
@@ -124,8 +123,8 @@ export default function CalendarGridAlumno({
         <button onClick={() => onWeekChange(-1)}
           className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">← Anterior</button>
         <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-          {weekStart.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })} –{' '}
-          {weekDays[6].date.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}
+          {weekStart.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', timeZone: 'UTC' })} –{' '}
+          {weekDays[6].date.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })}
         </span>
         <button onClick={() => onWeekChange(1)}
           className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">Siguiente →</button>
@@ -142,13 +141,17 @@ export default function CalendarGridAlumno({
           <div className="grid grid-cols-[48px_repeat(7,1fr)] border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
             <div />
             {weekDays.map((wd, i) => {
-              const isToday = wd.date.toDateString() === today.toDateString()
+              // Comparar fecha UTC de la columna con la fecha local actual del usuario
+              const isToday =
+                wd.date.getUTCFullYear() === today.getFullYear() &&
+                wd.date.getUTCMonth() === today.getMonth() &&
+                wd.date.getUTCDate() === today.getDate()
               return (
                 <div key={i} className={`py-2 text-center text-xs font-medium ${isToday ? 'text-purple-700 dark:text-purple-400' : 'text-gray-600 dark:text-gray-400'}`}>
                   <div>{DIAS_SHORT[i]}</div>
                   <div className={`mt-0.5 w-7 h-7 mx-auto flex items-center justify-center rounded-full text-sm font-semibold ${
                     isToday ? 'bg-purple-600 text-white' : 'text-gray-800 dark:text-gray-200'}`}>
-                    {wd.date.getDate()}
+                    {wd.date.getUTCDate()}
                   </div>
                 </div>
               )
@@ -230,7 +233,7 @@ export default function CalendarGridAlumno({
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 w-80 space-y-4 border border-transparent dark:border-gray-700" onClick={e => e.stopPropagation()}>
             <h3 className="font-bold text-gray-900 dark:text-white">Confirmar reserva</h3>
             <p className="text-sm text-gray-700 dark:text-gray-300">
-              {new Date(confirming.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}<br />
+              {new Date(confirming.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })}<br />
               {confirming.horaInicio} – {confirming.horaFin}
             </p>
             {/* Selector de dependiente */}
