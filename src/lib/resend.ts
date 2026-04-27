@@ -508,3 +508,50 @@ export async function sendSubscriptionRenovar({
     `,
   })
 }
+
+// ─── Emancipación de dependiente ─────────────────────────────────────────────
+
+export async function sendEmancipationConfirmation({
+  apoderadoEmail,
+  apoderadoName,
+  dependentNombre,
+  newEmail,
+  confirmUrl,
+}: {
+  apoderadoEmail: string
+  apoderadoName: string
+  dependentNombre: string
+  newEmail: string
+  confirmUrl: string
+}) {
+  if (!process.env.RESEND_API_KEY) {
+    console.log('[emancipation-confirm]', confirmUrl)
+    return
+  }
+  const resend = getResend()
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: apoderadoEmail,
+    subject: `Confirma: crear cuenta propia para ${dependentNombre} en Tallerea`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7c3aed;">Confirmación requerida</h2>
+        <p>Hola ${apoderadoName},</p>
+        <p>Recibimos tu solicitud para crear una cuenta propia en Tallerea para <strong>${dependentNombre}</strong>
+           con el email <strong>${newEmail}</strong>.</p>
+        <p>Una vez confirmado:</p>
+        <ul style="color: #374151;">
+          <li>Se creará una cuenta independiente para ${dependentNombre}</li>
+          <li>Su historial de clases quedará vinculado a esa nueva cuenta</li>
+          <li>Recibirá un enlace de acceso en <strong>${newEmail}</strong></li>
+          <li>${dependentNombre} dejará de aparecer en tu lista de dependientes</li>
+        </ul>
+        <a href="${confirmUrl}" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; margin: 16px 0; font-size: 16px;">
+          Confirmar
+        </a>
+        <p style="color: #6b7280; font-size: 14px;">Este enlace es válido por 1 hora. Si no solicitaste esto, ignora este correo.</p>
+        <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
+      </div>
+    `,
+  })
+}

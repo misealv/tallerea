@@ -42,6 +42,14 @@ export default function DependientesPage() {
   // Eliminación
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
+  // Emancipación
+  const [emancipatingId, setEmancipatingId] = useState<string | null>(null)
+  const [emancipatingNombre, setEmancipatingNombre] = useState('')
+  const [emancipateEmail, setEmancipateEmail] = useState('')
+  const [emancipateError, setEmancipateError] = useState('')
+  const [emancipateSaving, setEmancipateSaving] = useState(false)
+  const [emancipateSuccess, setEmancipateSuccess] = useState('')
+
   // ─── Carga inicial ────────────────────────────────────────────────────────
   useEffect(() => {
     fetch('/api/users/me/dependents')
@@ -126,6 +134,36 @@ export default function DependientesPage() {
       if (res.ok) setDependents(prev => prev.filter(d => d._id !== id))
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  // ─── Emancipar ────────────────────────────────────────────────────────────
+  function startEmancipate(dep: Dependent) {
+    setEmancipatingId(dep._id)
+    setEmancipatingNombre(dep.nombre)
+    setEmancipateEmail('')
+    setEmancipateError('')
+    setEmancipateSuccess('')
+  }
+
+  async function handleEmancipate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!emancipatingId) return
+    if (!emancipateEmail.trim()) { setEmancipateError('El email es obligatorio'); return }
+    setEmancipateSaving(true); setEmancipateError('')
+    try {
+      const res = await fetch(`/api/users/me/dependents/${emancipatingId}/emancipate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emancipateEmail.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setEmancipateError(data.error ?? 'Error al procesar'); return }
+      setEmancipateSuccess(data.message ?? 'Revisa tu email para confirmar')
+    } catch {
+      setEmancipateError('Error de red')
+    } finally {
+      setEmancipateSaving(false)
     }
   }
 
@@ -221,6 +259,13 @@ export default function DependientesPage() {
                     Editar
                   </button>
                   <button
+                    onClick={() => startEmancipate(dep)}
+                    className="text-xs text-blue-600 hover:underline"
+                    title="Crear cuenta propia para este dependiente"
+                  >
+                    Crear cuenta
+                  </button>
+                  <button
                     onClick={() => handleDelete(dep._id)}
                     disabled={deletingId === dep._id}
                     className="text-xs text-red-500 hover:underline disabled:opacity-50"
@@ -295,6 +340,62 @@ export default function DependientesPage() {
         >
           + Agregar dependiente
         </button>
+      )}
+
+      {/* Modal emancipación */}
+      {emancipatingId && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full space-y-5">
+            <h2 className="text-lg font-bold text-gray-900">Crear cuenta para {emancipatingNombre}</h2>
+
+            {emancipateSuccess ? (
+              <div className="space-y-4">
+                <p className="text-sm text-green-700 bg-green-50 rounded-lg p-3">{emancipateSuccess}</p>
+                <button
+                  onClick={() => setEmancipatingId(null)}
+                  className="w-full text-sm text-gray-500 hover:text-gray-700 py-2"
+                >
+                  Cerrar
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleEmancipate} className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Ingresa el email con el que {emancipatingNombre} accederá a su propia cuenta. Recibirás un email de confirmación primero.
+                </p>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Email de {emancipatingNombre} *</label>
+                  <input
+                    type="email"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    placeholder="email@ejemplo.com"
+                    value={emancipateEmail}
+                    onChange={e => setEmancipateEmail(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                </div>
+                {emancipateError && <p className="text-red-500 text-xs">{emancipateError}</p>}
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={emancipateSaving}
+                    className="flex-1 bg-purple-600 text-white text-sm py-2.5 rounded-lg hover:bg-purple-700 disabled:opacity-50 font-semibold"
+                  >
+                    {emancipateSaving ? 'Enviando...' : 'Enviar confirmación'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEmancipatingId(null)}
+                    className="text-sm text-gray-500 hover:text-gray-700 px-3"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )
