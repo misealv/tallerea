@@ -8,6 +8,7 @@ import Enrollment from '@/models/Enrollment'
 import Subscription from '@/models/Subscription'
 import { Types } from 'mongoose'
 import EliminarTallerBtn from '@/components/EliminarTallerBtn'
+import { getCloudinaryUrl, TRANSFORM } from '@/lib/cloudinary-transform'
 
 export const dynamic = 'force-dynamic'
 
@@ -109,7 +110,7 @@ export default async function MisTalleresPage() {
               >
                 {w.imagenes && w.imagenes[0] && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={w.imagenes[0]} alt={w.titulo} className="w-full h-32 object-cover" />
+                  <img src={getCloudinaryUrl(w.imagenes[0], TRANSFORM.card) ?? w.imagenes[0]} alt={w.titulo} className="w-full h-32 object-cover" />
                 )}
                 <div className="p-4 space-y-2">
                   <div className="flex items-start justify-between gap-2">

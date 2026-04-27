@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import { getCloudinaryUrl, TRANSFORM } from '@/lib/cloudinary-transform'
 
 interface WorkshopCardProps {
   slug: string
@@ -46,7 +47,7 @@ export default function WorkshopCard({
       {/* Imagen */}
       <div className="h-44 bg-gray-100 flex items-center justify-center text-5xl relative">
         {imagen
-          ? <Image src={imagen} alt={titulo} fill className="object-cover" sizes="(max-width: 768px) 100vw, 33vw" priority={priority} />
+          ? <Image src={getCloudinaryUrl(imagen, TRANSFORM.card) ?? imagen} alt={titulo} fill className="object-cover" sizes="(max-width: 768px) 100vw, 33vw" priority={priority} />
           : tipoIcon[tipo] || '✨'}
 
         {/* Badge clase de prueba */}

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
+import { getCloudinaryUrl, TRANSFORM } from '@/lib/cloudinary-transform'
 
 interface WorkshopGalleryProps {
   imagenes: string[]
@@ -28,7 +29,7 @@ export default function WorkshopGallery({ imagenes, titulo, fallbackEmoji }: Wor
       {/* Imagen principal */}
       <div className="h-64 md:h-96 bg-gray-100 rounded-xl overflow-hidden relative group">
         <Image
-          src={imagenes[current]}
+          src={getCloudinaryUrl(imagenes[current], TRANSFORM.gallery) ?? imagenes[current]}
           alt={`${titulo} — foto ${current + 1}`}
           fill
           className="object-cover transition-opacity duration-300"
@@ -77,7 +78,7 @@ export default function WorkshopGallery({ imagenes, titulo, fallbackEmoji }: Wor
               }`}
             >
               <Image
-                src={src}
+                src={getCloudinaryUrl(src, TRANSFORM.thumbnail) ?? src}
                 alt={`${titulo} miniatura ${i + 1}`}
                 fill
                 className="object-cover"
