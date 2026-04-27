@@ -176,6 +176,65 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
           fallbackEmoji={tipoIcon[workshop.tipo] || '✨'}
         />
 
+        {/* Tarjeta de fecha — talleres puntuales con fecha concreta */}
+        {(() => {
+          if (workshop.modeloAcceso === 'recurrente') return null
+          const slotsConFecha = (workshop.slots || []).filter((s: { fecha?: Date }) => !!s.fecha)
+          if (slotsConFecha.length === 0 && !workshop.fechaInicio) return null
+
+          // Usar primer slot con fecha o fechaInicio como fallback
+          const primeraFecha = slotsConFecha[0]?.fecha
+            ? new Date(slotsConFecha[0].fecha as Date)
+            : workshop.fechaInicio
+            ? new Date(workshop.fechaInicio)
+            : null
+          if (!primeraFecha) return null
+
+          const primerSlot = slotsConFecha[0] as { horaInicio?: string; horaFin?: string; fecha?: Date } | undefined
+
+          const fechaLabel = primeraFecha.toLocaleDateString('es-CL', {
+            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+            timeZone: 'America/Santiago',
+          })
+
+          const horaLabel = primerSlot?.horaInicio && primerSlot?.horaFin
+            ? `${primerSlot.horaInicio} – ${primerSlot.horaFin} hrs`
+            : null
+
+          const esMultiple = slotsConFecha.length > 1
+
+          return (
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-5 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-4">
+                {/* Bloque de calendario visual */}
+                <div className="flex-shrink-0 bg-white rounded-lg overflow-hidden w-14 text-center shadow-sm">
+                  <div className="bg-indigo-600 text-white text-[10px] font-bold uppercase py-0.5 tracking-wide">
+                    {primeraFecha.toLocaleDateString('es-CL', { month: 'short', timeZone: 'America/Santiago' })}
+                  </div>
+                  <div className="text-indigo-700 font-extrabold text-2xl leading-tight py-1">
+                    {primeraFecha.toLocaleDateString('es-CL', { day: 'numeric', timeZone: 'America/Santiago' })}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-white font-bold text-base leading-tight capitalize">{fechaLabel}</p>
+                  {horaLabel && (
+                    <p className="text-indigo-100 text-sm mt-0.5">🕐 {horaLabel}</p>
+                  )}
+                  {esMultiple && (
+                    <p className="text-indigo-200 text-xs mt-0.5">{slotsConFecha.length} sesiones en total</p>
+                  )}
+                </div>
+              </div>
+              {loc && (
+                <div className="text-right hidden sm:block">
+                  <p className="text-indigo-100 text-xs">📍 {loc.nombre}</p>
+                  <p className="text-indigo-200 text-xs">{loc.comuna}</p>
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
         {/* CTA Hero — clase de prueba */}
         {workshop.clasePrueba?.habilitada && (
           <ClasePruebaCTA
