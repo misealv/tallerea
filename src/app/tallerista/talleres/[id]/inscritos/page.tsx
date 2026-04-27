@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic'
 
 interface StudentRef { name: string; email: string }
 interface EnrollmentLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; monto: number; slotIndex: number | null; createdAt: Date; origenInscripcion?: string }
-interface SubLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; sesionesUsadas: number; sesionesTotales: number; fechaVencimiento: Date; monto: number; clasesPrepagadas?: { cantidad: number; consumidas: number }; origenInscripcion?: string; precioEspecial?: boolean; precioSnapshot?: number; notaPrecioEspecial?: string }
+interface SubLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; sesionesUsadas: number; sesionesTotales: number; fechaVencimiento: Date; monto: number; clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }; origenInscripcion?: string; precioEspecial?: boolean; precioSnapshot?: number; notaPrecioEspecial?: string }
 interface BookingLean { _id: Types.ObjectId; studentId: StudentRef; subscriptionId: Types.ObjectId; slotIndex: number; fecha: Date; estado: string; dependentNombreSnapshot?: string }
 interface WorkshopLean { _id: Types.ObjectId; titulo: string; ownerId?: Types.ObjectId; accountId?: Types.ObjectId; slots: { horaInicio: string; horaFin: string; fecha?: Date }[] }
 
@@ -185,9 +185,16 @@ export default async function InscritosPage({
                     </td>
                     <td className="px-4 py-2">
                       {prepaidActivo ? (
-                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                          Prepagada — {prepaid!.cantidad - prepaid!.consumidas}/{prepaid!.cantidad}
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium w-fit">
+                            Prepagada — {prepaid!.cantidad - prepaid!.consumidas}/{prepaid!.cantidad}
+                          </span>
+                          {prepaid!.caducaEn && (
+                            <span className={`text-xs ${new Date(prepaid!.caducaEn) < new Date() ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                              {new Date(prepaid!.caducaEn) < new Date() ? 'Caducó' : 'Caduca'} {new Date(prepaid!.caducaEn).toLocaleDateString('es-CL')}
+                            </span>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-xs text-gray-500">{s.sesionesTotales - s.sesionesUsadas}/{s.sesionesTotales} sesiones</span>
                       )}

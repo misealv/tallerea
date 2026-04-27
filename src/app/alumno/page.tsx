@@ -47,7 +47,7 @@ interface SubscriptionLean {
   sesionesDisponibles: number
   sesionesTotales: number
   fechaVencimiento: Date
-  clasesPrepagadas?: { cantidad: number; consumidas: number }
+  clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }
 }
 
 interface BookingLean {
@@ -275,9 +275,15 @@ export default async function AlumnoDashboard() {
                         <span className="inline-block bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
                           Prepagada — {prepaid!.cantidad - prepaid!.consumidas}/{prepaid!.cantidad}
                         </span>
-                        <span className="text-gray-500 ml-2">
-                          · Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}
-                        </span>
+                        {prepaid!.caducaEn ? (
+                          <span className={`ml-2 ${new Date(prepaid!.caducaEn) < new Date() ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                            · {new Date(prepaid!.caducaEn) < new Date() ? 'Caducó' : 'Caduca'} el {new Date(prepaid!.caducaEn).toLocaleDateString('es-CL')}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500 ml-2">
+                            · Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}
+                          </span>
+                        )}
                       </p>
                     ) : (
                       <p className="text-xs text-gray-500 mt-0.5">
