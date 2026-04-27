@@ -13,7 +13,7 @@ interface WorkshopRef { titulo: string; slug: string }
 
 interface EnrollmentLean {
   _id: Types.ObjectId
-  workshopId: WorkshopRef
+  workshopId: WorkshopRef | null
   estado: string
   monto: number
   createdAt: Date
@@ -21,7 +21,7 @@ interface EnrollmentLean {
 
 interface SubscriptionLean {
   _id: Types.ObjectId
-  workshopId: WorkshopRef
+  workshopId: WorkshopRef | null
   estado: string
   sesionesUsadas: number
   sesionesTotales: number
@@ -53,7 +53,7 @@ export default async function HistorialPage() {
   await dbConnect()
   const studentId = session.user.id
 
-  const [enrollments, subscriptions] = await Promise.all([
+  const [enrollmentsRaw, subscriptionsRaw] = await Promise.all([
     Enrollment.find({ studentId, activo: true })
       .populate('workshopId', 'titulo slug')
       .sort({ createdAt: -1 })
@@ -63,6 +63,10 @@ export default async function HistorialPage() {
       .sort({ createdAt: -1 })
       .lean<SubscriptionLean[]>(),
   ])
+
+  // Filtrar items cuyo workshop fue eliminado (populate devuelve null)
+  const enrollments = enrollmentsRaw.filter(e => e.workshopId !== null)
+  const subscriptions = subscriptionsRaw.filter(s => s.workshopId !== null)
 
   return (
     <div className="space-y-10 max-w-2xl">
@@ -78,11 +82,15 @@ export default async function HistorialPage() {
           <p className="text-sm text-gray-400">Sin suscripciones registradas.</p>
         ) : (
           <div className="space-y-3">
-            {subscriptions.map(s => (
+            {subscriptions.map(s => {
+              const w = s.workshopId as WorkshopRef
+              return (
               <div key={String(s._id)} className="bg-white border border-gray-200 rounded-xl px-5 py-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="font-medium text-gray-900 text-sm">{(s.workshopId as WorkshopRef).titulo}</p>
+                    <Link href={`/talleres/${w.slug}`} className="font-medium text-gray-900 text-sm hover:underline">
+                      {w.titulo}
+                    </Link>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {s.sesionesUsadas} / {s.sesionesTotales} sesiones usadas
                       {s.fechaVencimiento && (
@@ -90,7 +98,7 @@ export default async function HistorialPage() {
                       )}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      ${s.monto.toLocaleString('es-CL')} / mes · Desde {new Date(s.createdAt).toLocaleDateString('es-CL')}
+                      ${(s.monto ?? 0).toLocaleString('es-CL')} / mes · Desde {new Date(s.createdAt).toLocaleDateString('es-CL')}
                     </p>
                   </div>
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${ESTADO_COLOR[s.estado] ?? 'bg-gray-100 text-gray-500'}`}>
@@ -98,7 +106,8 @@ export default async function HistorialPage() {
                   </span>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </section>
@@ -110,15 +119,17 @@ export default async function HistorialPage() {
           <p className="text-sm text-gray-400">Sin inscripciones registradas.</p>
         ) : (
           <div className="space-y-3">
-            {enrollments.map(e => (
+            {enrollments.map(e => {
+              const w = e.workshopId as WorkshopRef
+              return (
               <div key={String(e._id)} className="bg-white border border-gray-200 rounded-xl px-5 py-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <Link href={`/talleres/${(e.workshopId as WorkshopRef).slug}`} className="font-medium text-gray-900 text-sm hover:underline">
-                      {(e.workshopId as WorkshopRef).titulo}
+                    <Link href={`/talleres/${w.slug}`} className="font-medium text-gray-900 text-sm hover:underline">
+                      {w.titulo}
                     </Link>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      ${e.monto.toLocaleString('es-CL')} · {new Date(e.createdAt).toLocaleDateString('es-CL')}
+                      ${(e.monto ?? 0).toLocaleString('es-CL')} · {new Date(e.createdAt).toLocaleDateString('es-CL')}
                     </p>
                   </div>
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${ESTADO_COLOR[e.estado] ?? 'bg-gray-100 text-gray-500'}`}>
@@ -126,7 +137,8 @@ export default async function HistorialPage() {
                   </span>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </section>
