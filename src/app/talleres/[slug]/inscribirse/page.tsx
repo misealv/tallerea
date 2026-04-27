@@ -165,7 +165,7 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
           )}
 
           <p className="text-sm text-gray-500">
-            Inicio: {new Date(workshop.fechaInicio).toLocaleDateString('es-CL')}
+            Inicio: {new Date(workshop.fechaInicio).toLocaleDateString('es-CL', { timeZone: 'UTC' })}
           </p>
 
           <div className="border-t border-gray-100 pt-3">
