@@ -179,7 +179,6 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
         {/* CTA Hero — clase de prueba */}
         {workshop.clasePrueba?.habilitada && (
           <ClasePruebaCTA
-            workshopId={String(workshop._id)}
             workshopSlug={workshop.slug}
             precio={workshop.clasePrueba.precio}
             variant="hero"
@@ -458,7 +457,6 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
         {/* CTA Footer — clase de prueba */}
         {workshop.clasePrueba?.habilitada && (
           <ClasePruebaCTA
-            workshopId={String(workshop._id)}
             workshopSlug={workshop.slug}
             precio={workshop.clasePrueba.precio}
             variant="footer"

@@ -1,45 +1,19 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
-import { useSession } from 'next-auth/react'
 
 interface ClasePruebaCTAProps {
-  workshopId: string
   workshopSlug: string
   precio: number          // 0 = gratuita
   variant: 'hero' | 'footer'
 }
 
-export default function ClasePruebaCTA({ workshopId, workshopSlug, precio, variant }: ClasePruebaCTAProps) {
+export default function ClasePruebaCTA({ workshopSlug, precio, variant }: ClasePruebaCTAProps) {
   const router = useRouter()
-  const { data: session } = useSession()
-  const [loading, setLoading] = useState(false)
 
-  async function handleClick() {
-    if (!session?.user) {
-      router.push(`/talleres/${workshopSlug}/inscribirse?clasePrueba=true`)
-      return
-    }
-    setLoading(true)
-    try {
-      const res = await fetch('/api/payments/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workshopId, esClasePrueba: true }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        alert(data?.error ?? 'No se pudo procesar la reserva. Inténtalo de nuevo.')
-        return
-      }
-      if (data.free || !data.initPoint) { router.push('/alumno?pago=ok'); return }
-      window.location.href = data.initPoint
-    } catch {
-      alert('Error de conexión. Inténtalo de nuevo.')
-    } finally {
-      setLoading(false)
-    }
+  function handleClick() {
+    // Siempre pasar por el checkout: permite elegir horario y confirmar datos
+    router.push(`/talleres/${workshopSlug}/inscribirse?clasePrueba=true`)
   }
 
   const label = precio === 0
@@ -61,10 +35,9 @@ export default function ClasePruebaCTA({ workshopId, workshopSlug, precio, varia
         </div>
         <button
           onClick={handleClick}
-          disabled={loading}
-          className="flex-shrink-0 bg-white text-purple-700 font-semibold px-6 py-2.5 rounded-lg hover:bg-purple-50 disabled:opacity-60 transition-colors text-sm whitespace-nowrap"
+          className="flex-shrink-0 bg-white text-purple-700 font-semibold px-6 py-2.5 rounded-lg hover:bg-purple-50 transition-colors text-sm whitespace-nowrap"
         >
-          {loading ? 'Cargando…' : precio === 0 ? 'Reservar gratis →' : 'Reservar →'}
+          {precio === 0 ? 'Reservar gratis →' : 'Reservar →'}
         </button>
       </div>
     )
@@ -84,10 +57,9 @@ export default function ClasePruebaCTA({ workshopId, workshopSlug, precio, varia
         </p>
         <button
           onClick={handleClick}
-          disabled={loading}
-          className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold px-8 py-3 rounded-xl text-base disabled:opacity-60 transition-colors"
+          className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold px-8 py-3 rounded-xl text-base transition-colors"
         >
-          {loading ? 'Cargando…' : label}
+          {label}
         </button>
         {precio === 0 && (
           <p className="text-xs text-gray-400 mt-3">Cupos limitados por sesión</p>
