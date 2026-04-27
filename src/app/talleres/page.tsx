@@ -63,7 +63,7 @@ async function WorkshopResults({ searchParams }: { searchParams: PageProps['sear
     <>
       <p className="text-sm text-gray-500 mb-4">{result.total} talleres encontrados</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {result.data.map((w) => {
+        {result.data.map((w, i) => {
           const loc = w.locationId as unknown as { nombre: string; comuna: string } | null
           const acc = w.accountId as unknown as { nombre: string; slug: string; precioModalidad?: string } | null
           const owner = w.ownerId as unknown as { name: string } | null
@@ -95,6 +95,7 @@ async function WorkshopResults({ searchParams }: { searchParams: PageProps['sear
               slots={w.slots}
               espacioNombre={acc?.nombre}
               espacioSlug={acc?.slug}
+              priority={i < 3}
             />
           )
         })}

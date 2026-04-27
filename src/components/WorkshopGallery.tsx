@@ -82,6 +82,7 @@ export default function WorkshopGallery({ imagenes, titulo, fallbackEmoji }: Wor
                 fill
                 className="object-cover"
                 sizes="64px"
+                loading="lazy"
               />
             </button>
           ))}

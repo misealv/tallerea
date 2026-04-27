@@ -18,6 +18,7 @@ interface WorkshopCardProps {
   talleristaNombre?: string   // nombre del owner
   clasePruebaDisponible?: boolean
   clasePruebaPrecio?: number  // 0 = gratis
+  priority?: boolean          // true para las primeras cards (LCP)
 }
 
 const tipoIcon: Record<string, string> = {
@@ -34,7 +35,7 @@ const modalidadLabel: Record<string, string> = {
 export default function WorkshopCard({
   slug, titulo, tipo, modalidad, precio, precioDesde, cupoPorSesion,
   comuna, imagen, horarios, slots, espacioNombre, espacioSlug,
-  talleristaNombre, clasePruebaDisponible, clasePruebaPrecio,
+  talleristaNombre, clasePruebaDisponible, clasePruebaPrecio, priority = false,
 }: WorkshopCardProps) {
   const displaySlots = (slots && slots.length > 0) ? slots : horarios
   const precioMostrar = precioDesde ?? precio
@@ -45,7 +46,7 @@ export default function WorkshopCard({
       {/* Imagen */}
       <div className="h-44 bg-gray-100 flex items-center justify-center text-5xl relative">
         {imagen
-          ? <Image src={imagen} alt={titulo} fill className="object-cover" sizes="(max-width: 768px) 100vw, 33vw" />
+          ? <Image src={imagen} alt={titulo} fill className="object-cover" sizes="(max-width: 768px) 100vw, 33vw" priority={priority} />
           : tipoIcon[tipo] || '✨'}
 
         {/* Badge clase de prueba */}

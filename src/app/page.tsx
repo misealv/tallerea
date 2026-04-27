@@ -66,7 +66,7 @@ export default async function Home() {
                 </Link>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {featured.data.map((w) => {
+                {featured.data.map((w, i) => {
                   const loc = w.locationId as unknown as { comuna?: string } | null;
                   const acc = w.accountId as unknown as { nombre: string; slug: string; precioModalidad?: string } | null;
                   const owner = w.ownerId as unknown as { name: string } | null;
@@ -102,6 +102,7 @@ export default async function Home() {
                       talleristaNombre={owner?.name}
                       clasePruebaDisponible={!!w.clasePrueba?.habilitada}
                       clasePruebaPrecio={w.clasePrueba?.precio}
+                      priority={i < 3}
                     />
                   );
                 })}
