@@ -382,25 +382,31 @@ export const EnrollmentService = {
     slotIndex: number | null
     montoPagado: number
     notaTallerista?: string
+    isAdmin?: boolean
   }): Promise<IEnrollment> {
     await dbConnect()
 
-    // Validar workshop y ownership
+    // Validar workshop y ownership (admin puede inscribir en cualquier taller)
     const workshop = await Workshop.findOne({ _id: input.workshopId, activo: true })
     if (!workshop) throw new Error('Taller no encontrado')
     const ownerIdStr = String(workshop.ownerId ?? workshop.accountId ?? '')
-    if (ownerIdStr !== input.ownerId) throw new Error('No tienes permiso sobre este taller')
+    if (!input.isAdmin && ownerIdStr !== input.ownerId) {
+      throw new Error('No tienes permiso sobre este taller')
+    }
     if (workshop.modeloAcceso !== 'puntual') {
       throw new Error('createManual de Enrollment es solo para talleres puntuales. Usa SubscriptionService.createManual para recurrentes.')
     }
 
-    // Validar slot
     const slotIndex = input.slotIndex ?? null
+
+    // Liberar carritos abandonados antes de validar cupo
+    await this._sweepStalePendingForSlot(input.workshopId, slotIndex)
+
+    // Validar slot existe y no cancelado (chequeo previo informativo; el guard atómico va abajo)
     if (slotIndex !== null) {
       const slot = workshop.slots[slotIndex]
       if (!slot) throw new Error('Slot no encontrado')
       if (slot.cancelado) throw new Error('Esa sesión está cancelada')
-      if (slot.cupoDisponible <= 0) throw new Error('No hay cupo en esa sesión')
     }
 
     // Encontrar o crear User titular
@@ -481,18 +487,29 @@ export const EnrollmentService = {
         activo: true,
       }], { session })
 
+      // [RACE] Decremento atómico condicional de cupo
       if (slotIndex !== null) {
-        await Workshop.findByIdAndUpdate(
-          input.workshopId,
+        const updated = await Workshop.updateOne(
+          {
+            _id: input.workshopId,
+            [`slots.${slotIndex}.cupoDisponible`]: { $gt: 0 },
+            [`slots.${slotIndex}.cancelado`]: { $ne: true },
+          },
           { $inc: { [`slots.${slotIndex}.cupoDisponible`]: -1 } },
           { session }
         )
-      } else if (workshop.cupoDisponible > 0) {
-        await Workshop.findByIdAndUpdate(
-          input.workshopId,
+        if (updated.modifiedCount === 0) {
+          throw new Error('No hay cupo en esa sesión')
+        }
+      } else {
+        const updated = await Workshop.updateOne(
+          { _id: input.workshopId, cupoDisponible: { $gt: 0 } },
           { $inc: { cupoDisponible: -1 } },
           { session }
         )
+        if (updated.modifiedCount === 0) {
+          throw new Error('No hay cupo disponible en este taller')
+        }
       }
 
       await session.commitTransaction()

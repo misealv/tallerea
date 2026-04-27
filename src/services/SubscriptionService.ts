@@ -528,14 +528,17 @@ export const SubscriptionService = {
       notaTallerista?: string
     }
     notaTallerista?: string
+    isAdmin?: boolean
   }): Promise<ISubscription> {
     await dbConnect()
 
-    // Validar workshop y ownership
+    // Validar workshop y ownership (admin puede inscribir en cualquier taller)
     const workshop = await Workshop.findOne({ _id: input.workshopId, activo: true })
     if (!workshop) throw new Error('Taller no encontrado')
     const ownerIdStr = String(workshop.ownerId ?? workshop.accountId ?? '')
-    if (ownerIdStr !== input.ownerId) throw new Error('No tienes permiso sobre este taller')
+    if (!input.isAdmin && ownerIdStr !== input.ownerId) {
+      throw new Error('No tienes permiso sobre este taller')
+    }
     if (workshop.modeloAcceso !== 'recurrente') {
       throw new Error('createManual de Subscription es solo para talleres recurrentes. Usa EnrollmentService.createManual para puntuales.')
     }

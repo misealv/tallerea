@@ -1,6 +1,7 @@
 import 'server-only'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import { revalidatePath } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { InscripcionManualPuntualSchema, InscripcionManualRecurrenteSchema } from '@/schemas/inscripcionManual'
 import { EnrollmentService } from '@/services/EnrollmentService'
@@ -42,12 +43,14 @@ export async function POST(req: NextRequest) {
   }
 
   const ownerId = session.user.id
+  const isAdmin = role === 'admin'
 
   try {
     if (parsed.data.tipo === 'puntual') {
       const d = parsed.data
       const enrollment = await EnrollmentService.createManual({
         ownerId,
+        isAdmin,
         workshopId:              d.workshopId,
         studentEmail:            d.studentEmail,
         studentNombre:           d.studentNombre,
@@ -58,11 +61,15 @@ export async function POST(req: NextRequest) {
         montoPagado:             d.montoPagado,
         notaTallerista:          d.notaTallerista,
       })
+      // Revalidar p\u00e1ginas que muestran cupos / inscritos
+      revalidatePath(`/tallerista/talleres/${d.workshopId}/inscritos`)
+      revalidatePath('/talleres')
       return NextResponse.json({ tipo: 'puntual', enrollment }, { status: 201 })
     } else {
       const d = parsed.data
       const subscription = await SubscriptionService.createManual({
         ownerId,
+        isAdmin,
         workshopId:         d.workshopId,
         studentEmail:       d.studentEmail,
         studentNombre:      d.studentNombre,
@@ -75,6 +82,7 @@ export async function POST(req: NextRequest) {
         clasesPrepagadas:   d.clasesPrepagadas,
         notaTallerista:     d.notaTallerista,
       })
+      revalidatePath(`/tallerista/talleres/${d.workshopId}/inscritos`)
       return NextResponse.json({ tipo: 'recurrente', subscription }, { status: 201 })
     }
   } catch (err: unknown) {
