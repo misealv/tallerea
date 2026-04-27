@@ -185,6 +185,9 @@ async function initiateEmancipation(
   if (!dep || !dep.activo) throw new Error('Dependiente no encontrado')
 
   const emailNorm = newEmail.toLowerCase().trim()
+  if (emailNorm === user.email.toLowerCase()) {
+    throw new Error('No puedes usar tu propio email — ingresa un email distinto para el dependiente')
+  }
   const taken = await User.exists({ email: emailNorm })
   if (taken) throw new Error('Ese email ya tiene una cuenta en Tallerea')
 
@@ -232,40 +235,49 @@ async function confirmEmancipation(
   const session = await mongoose.startSession()
   let newUserId = ''
 
-  await session.withTransaction(async () => {
-    const [newUser] = await User.create([{
-      name: dependentNombre,
-      email: newEmail,
-      role: 'user',
-      activo: true,
-      dependents: [],
-      creditoDisponible: 0,
-    }], { session })
-    newUserId = String(newUser._id)
+  try {
+    await session.withTransaction(async () => {
+      const [newUser] = await User.create([{
+        name: dependentNombre,
+        email: newEmail,
+        role: 'user',
+        activo: true,
+        dependents: [],
+        creditoDisponible: 0,
+      }], { session })
+      newUserId = String(newUser._id)
 
-    // Migrar historial: studentId → nuevo usuario, quitar dependentId
-    await Enrollment.updateMany(
-      { studentId: userId, dependentId },
-      { $set: { studentId: newUserId }, $unset: { dependentId: '' } },
-      { session }
-    )
-    await Subscription.updateMany(
-      { studentId: userId, dependentId },
-      { $set: { studentId: newUserId }, $unset: { dependentId: '' } },
-      { session }
-    )
-    await Booking.updateMany(
-      { studentId: userId, dependentId },
-      { $set: { studentId: newUserId }, $unset: { dependentId: '' } },
-      { session }
-    )
+      // Migrar historial: studentId → nuevo usuario, quitar dependentId
+      await Enrollment.updateMany(
+        { studentId: userId, dependentId },
+        { $set: { studentId: newUserId }, $unset: { dependentId: '' } },
+        { session }
+      )
+      await Subscription.updateMany(
+        { studentId: userId, dependentId },
+        { $set: { studentId: newUserId }, $unset: { dependentId: '' } },
+        { session }
+      )
+      await Booking.updateMany(
+        { studentId: userId, dependentId },
+        { $set: { studentId: newUserId }, $unset: { dependentId: '' } },
+        { session }
+      )
 
-    // Soft-delete del dependiente en el apoderado (preserva subdocumento)
-    dep.activo = false
-    await parentUser.save({ session })
-  })
-
-  session.endSession()
+      // Soft-delete del dependiente en el apoderado (preserva subdocumento)
+      dep.activo = false
+      await parentUser.save({ session })
+    })
+  } catch (err: unknown) {
+    // E11000 puede ocurrir si dos confirms simultáneos pasan el check de email
+    const code = (err as { code?: number })?.code
+    if (code === 11000) {
+      throw new Error('Ese email ya tiene una cuenta en Tallerea')
+    }
+    throw err
+  } finally {
+    session.endSession()
+  }
 
   // Fuera de transacción: emitir magic link al nuevo usuario
   const { magicUrl } = await issueMagicLink(newUserId)

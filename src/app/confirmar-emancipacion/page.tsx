@@ -11,7 +11,10 @@ function decodeTokenPreview(token: string): {
   newEmail: string
 } | null {
   try {
-    const { payload } = JSON.parse(Buffer.from(token, 'base64url').toString())
+    // base64url → base64 (browser-safe; atob no soporta base64url nativamente)
+    const b64 = token.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4)
+    const { payload } = JSON.parse(atob(padded))
     const data = JSON.parse(payload)
     return { dependentNombre: data.dependentNombre, newEmail: data.newEmail }
   } catch {
