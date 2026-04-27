@@ -8,6 +8,7 @@ import ManualPaymentRecord from '@/models/ManualPaymentRecord'
 import Workshop from '@/models/Workshop'
 import { Types } from 'mongoose'
 import ManualPaymentForm from '@/components/ManualPaymentForm'
+import BorrarManualPaymentButton from '@/components/BorrarManualPaymentButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -165,6 +166,7 @@ export default async function FinanzasPage() {
                   <th className="px-3 py-2">Método</th>
                   <th className="px-3 py-2">Fecha</th>
                   <th className="px-3 py-2">Comp.</th>
+                  <th className="px-3 py-2"></th>
                 </tr></thead>
                 <tbody>{manualRecords.map(r => (
                   <tr key={String(r._id)} className="border-t border-gray-100">
@@ -184,6 +186,9 @@ export default async function FinanzasPage() {
                         ? <a href={r.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline text-xs">ver</a>
                         : <span className="text-gray-300 text-xs">—</span>
                       }
+                    </td>
+                    <td className="px-3 py-2">
+                      <BorrarManualPaymentButton id={String(r._id)} />
                     </td>
                   </tr>
                 ))}</tbody>

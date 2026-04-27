@@ -10,6 +10,7 @@ import Booking from '@/models/Booking'
 import { Types } from 'mongoose'
 import MarcaAsistenciaButton from '@/components/MarcaAsistenciaButton'
 import EditarPrecioButton from '@/components/EditarPrecioButton'
+import CancelarInscripcionButton from '@/components/CancelarInscripcionButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -126,7 +127,7 @@ export default async function InscritosPage({
             <table className="w-full text-sm border-collapse">
               <thead><tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
                 <th className="px-4 py-2">Alumno</th><th className="px-4 py-2">Email</th>
-                <th className="px-4 py-2">Monto</th><th className="px-4 py-2">Estado</th><th className="px-4 py-2">Fecha</th>
+                <th className="px-4 py-2">Monto</th><th className="px-4 py-2">Estado</th><th className="px-4 py-2">Fecha</th><th className="px-4 py-2"></th>
               </tr></thead>
               <tbody>{enrollmentsFiltrados.map(e => (
                 <tr key={String(e._id)} className="border-t border-gray-100">
@@ -140,6 +141,13 @@ export default async function InscritosPage({
                   <td className="px-4 py-2">${e.monto.toLocaleString('es-CL')}</td>
                   <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[e.estado] ?? ''}`}>{e.estado}</span></td>
                   <td className="px-4 py-2 text-gray-400">{new Date(e.createdAt).toLocaleDateString('es-CL')}</td>
+                  <td className="px-4 py-2">
+                    <CancelarInscripcionButton
+                      id={String(e._id)}
+                      tipo="enrollment"
+                      nombreAlumno={(e.studentId as StudentRef).name}
+                    />
+                  </td>
                 </tr>
               ))}</tbody>
             </table>
@@ -155,7 +163,7 @@ export default async function InscritosPage({
             <table className="w-full text-sm border-collapse">
               <thead><tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
                 <th className="px-4 py-2">Alumno</th><th className="px-4 py-2">Precio</th><th className="px-4 py-2">Acceso</th>
-                <th className="px-4 py-2">Estado</th><th className="px-4 py-2">Vence</th><th className="px-4 py-2"></th>
+                <th className="px-4 py-2">Estado</th><th className="px-4 py-2">Vence</th><th className="px-4 py-2"></th><th className="px-4 py-2"></th>
               </tr></thead>
               <tbody>{subscriptionsFiltradas.map(s => {
                 const prepaid = s.clasesPrepagadas
@@ -206,6 +214,13 @@ export default async function InscritosPage({
                         subscriptionId={String(s._id)}
                         precioActual={s.precioSnapshot ?? s.monto}
                         notaActual={s.notaPrecioEspecial}
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <CancelarInscripcionButton
+                        id={String(s._id)}
+                        tipo="subscription"
+                        nombreAlumno={(s.studentId as StudentRef).name}
                       />
                     </td>
                   </tr>
