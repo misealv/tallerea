@@ -102,6 +102,7 @@ export default async function Home() {
                       talleristaNombre={owner?.name}
                       clasePruebaDisponible={!!w.clasePrueba?.habilitada}
                       clasePruebaPrecio={w.clasePrueba?.precio}
+                      modeloAcceso={w.modeloAcceso}
                       priority={i < 3}
                     />
                   );

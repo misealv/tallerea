@@ -19,6 +19,7 @@ interface WorkshopCardProps {
   talleristaNombre?: string   // nombre del owner
   clasePruebaDisponible?: boolean
   clasePruebaPrecio?: number  // 0 = gratis
+  modeloAcceso?: 'puntual' | 'recurrente'
   priority?: boolean          // true para las primeras cards (LCP)
 }
 
@@ -36,7 +37,7 @@ const modalidadLabel: Record<string, string> = {
 export default function WorkshopCard({
   slug, titulo, tipo, modalidad, precio, precioDesde, cupoPorSesion,
   comuna, imagen, horarios, slots, espacioNombre, espacioSlug,
-  talleristaNombre, clasePruebaDisponible, clasePruebaPrecio, priority = false,
+  talleristaNombre, clasePruebaDisponible, clasePruebaPrecio, modeloAcceso, priority = false,
 }: WorkshopCardProps) {
   const displaySlots = (slots && slots.length > 0) ? slots : horarios
   const precioMostrar = precioDesde ?? precio
@@ -61,6 +62,13 @@ export default function WorkshopCard({
         {clasePruebaDisponible && (
           <span className="absolute top-2 left-2 bg-purple-600 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full shadow">
             {clasePruebaPrecio === 0 ? '🎁 Prueba gratis' : '🎟️ Clase de prueba'}
+          </span>
+        )}
+
+        {/* Badge sesión única */}
+        {modeloAcceso === 'puntual' && (
+          <span className="absolute top-2 right-2 bg-amber-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full shadow">
+            📅 Sesión única
           </span>
         )}
       </div>

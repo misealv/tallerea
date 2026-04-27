@@ -90,6 +90,7 @@ async function WorkshopResults({ searchParams }: { searchParams: PageProps['sear
               talleristaNombre={owner?.name}
               clasePruebaDisponible={!!w.clasePrueba?.habilitada}
               clasePruebaPrecio={w.clasePrueba?.precio}
+              modeloAcceso={w.modeloAcceso}
               comuna={loc?.comuna}
               imagen={w.imagenes?.[0]}
               slots={w.slots}
