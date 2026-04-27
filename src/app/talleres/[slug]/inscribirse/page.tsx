@@ -14,6 +14,7 @@ interface Slot {
   cupoMax?: number
   cupoDisponible?: number
   reservas?: number
+  fecha?: string | Date
 }
 
 interface Workshop {
@@ -27,6 +28,7 @@ interface Workshop {
   cupoPorSesion?: number
   fechaInicio: string
   slots: Slot[]
+  modeloAcceso?: 'puntual' | 'recurrente'
   clasePrueba?: {
     habilitada: boolean
     precio: number
@@ -142,16 +144,59 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
     return <div className="min-h-screen flex items-center justify-center text-gray-500">Taller no encontrado</div>
   }
 
+  const esPuntual = workshop.modeloAcceso === 'puntual'
+  const slotPuntual = esPuntual && workshop.slots?.length > 0 ? workshop.slots[0] : null
+  const fechaLabel = (() => {
+    const src = slotPuntual?.fecha ?? workshop.fechaInicio
+    if (!src) return null
+    return new Date(src).toLocaleDateString('es-CL', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+    })
+  })()
+  const horaLabel = slotPuntual?.horaInicio
+    ? slotPuntual.horaFin
+      ? `${slotPuntual.horaInicio} – ${slotPuntual.horaFin} hrs`
+      : `${slotPuntual.horaInicio} hrs`
+    : null
+
+  const precio = esClasePrueba
+    ? (workshop.clasePrueba?.precio ?? 0)
+    : workshop.precioPublico
+  const precioLabel = precio === 0
+    ? (esClasePrueba ? 'Gratis' : 'Gratis')
+    : `$${precio.toLocaleString('es-CL')}`
+
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="bg-white rounded-xl border border-gray-200 p-8 max-w-md w-full space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900">Confirmar inscripción</h1>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-50 flex items-center justify-center px-4 py-10">
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 max-w-md w-full overflow-hidden">
 
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold text-gray-800">{workshop.titulo}</h2>
+        {/* Header */}
+        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-5">
+          <p className="text-purple-200 text-xs font-medium uppercase tracking-widest mb-1">Confirmar inscripción</p>
+          <h1 className="text-white text-xl font-bold leading-tight">{workshop.titulo}</h1>
+          {esClasePrueba && (
+            <span className="inline-block mt-2 bg-white/20 text-white text-xs font-semibold px-3 py-0.5 rounded-full">
+              🎟️ Clase de prueba
+            </span>
+          )}
+        </div>
 
-          {/* Selector de slot si tiene slots */}
-          {workshop.slots && workshop.slots.length > 0 ? (
+        <div className="p-6 space-y-5">
+
+          {/* Fecha y hora — puntual */}
+          {esPuntual && fechaLabel && (
+            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <div className="text-2xl leading-none mt-0.5">📅</div>
+              <div>
+                <p className="text-xs text-amber-600 font-semibold uppercase tracking-wide mb-0.5">Fecha y hora</p>
+                <p className="text-sm font-semibold text-gray-800 capitalize">{fechaLabel}</p>
+                {horaLabel && <p className="text-sm text-amber-700 font-medium mt-0.5">🕐 {horaLabel}</p>}
+              </div>
+            </div>
+          )}
+
+          {/* Selector de slot si tiene slots (recurrente) */}
+          {!esPuntual && workshop.slots && workshop.slots.length > 0 && (
             <SlotCalendarPicker
               slots={workshop.slots}
               fechaInicio={workshop.fechaInicio}
@@ -160,91 +205,80 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
               cupoPorSesion={workshop.cupoPorSesion}
               onSelect={(slotIndex, fecha) => { setSelectedSlotIdx(slotIndex); setSelectedFecha(fecha) }}
             />
-          ) : (
+          )}
+
+          {/* Sin slots: cupos libres */}
+          {!esPuntual && (!workshop.slots || workshop.slots.length === 0) && (
             <p className="text-xs text-gray-400">{workshop.cupoDisponible} cupos disponibles</p>
           )}
 
-          <p className="text-sm text-gray-500">
-            Inicio: {new Date(workshop.fechaInicio).toLocaleDateString('es-CL', { timeZone: 'UTC' })}
-          </p>
-
-          <div className="border-t border-gray-100 pt-3">
-            <div className="flex justify-between text-lg">
-              <span className="font-medium">
-                {esClasePrueba ? 'Clase de prueba' : 'Total'}
-              </span>
-              <span className="font-bold text-purple-700">
-                {(() => {
-                  const precio = esClasePrueba
-                    ? (workshop.clasePrueba?.precio ?? 0)
-                    : workshop.precioPublico
-                  return precio === 0 ? 'Gratis' : `$${precio.toLocaleString('es-CL')}`
-                })()}
-              </span>
+          {/* Resumen de pago */}
+          <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Resumen</p>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-700">{esClasePrueba ? 'Clase de prueba' : 'Taller completo'}</span>
+              <span className="text-xl font-bold text-purple-700">{precioLabel}</span>
             </div>
             {esClasePrueba && (
-              <p className="text-xs text-gray-400 mt-1">1 sesión de prueba · sin compromiso</p>
+              <p className="text-xs text-gray-400">1 sesión · sin compromiso de continuidad</p>
             )}
           </div>
-        </div>
 
-        {isGuest && (
-          <div className="space-y-3 border-t border-gray-100 pt-4">
-            <div>
-              <p className="text-sm font-semibold text-gray-800">Tus datos</p>
-              <p className="text-xs text-gray-500 mt-1">
-                Te enviaremos un enlace mágico al correo para activar tu cuenta tras el pago.
+          {/* Datos de invitado */}
+          {isGuest && (
+            <div className="space-y-3 border-t border-gray-100 pt-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Tus datos</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Te enviaremos un enlace al correo para acceder a tu cuenta tras el pago.
+                </p>
+              </div>
+              <input
+                type="text"
+                placeholder="Nombre completo"
+                value={guestName}
+                onChange={e => setGuestName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                autoComplete="name"
+              />
+              <input
+                type="email"
+                placeholder="tu@email.cl"
+                value={guestEmail}
+                onChange={e => setGuestEmail(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                autoComplete="email"
+              />
+              <p className="text-xs text-gray-400">
+                ¿Ya tienes cuenta?{' '}
+                <a href={`/login?callbackUrl=/talleres/${slug}/inscribirse`} className="text-purple-600 hover:underline">
+                  Inicia sesión
+                </a>
               </p>
             </div>
-            <input
-              type="text"
-              placeholder="Nombre completo"
-              value={guestName}
-              onChange={e => setGuestName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              autoComplete="name"
-            />
-            <input
-              type="email"
-              placeholder="tu@email.cl"
-              value={guestEmail}
-              onChange={e => setGuestEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              autoComplete="email"
-            />
-            <p className="text-xs text-gray-400">
-              ¿Ya tienes cuenta?{' '}
-              <a href={`/login?callbackUrl=/talleres/${slug}/inscribirse`} className="text-purple-600 hover:underline">
-                Inicia sesión
-              </a>
-            </p>
-          </div>
-        )}
+          )}
 
-        {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded">{error}</p>}
+          {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
 
-        <button
-          onClick={handleInscribirse}
-          disabled={submitting || (workshop.slots?.length > 0 ? selectedSlotIdx === null : workshop.cupoDisponible <= 0)}
-          className="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-        >
-          {submitting
-            ? 'Procesando...'
-            : (() => {
-                const precio = esClasePrueba
-                  ? (workshop.clasePrueba?.precio ?? 0)
-                  : workshop.precioPublico
-                if (precio === 0) return esClasePrueba ? 'Reservar clase de prueba gratis' : 'Inscribirme gratis'
-                return `Pagar $${precio.toLocaleString('es-CL')}`
-              })()}
-        </button>
+          <button
+            onClick={handleInscribirse}
+            disabled={submitting || (!esPuntual && workshop.slots?.length > 0 ? selectedSlotIdx === null : workshop.cupoDisponible <= 0)}
+            className="w-full bg-purple-600 text-white py-3.5 rounded-xl font-bold text-base hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors shadow-sm"
+          >
+            {submitting
+              ? 'Procesando...'
+              : precio === 0
+                ? (esClasePrueba ? 'Reservar clase de prueba gratis' : 'Inscribirme gratis')
+                : `Pagar ${precioLabel}`}
+          </button>
 
-        <button
-          onClick={() => router.back()}
-          className="w-full text-sm text-gray-500 hover:text-gray-700"
-        >
-          Volver al taller
-        </button>
+          <button
+            onClick={() => router.back()}
+            className="w-full text-sm text-gray-400 hover:text-gray-600 transition-colors py-1"
+          >
+            ← Volver al taller
+          </button>
+        </div>
       </div>
     </div>
   )
