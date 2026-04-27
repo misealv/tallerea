@@ -39,25 +39,29 @@ const EnrollmentSchema = new Schema<IEnrollment>({
   activo:          { type: Boolean, default: true },
 }, { timestamps: true });
 
-// Validación: inscripción manual requiere inscritoPor
+// Validación: inscripción manual requiere inscritoPor + coherencia dependentId/snapshot
 EnrollmentSchema.pre('save', function (next) {
   if (this.origenInscripcion === 'manual' && !this.inscritoPor) {
     return next(new Error('[MANUAL] inscritoPor es obligatorio para origenInscripcion manual'))
+  }
+  if (this.dependentId && !this.dependentNombreSnapshot) {
+    return next(new Error('[MANUAL] dependentNombreSnapshot es obligatorio cuando dependentId está presente'))
   }
   next()
 });
 
 EnrollmentSchema.index({ workshopId: 1 });
 EnrollmentSchema.index({ studentId: 1 });
-// Bloquea duplicados solo para enrollments activos (pendiente/pagado)
+// Bloquea duplicados solo para enrollments activos (pendiente/pagado).
+// dependentId incluido para permitir apoderado inscribiendo a varios hijos en el mismo slot.
 EnrollmentSchema.index(
-  { workshopId: 1, studentId: 1, slotIndex: 1 },
+  { workshopId: 1, studentId: 1, slotIndex: 1, dependentId: 1 },
   { unique: true, partialFilterExpression: { estado: { $in: ['pendiente', 'pagado'] } } }
 );
-// 1 clase de prueba por alumno por taller
+// 1 clase de prueba por (alumno, dependiente) por taller
 EnrollmentSchema.index(
-  { workshopId: 1, studentId: 1, esClasePrueba: 1 },
-  { unique: true, sparse: true, partialFilterExpression: { esClasePrueba: true, estado: { $ne: 'cancelado' } } }
+  { workshopId: 1, studentId: 1, dependentId: 1, esClasePrueba: 1 },
+  { unique: true, partialFilterExpression: { esClasePrueba: true, estado: { $in: ['pendiente', 'pagado'] } } }
 );
 
 export default mongoose.models.Enrollment || mongoose.model<IEnrollment>('Enrollment', EnrollmentSchema);

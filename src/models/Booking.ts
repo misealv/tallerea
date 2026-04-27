@@ -53,14 +53,23 @@ const BookingSchema = new Schema<IBooking>({
   activo: { type: Boolean, default: true },
 }, { timestamps: true });
 
+// Validación: si hay dependentId, debe haber snapshot
+BookingSchema.pre('save', function (next) {
+  if (this.dependentId && !this.dependentNombreSnapshot) {
+    return next(new Error('[MANUAL] dependentNombreSnapshot es obligatorio cuando dependentId está presente'))
+  }
+  next()
+});
+
 BookingSchema.index({ workshopId: 1, fecha: 1 });
 BookingSchema.index({ studentId: 1, fecha: 1 });
 BookingSchema.index({ subscriptionId: 1 });
 
-// 1 reserva por alumno por sesión
+// 1 reserva por (alumno, dependiente) por sesión.
+// dependentId incluido para permitir apoderado reservando para varios hijos en el mismo slot.
 BookingSchema.index(
-  { workshopId: 1, studentId: 1, slotIndex: 1 },
-  { unique: true, partialFilterExpression: { estado: { $ne: 'cancelada' } } }
+  { workshopId: 1, studentId: 1, slotIndex: 1, dependentId: 1 },
+  { unique: true, partialFilterExpression: { estado: { $in: ['reservada', 'asistio', 'no_asistio'] } } }
 );
 
 export default mongoose.models.Booking || mongoose.model<IBooking>('Booking', BookingSchema);

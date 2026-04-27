@@ -84,13 +84,28 @@ SubscriptionSchema.pre('save', function (next) {
   if (this.origenInscripcion === 'manual' && !this.inscritoPor) {
     return next(new Error('[MANUAL] inscritoPor es obligatorio para origenInscripcion manual'))
   }
+  if (this.dependentId && !this.dependentNombreSnapshot) {
+    return next(new Error('[MANUAL] dependentNombreSnapshot es obligatorio cuando dependentId está presente'))
+  }
   if (this.clasesPrepagadas) {
-    const { cantidad, consumidas } = this.clasesPrepagadas
-    if (consumidas > cantidad) {
-      return next(new Error('[PREPAGADO] consumidas no puede superar cantidad'))
-    }
+    const { cantidad, consumidas, fechaPago, metodoPago, creadoPor } = this.clasesPrepagadas
     if (this.origenInscripcion !== 'manual') {
       return next(new Error('[PREPAGADO] clasesPrepagadas solo permitido en inscripción manual'))
+    }
+    if (typeof cantidad !== 'number' || cantidad < 1) {
+      return next(new Error('[PREPAGADO] cantidad debe ser un entero ≥ 1'))
+    }
+    if (typeof consumidas !== 'number' || consumidas < 0 || consumidas > cantidad) {
+      return next(new Error('[PREPAGADO] consumidas debe estar entre 0 y cantidad'))
+    }
+    if (!fechaPago) {
+      return next(new Error('[PREPAGADO] fechaPago es obligatorio'))
+    }
+    if (!metodoPago) {
+      return next(new Error('[PREPAGADO] metodoPago es obligatorio'))
+    }
+    if (!creadoPor) {
+      return next(new Error('[PREPAGADO] creadoPor es obligatorio'))
     }
   }
   next()
@@ -100,9 +115,11 @@ SubscriptionSchema.index({ workshopId: 1, studentId: 1, estado: 1 });
 SubscriptionSchema.index({ studentId: 1, estado: 1 });
 SubscriptionSchema.index({ fechaVencimiento: 1 });
 
-// Solo 1 suscripción activa por alumno por taller
+// Solo 1 suscripción activa por (alumno, dependiente) por taller.
+// dependentId se incluye para que un apoderado pueda tener varias subs activas
+// (una propia + una por cada hijo) en el mismo workshop.
 SubscriptionSchema.index(
-  { workshopId: 1, studentId: 1 },
+  { workshopId: 1, studentId: 1, dependentId: 1 },
   { unique: true, partialFilterExpression: { estado: 'activa' } }
 );
 
