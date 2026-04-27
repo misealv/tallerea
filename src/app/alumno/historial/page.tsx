@@ -5,6 +5,8 @@ import Link from 'next/link'
 import dbConnect from '@/lib/db'
 import Enrollment from '@/models/Enrollment'
 import Subscription from '@/models/Subscription'
+// Importar Workshop para registrar el schema antes de populate (evita MissingSchemaError en cold-start)
+import '@/models/Workshop'
 import { Types } from 'mongoose'
 
 export const dynamic = 'force-dynamic'
