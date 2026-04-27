@@ -50,6 +50,7 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
 
   const loc = workshop.locationId as unknown as {
     nombre: string; direccion: string; comuna: string; ciudad: string
+    coordenadas?: { lat: number; lng: number }
   } | null
   const owner = workshop.ownerId as unknown as {
     name: string
@@ -197,6 +198,22 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <p className="font-medium text-gray-800">{loc.nombre}</p>
                   <p className="text-sm text-gray-600">{loc.direccion}, {loc.comuna}, {loc.ciudad}</p>
+                </div>
+                {/* Mapa Google Maps embed */}
+                <div className="mt-3 rounded-xl overflow-hidden border border-gray-200 h-56">
+                  <iframe
+                    title={`Mapa: ${loc.nombre}`}
+                    width="100%"
+                    height="100%"
+                    style={{ border: 0 }}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    src={`https://maps.google.com/maps?q=${encodeURIComponent(
+                      loc.coordenadas
+                        ? `${loc.coordenadas.lat},${loc.coordenadas.lng}`
+                        : `${loc.direccion}, ${loc.comuna}, ${loc.ciudad}`
+                    )}&output=embed&z=16`}
+                  />
                 </div>
               </div>
             )}
