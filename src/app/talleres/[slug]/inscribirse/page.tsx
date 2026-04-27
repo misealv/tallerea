@@ -268,8 +268,6 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
                 const cupo = slotPuntual?.cupoDisponible ?? workshop.cupoDisponible ?? 1
                 return cupo <= 0
               }
-              // clase de prueba recurrente: no requiere slot
-              if (esClasePrueba) return false
               // recurrente con slots: requiere selección
               if (workshop.slots?.length > 0) return selectedSlotIdx === null
               // sin slots: cupo raíz
