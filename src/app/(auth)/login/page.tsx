@@ -54,7 +54,7 @@ function LoginForm() {
       router.push('/tallerista/onboarding')
     } else {
       // Alumno sin taller
-      router.push('/mis-talleres')
+      router.push('/alumno')
     }
     router.refresh()
   }
