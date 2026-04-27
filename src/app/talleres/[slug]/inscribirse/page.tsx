@@ -76,10 +76,20 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
 
   const handleInscribirse = async () => {
     if (!workshop) return
+    const esPuntualLocal = workshop.modeloAcceso === 'puntual'
     const hasSlots = workshop.slots && workshop.slots.length > 0
 
-    // Si tiene slots, validar selección
-    if (hasSlots && (selectedSlotIdx === null || !selectedFecha)) {
+    // Para puntual: auto-seleccionar el slot 0 (no hay picker)
+    let resolvedSlotIdx = selectedSlotIdx
+    let resolvedFecha = selectedFecha
+    if (esPuntualLocal && hasSlots) {
+      resolvedSlotIdx = 0
+      const slotFecha = workshop.slots[0]?.fecha
+      resolvedFecha = slotFecha ? new Date(slotFecha).toISOString() : null
+    }
+
+    // Para recurrente: validar que haya selección
+    if (!esPuntualLocal && hasSlots && (resolvedSlotIdx === null || !resolvedFecha)) {
       setError('Selecciona una fecha y horario')
       return
     }
@@ -105,8 +115,8 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           workshopId: workshop._id,
-          slotIndex: hasSlots ? selectedSlotIdx : null,
-          ...(selectedFecha ? { fecha: selectedFecha } : {}),
+          slotIndex: hasSlots ? resolvedSlotIdx : null,
+          ...(resolvedFecha ? { fecha: resolvedFecha } : {}),
           ...(esClasePrueba ? { esClasePrueba: true } : {}),
           ...(montoVoluntarioParam !== undefined ? { montoVoluntario: montoVoluntarioParam } : {}),
           ...(isGuest ? { name: guestName.trim(), email: guestEmail.trim() } : {}),
