@@ -194,7 +194,7 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
 
           const fechaLabel = primeraFecha.toLocaleDateString('es-CL', {
             weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-            timeZone: 'America/Santiago',
+            timeZone: 'UTC',
           })
 
           const horaLabel = primerSlot?.horaInicio && primerSlot?.horaFin
@@ -209,10 +209,10 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                 {/* Bloque de calendario visual */}
                 <div className="flex-shrink-0 bg-white rounded-lg overflow-hidden w-14 text-center shadow-sm">
                   <div className="bg-indigo-600 text-white text-[10px] font-bold uppercase py-0.5 tracking-wide">
-                    {primeraFecha.toLocaleDateString('es-CL', { month: 'short', timeZone: 'America/Santiago' })}
+                    {primeraFecha.toLocaleDateString('es-CL', { month: 'short', timeZone: 'UTC' })}
                   </div>
                   <div className="text-indigo-700 font-extrabold text-2xl leading-tight py-1">
-                    {primeraFecha.toLocaleDateString('es-CL', { day: 'numeric', timeZone: 'America/Santiago' })}
+                    {primeraFecha.toLocaleDateString('es-CL', { day: 'numeric', timeZone: 'UTC' })}
                   </div>
                 </div>
                 <div>
