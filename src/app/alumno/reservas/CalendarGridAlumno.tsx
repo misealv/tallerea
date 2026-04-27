@@ -51,6 +51,24 @@ export default function CalendarGridAlumno({
   const [actionError, setActionError] = useState('')
   const router = useRouter()
 
+  // Selector de dependiente en el modal de reserva
+  const [dependents, setDependents] = useState<{ _id: string; nombre: string }[]>([])
+  const [selectedDependent, setSelectedDependent] = useState<string>('') // '' = alumno titular
+
+  // Cargar dependientes al abrir el modal
+  function openConfirm(slot: CalendarSlot) {
+    setActionError('')
+    setSelectedDependent('')
+    setConfirming(slot)
+    // Cargar dependientes del usuario en segundo plano
+    fetch('/api/users/me/dependents')
+      .then(r => r.json())
+      .then((data: { _id: string; nombre: string }[]) => {
+        if (Array.isArray(data)) setDependents(data)
+      })
+      .catch(() => null)
+  }
+
   // Construir los 7 días de la semana visible
   const weekDays = GRID_DAY_IDX.map((dayOfWeek, i) => {
     const d = new Date(weekStart)
@@ -74,10 +92,12 @@ export default function CalendarGridAlumno({
   async function handleReserve() {
     if (!confirming) return
     setActionError('')
+    const body: Record<string, unknown> = { subscriptionId, workshopId, slotIndex: confirming.index }
+    if (selectedDependent) body.dependentId = selectedDependent
     const res = await fetch('/api/bookings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subscriptionId, workshopId, slotIndex: confirming.index }),
+      body: JSON.stringify(body),
     })
     const data = await res.json()
     if (!res.ok) { setActionError(data.error || 'Error al reservar'); return }
@@ -179,7 +199,7 @@ export default function CalendarGridAlumno({
                     onClick={() => {
                       if (pasado || cancelado) return
                       if (isMio) { setActionError(''); setCancelling(slot.miReservaId!); return }
-                      if (!lleno && sesionesDisponibles > 0) { setActionError(''); setConfirming(slot) }
+                      if (!lleno && sesionesDisponibles > 0) { setActionError(''); openConfirm(slot) }
                     }}
                   >
                     <div className="font-semibold truncate">{slot.horaInicio}</div>
@@ -213,6 +233,22 @@ export default function CalendarGridAlumno({
               {new Date(confirming.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}<br />
               {confirming.horaInicio} – {confirming.horaFin}
             </p>
+            {/* Selector de dependiente */}
+            {dependents.length > 0 && (
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">¿Quién toma esta clase?</label>
+                <select
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  value={selectedDependent}
+                  onChange={e => setSelectedDependent(e.target.value)}
+                >
+                  <option value="">Yo mismo/a</option>
+                  {dependents.map(d => (
+                    <option key={d._id} value={d._id}>{d.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <p className="text-xs text-gray-500 dark:text-gray-400">Se descontará 1 sesión de tu suscripción.</p>
             {actionError && <p className="text-sm text-red-600 dark:text-red-400">{actionError}</p>}
             <div className="flex gap-2">
