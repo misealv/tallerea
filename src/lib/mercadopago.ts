@@ -16,10 +16,16 @@ export interface CreatePreferenceInput {
   workshopTitle: string
   amount: number
   payerEmail: string
+  payerName?: string  // pre-rellena nombre en el checkout de MP
 }
 
 export async function createPaymentPreference(input: CreatePreferenceInput) {
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+
+  // Dividir nombre en first/last para que MP pre-rellene el formulario
+  const nameParts = (input.payerName ?? '').trim().split(/\s+/)
+  const firstName = nameParts[0] ?? ''
+  const lastName = nameParts.slice(1).join(' ') || firstName
 
   const preference = await preferenceClient.create({
     body: {
@@ -32,7 +38,13 @@ export async function createPaymentPreference(input: CreatePreferenceInput) {
           currency_id: 'CLP',
         },
       ],
-      payer: { email: input.payerEmail },
+      payer: {
+        email: input.payerEmail,
+        ...(firstName && {
+          first_name: firstName,
+          last_name: lastName,
+        }),
+      },
       back_urls: {
         success: `${baseUrl}/pago/exitoso`,
         failure: `${baseUrl}/pago/exitoso?estado=error`,

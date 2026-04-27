@@ -124,6 +124,7 @@ export const PaymentService = {
       workshopTitle: workshop.titulo,
       amount: montoACobrar,
       payerEmail: studentEmail,
+      payerName: studentName,
     })
 
     return {
