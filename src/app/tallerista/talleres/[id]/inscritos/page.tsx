@@ -9,12 +9,13 @@ import Subscription from '@/models/Subscription'
 import Booking from '@/models/Booking'
 import { Types } from 'mongoose'
 import MarcaAsistenciaButton from '@/components/MarcaAsistenciaButton'
+import EditarPrecioButton from '@/components/EditarPrecioButton'
 
 export const dynamic = 'force-dynamic'
 
 interface StudentRef { name: string; email: string }
-interface EnrollmentLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; monto: number; slotIndex: number | null; createdAt: Date }
-interface SubLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; sesionesUsadas: number; sesionesTotales: number; fechaVencimiento: Date; monto: number; clasesPrepagadas?: { cantidad: number; consumidas: number }; origenInscripcion?: string }
+interface EnrollmentLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; monto: number; slotIndex: number | null; createdAt: Date; origenInscripcion?: string }
+interface SubLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; sesionesUsadas: number; sesionesTotales: number; fechaVencimiento: Date; monto: number; clasesPrepagadas?: { cantidad: number; consumidas: number }; origenInscripcion?: string; precioEspecial?: boolean; precioSnapshot?: number; notaPrecioEspecial?: string }
 interface BookingLean { _id: Types.ObjectId; studentId: StudentRef; subscriptionId: Types.ObjectId; slotIndex: number; fecha: Date; estado: string; dependentNombreSnapshot?: string }
 interface WorkshopLean { _id: Types.ObjectId; titulo: string; ownerId?: Types.ObjectId; accountId?: Types.ObjectId; slots: { horaInicio: string; horaFin: string; fecha?: Date }[] }
 
@@ -26,7 +27,13 @@ const ESTADO_COLOR: Record<string, string> = {
   cancelada: 'bg-gray-100 text-gray-400',
 }
 
-export default async function InscritosPage({ params }: { params: { id: string } }) {
+export default async function InscritosPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string }
+  searchParams: { filtro?: string }
+}) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) redirect('/login')
 
@@ -60,6 +67,19 @@ export default async function InscritosPage({ params }: { params: { id: string }
         .lean<BookingLean[]>()
     : []
 
+  const filtro = searchParams?.filtro
+  const enrollmentsFiltrados = filtro === 'manual'
+    ? enrollments.filter(e => e.origenInscripcion === 'manual')
+    : enrollments
+  const subscriptionsFiltradas = filtro === 'precio-especial'
+    ? subscriptions.filter(s => s.precioEspecial)
+    : filtro === 'manual'
+      ? subscriptions.filter(s => s.origenInscripcion === 'manual')
+      : subscriptions
+
+  const totalPrecioEspecial = subscriptions.filter(s => s.precioEspecial).length
+  const totalManual = [...enrollments, ...subscriptions].filter(x => x.origenInscripcion === 'manual').length
+
   return (
     <div className="space-y-10 max-w-3xl">
       <div className="flex items-start justify-between gap-4">
@@ -76,19 +96,44 @@ export default async function InscritosPage({ params }: { params: { id: string }
         </Link>
       </div>
 
+      {/* Filtros rápidos */}
+      <div className="flex gap-2 flex-wrap">
+        <Link href={`/tallerista/talleres/${params.id}/inscritos`}
+          className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+            !filtro ? 'bg-gray-800 text-white border-gray-800' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}>Todos</Link>
+        {totalPrecioEspecial > 0 && (
+          <Link href={`/tallerista/talleres/${params.id}/inscritos?filtro=precio-especial`}
+            className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+              filtro === 'precio-especial' ? 'bg-violet-700 text-white border-violet-700' : 'border-violet-300 text-violet-700 hover:bg-violet-50'
+            }`}>Precio especial ({totalPrecioEspecial})</Link>
+        )}
+        {totalManual > 0 && (
+          <Link href={`/tallerista/talleres/${params.id}/inscritos?filtro=manual`}
+            className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+              filtro === 'manual' ? 'bg-amber-700 text-white border-amber-700' : 'border-amber-300 text-amber-700 hover:bg-amber-50'
+            }`}>Inscripción manual ({totalManual})</Link>
+        )}
+      </div>
+
       {/* Inscripciones puntuales */}
       <section>
-        <h2 className="text-base font-semibold text-gray-700 mb-3">Inscripciones puntuales ({enrollments.length})</h2>
-        {enrollments.length === 0 ? <p className="text-sm text-gray-400">Sin inscripciones.</p> : (
+        <h2 className="text-base font-semibold text-gray-700 mb-3">Inscripciones puntuales ({enrollmentsFiltrados.length})</h2>
+        {enrollmentsFiltrados.length === 0 ? <p className="text-sm text-gray-400">Sin inscripciones.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead><tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
                 <th className="px-4 py-2">Alumno</th><th className="px-4 py-2">Email</th>
                 <th className="px-4 py-2">Monto</th><th className="px-4 py-2">Estado</th><th className="px-4 py-2">Fecha</th>
               </tr></thead>
-              <tbody>{enrollments.map(e => (
+              <tbody>{enrollmentsFiltrados.map(e => (
                 <tr key={String(e._id)} className="border-t border-gray-100">
-                  <td className="px-4 py-2 font-medium text-gray-800">{(e.studentId as StudentRef).name}</td>
+                  <td className="px-4 py-2 font-medium text-gray-800">
+                    {(e.studentId as StudentRef).name}
+                    {e.origenInscripcion === 'manual' && (
+                      <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">manual</span>
+                    )}
+                  </td>
                   <td className="px-4 py-2 text-gray-500">{(e.studentId as StudentRef).email}</td>
                   <td className="px-4 py-2">${e.monto.toLocaleString('es-CL')}</td>
                   <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[e.estado] ?? ''}`}>{e.estado}</span></td>
@@ -102,20 +147,40 @@ export default async function InscritosPage({ params }: { params: { id: string }
 
       {/* Suscripciones activas */}
       <section>
-        <h2 className="text-base font-semibold text-gray-700 mb-3">Suscripciones ({subscriptions.length})</h2>
-        {subscriptions.length === 0 ? <p className="text-sm text-gray-400">Sin suscripciones.</p> : (
+        <h2 className="text-base font-semibold text-gray-700 mb-3">Suscripciones ({subscriptionsFiltradas.length})</h2>
+        {subscriptionsFiltradas.length === 0 ? <p className="text-sm text-gray-400">Sin suscripciones.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead><tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
-                <th className="px-4 py-2">Alumno</th><th className="px-4 py-2">Acceso</th>
-                <th className="px-4 py-2">Estado</th><th className="px-4 py-2">Vence</th>
+                <th className="px-4 py-2">Alumno</th><th className="px-4 py-2">Precio</th><th className="px-4 py-2">Acceso</th>
+                <th className="px-4 py-2">Estado</th><th className="px-4 py-2">Vence</th><th className="px-4 py-2"></th>
               </tr></thead>
-              <tbody>{subscriptions.map(s => {
+              <tbody>{subscriptionsFiltradas.map(s => {
                 const prepaid = s.clasesPrepagadas
                 const prepaidActivo = prepaid && prepaid.consumidas < prepaid.cantidad
+                const esBecado = s.precioEspecial && s.precioSnapshot === 0
                 return (
                   <tr key={String(s._id)} className="border-t border-gray-100">
-                    <td className="px-4 py-2 font-medium text-gray-800">{(s.studentId as StudentRef).name}</td>
+                    <td className="px-4 py-2 font-medium text-gray-800">
+                      {(s.studentId as StudentRef).name}
+                      {s.origenInscripcion === 'manual' && (
+                        <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">manual</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2">
+                      {s.precioEspecial ? (
+                        <span className="inline-flex items-center gap-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            esBecado ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
+                          }`} title={s.notaPrecioEspecial ?? ''}>
+                            {esBecado ? 'Becado' : 'Precio especial'}
+                          </span>
+                          <span className="text-gray-500">${(s.precioSnapshot ?? 0).toLocaleString('es-CL')}</span>
+                        </span>
+                      ) : (
+                        <span className="text-gray-500">${s.monto.toLocaleString('es-CL')}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2">
                       {prepaidActivo ? (
                         <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
@@ -127,6 +192,13 @@ export default async function InscritosPage({ params }: { params: { id: string }
                     </td>
                     <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[s.estado] ?? ''}`}>{s.estado}</span></td>
                     <td className="px-4 py-2 text-gray-400">{new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}</td>
+                    <td className="px-4 py-2">
+                      <EditarPrecioButton
+                        subscriptionId={String(s._id)}
+                        precioActual={s.precioSnapshot ?? s.monto}
+                        notaActual={s.notaPrecioEspecial}
+                      />
+                    </td>
                   </tr>
                 )
               })}</tbody>

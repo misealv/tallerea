@@ -5,11 +5,12 @@ export type AuditAction =
   | 'liquidacion_creada'
   | 'liquidacion_pagada'
   | 'reembolso'
-  | 'ajuste';
+  | 'ajuste'
+  | 'precio_especial_editado';
 
 export interface IFinanceAuditLog extends Document {
   accion: AuditAction;
-  entidadTipo: 'PaymentBreakdown' | 'Liquidation';
+  entidadTipo: 'PaymentBreakdown' | 'Liquidation' | 'Subscription';
   entidadId: Types.ObjectId;
   montoAnterior: number;
   montoNuevo: number;
@@ -21,10 +22,10 @@ export interface IFinanceAuditLog extends Document {
 const FinanceAuditLogSchema = new Schema<IFinanceAuditLog>({
   accion: {
     type: String,
-    enum: ['pago_recibido', 'liquidacion_creada', 'liquidacion_pagada', 'reembolso', 'ajuste'],
+    enum: ['pago_recibido', 'liquidacion_creada', 'liquidacion_pagada', 'reembolso', 'ajuste', 'precio_especial_editado'],
     required: true,
   },
-  entidadTipo: { type: String, enum: ['PaymentBreakdown', 'Liquidation'], required: true },
+  entidadTipo: { type: String, enum: ['PaymentBreakdown', 'Liquidation', 'Subscription'], required: true },
   entidadId: { type: Schema.Types.ObjectId, required: true },
   montoAnterior: { type: Number, required: true, default: 0 },
   montoNuevo: { type: Number, required: true },
