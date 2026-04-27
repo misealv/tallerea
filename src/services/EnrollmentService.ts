@@ -3,7 +3,7 @@ import mongoose from 'mongoose'
 import dbConnect from '@/lib/db'
 import Enrollment, { IEnrollment } from '@/models/Enrollment'
 import Workshop from '@/models/Workshop'
-import User, { IDependent, IUser } from '@/models/User'
+import User, { IDependent } from '@/models/User'
 import { CreditService } from '@/services/CreditService'
 
 interface PaginatedResult<T> {
