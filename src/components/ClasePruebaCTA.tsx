@@ -70,12 +70,12 @@ export default function ClasePruebaCTA({ workshopId, workshopSlug, precio, varia
     <div className="mt-10 border-t border-gray-100 pt-10">
       <div className="bg-purple-50 border border-purple-200 rounded-2xl p-8 text-center">
         <p className="text-2xl font-bold text-gray-900 mb-2">
-          {precio === 0 ? '¿Querés probar antes de inscribirte?' : '¿Todavía tenés dudas?'}
+          {precio === 0 ? '¿Quieres probar antes de inscribirte?' : '¿Todavía tienes dudas?'}
         </p>
         <p className="text-gray-500 mb-6 max-w-md mx-auto">
           {precio === 0
-            ? 'Asistí a una clase de prueba sin costo y sin compromiso. Conocé al profesor y sentí la dinámica del taller.'
-            : `Asistí a una clase de prueba por solo $${precio.toLocaleString('es-CL')} y decidí luego si seguís. Sin compromiso.`}
+            ? 'Toma una clase de prueba sin costo y sin compromiso. Conoce al profesor y siente la dinámica del taller.'
+            : `Toma una clase de prueba por solo $${precio.toLocaleString('es-CL')} y decide luego si continúas. Sin compromiso.`}
         </p>
         <button
           onClick={handleClick}
