@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic'
 interface StudentRef { name: string; email: string }
 interface EnrollmentLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; monto: number; slotIndex: number | null; createdAt: Date }
 interface SubLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; sesionesUsadas: number; sesionesTotales: number; fechaVencimiento: Date; monto: number; clasesPrepagadas?: { cantidad: number; consumidas: number }; origenInscripcion?: string }
-interface BookingLean { _id: Types.ObjectId; studentId: StudentRef; subscriptionId: Types.ObjectId; slotIndex: number; fecha: Date; estado: string }
+interface BookingLean { _id: Types.ObjectId; studentId: StudentRef; subscriptionId: Types.ObjectId; slotIndex: number; fecha: Date; estado: string; dependentNombreSnapshot?: string }
 interface WorkshopLean { _id: Types.ObjectId; titulo: string; ownerId?: Types.ObjectId; accountId?: Types.ObjectId; slots: { horaInicio: string; horaFin: string; fecha?: Date }[] }
 
 const ESTADO_COLOR: Record<string, string> = {
@@ -139,9 +139,13 @@ export default async function InscritosPage({ params }: { params: { id: string }
               </tr></thead>
               <tbody>{bookings.map(b => {
                 const slot = workshop.slots[b.slotIndex]
+                const titular = (b.studentId as StudentRef).name
+                const display = b.dependentNombreSnapshot
+                  ? `${b.dependentNombreSnapshot} (apoderad@: ${titular})`
+                  : titular
                 return (
                   <tr key={String(b._id)} className="border-t border-gray-100">
-                    <td className="px-4 py-2 font-medium text-gray-800">{(b.studentId as StudentRef).name}</td>
+                    <td className="px-4 py-2 font-medium text-gray-800">{display}</td>
                     <td className="px-4 py-2 text-gray-500">{slot ? `${slot.horaInicio}–${slot.horaFin}` : `#${b.slotIndex + 1}`}</td>
                     <td className="px-4 py-2 text-gray-400">{new Date(b.fecha).toLocaleDateString('es-CL')}</td>
                     <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[b.estado] ?? ''}`}>{b.estado}</span></td>

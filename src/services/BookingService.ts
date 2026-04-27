@@ -3,6 +3,8 @@ import Booking, { IBooking } from '@/models/Booking'
 import Workshop from '@/models/Workshop'
 import Subscription from '@/models/Subscription'
 import { SubscriptionService } from '@/services/SubscriptionService'
+import { UserService } from '@/services/UserService'
+import User, { IDependent, IUser } from '@/models/User'
 
 interface PaginatedResult<T> {
   data: T[]
@@ -46,9 +48,22 @@ export const BookingService = {
     subscriptionId: string,
     workshopId: string,
     studentId: string,
-    slotIndex: number
+    slotIndex: number,
+    dependentId?: string
   ): Promise<IBooking> {
     await dbConnect()
+
+    // Validar ownership y obtener snapshot del dependiente
+    let dependentNombreSnapshot: string | undefined
+    if (dependentId) {
+      const owns = await UserService.ownsDependent(studentId, dependentId)
+      if (!owns) throw new Error('Dependiente no encontrado o no te pertenece')
+      const userDoc = await User.findOne({ _id: studentId })
+        .select('dependents')
+        .lean<Pick<IUser, 'dependents'>>()
+      const dep = userDoc?.dependents.find((d: IDependent) => String(d._id) === dependentId)
+      dependentNombreSnapshot = dep?.nombre
+    }
 
     // Validar suscripción activa
     const sub = await Subscription.findById(subscriptionId)
@@ -72,12 +87,19 @@ export const BookingService = {
       throw new Error('Sesión llena — no hay cupo disponible')
     }
 
-    // Validar que no haya reserva duplicada activa
+    // Validar que no haya reserva duplicada activa (mismo titular+slot+dependiente)
     const existing = await Booking.findOne({
       workshopId, studentId, slotIndex,
       estado: { $ne: 'cancelada' },
+      ...(dependentId ? { dependentId } : { dependentId: { $exists: false } }),
     })
-    if (existing) throw new Error('Ya tienes una reserva en esta sesión')
+    if (existing) {
+      throw new Error(
+        dependentId
+          ? 'Ese dependiente ya tiene una reserva en esta sesión'
+          : 'Ya tienes una reserva en esta sesión'
+      )
+    }
 
     // Consumir sesión de la suscripción (atómico)
     await SubscriptionService.consumeSesion(subscriptionId)
@@ -106,6 +128,9 @@ export const BookingService = {
         slotIndex,
         fecha: slot.fecha,
         estado: 'reservada',
+        ...(dependentId
+          ? { dependentId, dependentNombreSnapshot }
+          : {}),
       }).save()
       return booking
     } catch (err) {

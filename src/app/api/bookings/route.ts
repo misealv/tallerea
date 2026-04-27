@@ -45,11 +45,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'slotIndex debe ser entero positivo' }, { status: 400 })
     }
 
+    // dependentId es opcional; si viene, validar formato
+    let dependentId: string | undefined
+    if (body.dependentId !== undefined && body.dependentId !== null && body.dependentId !== '') {
+      if (!validateObjectId(body.dependentId)) {
+        return NextResponse.json({ error: 'dependentId inválido' }, { status: 400 })
+      }
+      dependentId = body.dependentId
+    }
+
     const booking = await BookingService.reserve(
       body.subscriptionId,
       body.workshopId,
       session.user.id,
-      body.slotIndex
+      body.slotIndex,
+      dependentId
     )
 
     return NextResponse.json(booking, { status: 201 })
