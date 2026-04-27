@@ -247,55 +247,33 @@ export const SubscriptionService = {
 
   /**
    * [PREPAGADO] Consume 1 clase del saldo prepagado de una Subscription manual.
-   * - Solo aplica cuando clasesPrepagadas existe y consumidas < cantidad.
-   * - Atómico vía $inc con guard — nunca supera cantidad.
+   * - Atómico: $expr garantiza consumidas < cantidad antes de incrementar.
+   * - Retorna null si la sub no tiene clasesPrepagadas o el saldo está agotado.
    * - NO crea PaymentBreakdown ni afecta liquidaciones.
    *
    * @param subscriptionId  ID de la Subscription
    * @param motivo          Estado terminal del Booking que dispara el consumo
-   * @returns La Subscription actualizada, o null si no tenía saldo prepagado activo
+   *                        (reservado para futuro audit log)
    */
   async consumePrepaid(
     subscriptionId: string,
     motivo: 'asistio' | 'no_show' | 'cancelacion_fuera_plazo'
   ): Promise<ISubscription | null> {
     await dbConnect()
+    void motivo // [DEUDA] no se persiste todavía — pendiente audit log
 
+    // Update atómico con guard $expr — solo incrementa si consumidas < cantidad
     const updated = await Subscription.findOneAndUpdate(
       {
         _id: subscriptionId,
-        'clasesPrepagadas.consumidas': { $lt: { $expr: '$clasesPrepagadas.cantidad' } },
+        clasesPrepagadas: { $exists: true },
+        $expr: { $lt: ['$clasesPrepagadas.consumidas', '$clasesPrepagadas.cantidad'] },
       },
       { $inc: { 'clasesPrepagadas.consumidas': 1 } },
       { new: true }
     ).lean<ISubscription>()
 
-    // El guard con $expr no funciona en findOneAndUpdate — usar two-step atómico
-    // Re-intentar con la query correcta:
-    if (!updated) {
-      // Verificar si existe y tiene saldo
-      const sub = await Subscription.findOne({
-        _id: subscriptionId,
-        clasesPrepagadas: { $exists: true },
-      }).lean<ISubscription>()
-
-      if (!sub?.clasesPrepagadas) return null
-      if (sub.clasesPrepagadas.consumidas >= sub.clasesPrepagadas.cantidad) return null
-
-      // Guard atómico correcto: consumidas < cantidad como número literal
-      const result = await Subscription.findOneAndUpdate(
-        {
-          _id: subscriptionId,
-          $expr: { $lt: ['$clasesPrepagadas.consumidas', '$clasesPrepagadas.cantidad'] },
-        },
-        { $inc: { 'clasesPrepagadas.consumidas': 1 } },
-        { new: true }
-      ).lean<ISubscription>()
-
-      return result
-    }
-
-    return updated
+    return updated // null si no tiene saldo prepagado activo
   },
 
   /**
