@@ -87,7 +87,10 @@ SubscriptionSchema.pre('save', function (next) {
   if (this.dependentId && !this.dependentNombreSnapshot) {
     return next(new Error('[MANUAL] dependentNombreSnapshot es obligatorio cuando dependentId está presente'))
   }
-  if (this.clasesPrepagadas) {
+  // Mongoose 8 inicializa subdocumentos con defaults aunque no se provean.
+  // Verificamos 'cantidad' (campo requerido) en lugar del objeto entero para evitar
+  // falsos positivos con { consumidas: 0 } creado por el default del schema.
+  if (this.clasesPrepagadas?.cantidad) {
     const { cantidad, consumidas, fechaPago, metodoPago, creadoPor } = this.clasesPrepagadas
     if (this.origenInscripcion !== 'manual') {
       return next(new Error('[PREPAGADO] clasesPrepagadas solo permitido en inscripción manual'))

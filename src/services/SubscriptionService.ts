@@ -665,7 +665,10 @@ export const SubscriptionService = {
       sesionesDisponibles,
       fechaCompra: ahora,
       fechaVencimiento,
-      pagoRef: 'manual',
+      // [FINANCE RISK] pagoRef intencionalmente omitido en inscripciones manuales:
+      // el índice unique sparse sobre pagoRef solo indexa valores no-nulos.
+      // origenInscripcion:'manual' identifica el origen; no hace falta pagoRef='manual'
+      // (usarlo causaría E11000 al crear una segunda inscripción manual).
       monto: montoFinal,
       autoRenovar: false,
       precioSnapshot: input.precioEspecial ? input.precioSnapshot : undefined,

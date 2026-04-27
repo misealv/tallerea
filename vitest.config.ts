@@ -9,6 +9,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // 'server-only' es un guard de Next.js que no existe en el entorno de tests Node
+      'server-only': path.resolve(__dirname, 'src/__mocks__/server-only.ts'),
     },
   },
 })
