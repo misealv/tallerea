@@ -21,6 +21,10 @@ interface WorkshopFilters {
   precioMax?: number
   ownerId?: string
   includeInactive?: boolean
+  clasePrueba?: boolean           // solo con clase de prueba habilitada
+  horario?: 'manana' | 'tarde' | 'noche'  // mañana 8-13, tarde 13-19, noche 19+
+  edadRango?: 'infantil' | 'jovenes' | 'adultos'  // infantil <12, jovenes 12-18, adultos 18+
+  conCupo?: boolean               // solo con cupo disponible
 }
 
 export const WorkshopService = {
@@ -36,6 +40,18 @@ export const WorkshopService = {
     if (filters?.modeloAcceso) query.modeloAcceso = filters.modeloAcceso
     if (filters?.ownerId) query.ownerId = filters.ownerId
     if (filters?.dia) query['slots.dia'] = filters.dia
+    if (filters?.clasePrueba) query['clasePrueba.habilitada'] = true
+    if (filters?.conCupo) query.cupoPorSesion = { $gt: 0 }
+    if (filters?.horario) {
+      const rangos = { manana: ['08','09','10','11','12'], tarde: ['13','14','15','16','17','18'], noche: ['19','20','21','22'] }
+      const horas = rangos[filters.horario]
+      query['slots.horaInicio'] = { $in: horas.map(h => new RegExp(`^${h}`)) }
+    }
+    if (filters?.edadRango) {
+      if (filters.edadRango === 'infantil') query.edadMaxima = { $lte: 12 }
+      if (filters.edadRango === 'jovenes') { query.edadMinima = { $lte: 18 }; query.edadMaxima = { $gte: 12 } }
+      if (filters.edadRango === 'adultos') query.edadMinima = { $gte: 18 }
+    }
     if (filters?.precioMin || filters?.precioMax) {
       query.precio = {}
       if (filters.precioMin) (query.precio as Record<string, number>).$gte = filters.precioMin

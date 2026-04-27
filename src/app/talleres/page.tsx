@@ -20,6 +20,11 @@ interface PageProps {
     dia?: string
     comuna?: string
     precioMax?: string
+    horario?: string
+    edadRango?: string
+    modeloAcceso?: string
+    clasePrueba?: string
+    conCupo?: string
     page?: string
   }>
 }
@@ -28,11 +33,16 @@ async function WorkshopResults({ searchParams }: { searchParams: PageProps['sear
   const params = await searchParams
   const page = Number(params.page) || 1
   const filters = {
-    tipo: params.tipo || undefined,
-    modalidad: params.modalidad || undefined,
-    dia: params.dia || undefined,
-    comuna: params.comuna || undefined,
-    precioMax: params.precioMax ? Number(params.precioMax) : undefined,
+    tipo:         params.tipo || undefined,
+    modalidad:    params.modalidad || undefined,
+    dia:          params.dia || undefined,
+    comuna:       params.comuna || undefined,
+    precioMax:    params.precioMax ? Number(params.precioMax) : undefined,
+    horario:      params.horario as 'manana' | 'tarde' | 'noche' | undefined || undefined,
+    edadRango:    params.edadRango as 'infantil' | 'jovenes' | 'adultos' | undefined || undefined,
+    modeloAcceso: params.modeloAcceso as 'puntual' | 'recurrente' | undefined || undefined,
+    clasePrueba:  params.clasePrueba === '1' ? true : undefined,
+    conCupo:      params.conCupo === '1' ? true : undefined,
   }
 
   const result = await WorkshopService.getAll(filters, page, 12)
@@ -56,9 +66,17 @@ async function WorkshopResults({ searchParams }: { searchParams: PageProps['sear
         {result.data.map((w) => {
           const loc = w.locationId as unknown as { nombre: string; comuna: string } | null
           const acc = w.accountId as unknown as { nombre: string; slug: string; precioModalidad?: string } | null
-          const precioPublico = (acc?.precioModalidad === 'neto' || w.precioModalidad === 'neto')
-            ? Math.round(w.precio * 100 / (100 - comisionPct))
-            : w.precio
+          const owner = w.ownerId as unknown as { name: string } | null
+          const esNeto = acc?.precioModalidad === 'neto' || w.precioModalidad === 'neto'
+          const toBruto = (n: number) => esNeto && n > 0 ? Math.round(n * 100 / (100 - comisionPct)) : n
+          const precioPublico = toBruto(w.precio ?? 0)
+          const candidatos: number[] = w.modalidadPrecio === 'paquetes' ? [] : [precioPublico]
+          if (w.paquetes?.length) {
+            w.paquetes.forEach((p: { precio: number; activo: boolean }) => {
+              if (p.activo) candidatos.push(toBruto(p.precio))
+            })
+          }
+          const precioDesde = candidatos.length > 0 ? Math.min(...candidatos) : precioPublico
           return (
             <WorkshopCard
               key={String(w._id)}
@@ -67,7 +85,11 @@ async function WorkshopResults({ searchParams }: { searchParams: PageProps['sear
               tipo={w.tipo}
               modalidad={w.modalidad}
               precio={precioPublico}
+              precioDesde={precioDesde}
               cupoPorSesion={w.cupoPorSesion}
+              talleristaNombre={owner?.name}
+              clasePruebaDisponible={!!w.clasePrueba?.habilitada}
+              clasePruebaPrecio={w.clasePrueba?.precio}
               comuna={loc?.comuna}
               imagen={w.imagenes?.[0]}
               slots={w.slots}
@@ -90,6 +112,11 @@ async function WorkshopResults({ searchParams }: { searchParams: PageProps['sear
                 ...(params.dia && { dia: params.dia }),
                 ...(params.comuna && { comuna: params.comuna }),
                 ...(params.precioMax && { precioMax: params.precioMax }),
+                ...(params.horario && { horario: params.horario }),
+                ...(params.edadRango && { edadRango: params.edadRango }),
+                ...(params.modeloAcceso && { modeloAcceso: params.modeloAcceso }),
+                ...(params.clasePrueba && { clasePrueba: params.clasePrueba }),
+                ...(params.conCupo && { conCupo: params.conCupo }),
                 page: String(p),
               }).toString()}`}
               className={`px-3 py-1 rounded text-sm ${
