@@ -9,7 +9,7 @@ export default function CancelBookingButton({ bookingId }: { bookingId: string }
   const [error, setError] = useState('')
 
   async function handleCancel() {
-    if (!confirm('¿Cancelar esta reserva? Si está dentro del plazo, se devuelve la sesión.')) return
+    if (!confirm('¿Cancelar esta clase? Si está dentro del plazo, se devuelve la clase a tus disponibles.')) return
     setLoading(true)
     setError('')
 
@@ -31,7 +31,7 @@ export default function CancelBookingButton({ bookingId }: { bookingId: string }
         disabled={loading}
         className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
       >
-        {loading ? 'Cancelando...' : 'Cancelar'}
+        {loading ? 'Cancelando...' : 'Cancelar esta clase'}
       </button>
       {error && <p className="text-xs text-red-500 mt-1 max-w-[140px]">{error}</p>}
     </div>

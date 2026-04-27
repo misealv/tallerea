@@ -154,16 +154,20 @@ export default async function AlumnoDashboard() {
         <p className="text-gray-500 mt-1 text-sm">Tu espacio de aprendizaje en Tallerea.</p>
       </div>
 
-      {/* Tarjeta crédito */}
+      {/* Tarjeta saldo a favor */}
       {(user?.creditoDisponible ?? 0) > 0 && (
-        <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Crédito disponible</p>
-            <p className="text-2xl font-bold text-green-800">
-              ${(user?.creditoDisponible ?? 0).toLocaleString('es-CL')}
-            </p>
+        <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">💰 Saldo a favor</p>
+            <Link href="/alumno/credito" className="text-xs text-green-700 underline">Ver historial</Link>
           </div>
-          <Link href="/alumno/credito" className="text-sm text-green-700 underline">Ver historial</Link>
+          <p className="text-2xl font-bold text-green-800">
+            ${(user?.creditoDisponible ?? 0).toLocaleString('es-CL')} CLP
+          </p>
+          <p className="text-xs text-green-600 mt-1.5">
+            Es dinero a tu favor por una devolución. Se descuenta automáticamente cuando compres tu próximo taller.
+          </p>
+          <Link href="/talleres" className="inline-block mt-2 text-xs text-green-800 font-semibold hover:underline">Explorar talleres →</Link>
         </div>
       )}
 
@@ -278,18 +282,14 @@ export default async function AlumnoDashboard() {
         </div>
       )}
 
-      {/* Próximas sesiones */}
+      {/* Próximas clases */}
       <section>
-        <h2 className="text-lg font-semibold text-gray-800 mb-3">Próximas sesiones</h2>
+        <h2 className="text-lg font-semibold text-gray-800 mb-3">Tu próxima clase</h2>
         {activeUpcomingBookings.length === 0 ? (
           <p className="text-sm text-gray-400">
-            Sin sesiones reservadas próximamente.{' '}
-            {subscriptions.length > 0 && (
-              <Link
-                href={`/alumno/reservas?sub=${String(subscriptions[0]._id)}&workshop=${encodeURIComponent((subscriptions[0].workshopId as WorkshopRef).slug)}`}
-                className="text-purple-600 underline"
-              >Reserva una →</Link>
-            )}
+            {subscriptions.length > 0
+              ? <>No tienes clases agendadas. <Link href={`/alumno/reservas?sub=${String(subscriptions[0]._id)}&workshop=${encodeURIComponent((subscriptions[0].workshopId as WorkshopRef).slug)}`} className="text-purple-600 underline">Reserva una de tus clases disponibles →</Link></>
+              : 'No tienes clases agendadas.'}
           </p>
         ) : (
           <div className="space-y-3">
@@ -300,7 +300,7 @@ export default async function AlumnoDashboard() {
               if (idx === 0) {
                 return (
                   <div key={String(b._id)} className="bg-purple-600 rounded-2xl px-5 py-5 text-white">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-purple-200">Próxima sesión</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-purple-200">Tu próxima clase</p>
                     <p className="font-bold text-lg mt-1 leading-tight">{w.titulo}</p>
                     {slot && (
                       <p className="text-3xl font-bold mt-3 tabular-nums">{slot.horaInicio} – {slot.horaFin}</p>
@@ -333,13 +333,13 @@ export default async function AlumnoDashboard() {
         )}
       </section>
 
-      {/* Suscripciones activas */}
+      {/* Mis talleres (suscripciones activas) */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-800">Suscripciones activas</h2>
+          <h2 className="text-lg font-semibold text-gray-800">Mis talleres</h2>
         </div>
         {subscriptions.length === 0 ? (
-          <p className="text-sm text-gray-400">Sin suscripciones activas.</p>
+          <p className="text-sm text-gray-400">Aún no tienes talleres activos. <Link href="/talleres" className="text-purple-600 underline">Explorar talleres</Link></p>
         ) : (
           <div className="space-y-3">
             {subscriptions.map(s => {
@@ -356,7 +356,7 @@ export default async function AlumnoDashboard() {
                   <p className="font-medium text-gray-900 text-sm leading-snug">{workshopRef.titulo}</p>
                   {/* Contador de sesiones disponibles */}
                   <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${disponibles > 0 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {disponibles} {disponibles === 1 ? 'sesión' : 'sesiones'}
+                    🎟️ {disponibles} {disponibles === 1 ? 'clase' : 'clases'}
                   </span>
                 </div>
 
@@ -388,7 +388,7 @@ export default async function AlumnoDashboard() {
                   href={`/alumno/reservas?sub=${String(s._id)}&workshop=${encodeURIComponent(workshopRef.slug)}`}
                   className={`flex items-center justify-center gap-1 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors ${disponibles > 0 ? 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800' : 'bg-gray-300 cursor-not-allowed pointer-events-none'}`}
                 >
-                  {disponibles > 0 ? 'Reservar sesión' : 'Sin sesiones disponibles'}
+                  {disponibles > 0 ? 'Reservar otra clase' : 'Ya usaste todas tus clases · Renovar'}
                 </Link>
               </div>
               )
@@ -400,7 +400,7 @@ export default async function AlumnoDashboard() {
       {/* Inscripciones puntuales recientes */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-800">Talleres inscritos</h2>
+          <h2 className="text-lg font-semibold text-gray-800">Clases puntuales</h2>
           <Link href="/alumno/historial" className="text-xs text-purple-600 hover:underline">Ver todo</Link>
         </div>
         {enrollments.length === 0 ? (
@@ -423,7 +423,7 @@ export default async function AlumnoDashboard() {
                     href={`/talleres/${(e.workshopId as WorkshopRef).slug}`}
                     className="text-xs text-gray-500 hover:text-purple-600"
                   >
-                    Ver taller
+                    Ver detalles del taller
                   </Link>
                 </div>
               ))}

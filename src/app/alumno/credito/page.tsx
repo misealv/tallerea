@@ -32,7 +32,7 @@ export default async function CreditoPage() {
     <div className="space-y-8 max-w-lg">
       <div>
         <Link href="/alumno" className="text-sm text-indigo-600 hover:underline">← Volver</Link>
-        <h1 className="mt-3 text-2xl font-bold text-gray-900">Crédito disponible</h1>
+        <h1 className="mt-3 text-2xl font-bold text-gray-900">Saldo a favor</h1>
       </div>
 
       {/* Tarjeta saldo */}
@@ -46,10 +46,11 @@ export default async function CreditoPage() {
 
       {/* Información */}
       <div className="bg-white border border-gray-100 rounded-xl px-6 py-5 space-y-3 text-sm text-gray-600">
-        <p className="font-semibold text-gray-800">¿Cómo funciona el crédito?</p>
+        <p className="font-semibold text-gray-800">¿Cómo funciona el saldo a favor?</p>
         <ul className="list-disc list-inside space-y-1.5 text-gray-500">
-          <li>Recibes crédito cuando se cancela una inscripción dentro del plazo.</li>
-          <li>El crédito se descuenta automáticamente al pagar tu próxima clase.</li>
+          <li>Recibes saldo cuando se cancela una inscripción y se genera un reembolso.</li>
+          <li>El saldo se descuenta automáticamente al comprar tu próximo taller o paquete.</li>
+          <li>No sirve para pagar clases ya inscritas—solo para nuevas compras.</li>
           <li>No caduca mientras tu cuenta esté activa.</li>
         </ul>
       </div>

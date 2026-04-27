@@ -23,7 +23,7 @@ export default async function AlumnoLayout({ children }: { children: React.React
               Historial
             </Link>
             <Link href="/alumno/credito" className="text-gray-600 hover:text-purple-700">
-              Crédito
+              Saldo
             </Link>
             <Link href="/alumno/reviews" className="text-gray-600 hover:text-purple-700">
               Reseñas
