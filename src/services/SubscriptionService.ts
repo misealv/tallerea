@@ -263,12 +263,19 @@ export const SubscriptionService = {
     await dbConnect()
     void motivo // [DEUDA] no se persiste todavía — pendiente audit log
 
-    // Update atómico con guard $expr — solo incrementa si consumidas < cantidad
+    // Update atómico con guards: (a) saldo > 0  (b) no caducado
+    // Sin caducaEn → siempre válido. Con caducaEn → solo si caducaEn > now.
+    const now = new Date()
     const updated = await Subscription.findOneAndUpdate(
       {
         _id: subscriptionId,
         clasesPrepagadas: { $exists: true },
         $expr: { $lt: ['$clasesPrepagadas.consumidas', '$clasesPrepagadas.cantidad'] },
+        $or: [
+          { 'clasesPrepagadas.caducaEn': { $exists: false } },
+          { 'clasesPrepagadas.caducaEn': null },
+          { 'clasesPrepagadas.caducaEn': { $gt: now } },
+        ],
       },
       { $inc: { 'clasesPrepagadas.consumidas': 1 } },
       { new: true }
@@ -470,9 +477,21 @@ export const SubscriptionService = {
         estado: 'activa',
         fechaVencimiento: { $lt: now },
         activo: true,
-        // [PREPAGADO] Omitir suscripciones con saldo prepagado activo — no generan cobro automático
+        // [PREPAGADO] Omitir suscripciones con saldo prepagado VIVO (no consumido y no caducado).
+        // Si caducó el saldo, debe entrar al ciclo de renovación normal.
         $nor: [
-          { $expr: { $lt: ['$clasesPrepagadas.consumidas', '$clasesPrepagadas.cantidad'] } },
+          {
+            $and: [
+              { $expr: { $lt: ['$clasesPrepagadas.consumidas', '$clasesPrepagadas.cantidad'] } },
+              {
+                $or: [
+                  { 'clasesPrepagadas.caducaEn': { $exists: false } },
+                  { 'clasesPrepagadas.caducaEn': null },
+                  { 'clasesPrepagadas.caducaEn': { $gt: now } },
+                ],
+              },
+            ],
+          },
         ],
       }
       if (excluidos.length > 0) query._id = { $nin: excluidos }

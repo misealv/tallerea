@@ -31,6 +31,7 @@ export const InscripcionManualRecurrenteSchema = baseSchema.extend({
     metodoPago:     z.string().min(1).max(80),
     montoDeclarado: z.number().int().min(0).optional(),
     notaTallerista: z.string().max(300).optional(),
+    caducaEn:       z.coerce.date().optional(),  // fecha límite de validez
   }).optional(),
 }).strict().superRefine((val, ctx) => {
   if (val.precioEspecial && val.precioSnapshot == null) {

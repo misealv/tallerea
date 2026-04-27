@@ -112,6 +112,9 @@ SubscriptionSchema.pre('save', function (next) {
     if (!creadoPor) {
       return next(new Error('[PREPAGADO] creadoPor es obligatorio'))
     }
+    if (this.clasesPrepagadas.caducaEn && this.clasesPrepagadas.caducaEn <= fechaPago) {
+      return next(new Error('[PREPAGADO] caducaEn debe ser posterior a fechaPago'))
+    }
   }
   next()
 });
