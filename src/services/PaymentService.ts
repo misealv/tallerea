@@ -202,6 +202,7 @@ export const PaymentService = {
     // [IDEMPOTENCIA] Verificar estado actual antes de mutar
     const current = await EnrollmentService.getById(enrollmentId)
     if (!current) return {}
+    // Si ya fue procesado exactamente con este paymentId → idempotente, no re-emitir magic link
     if (current.estado === 'pagado' && current.pagoRef === String(paymentId)) return {}
 
     await EnrollmentService.update(enrollmentId, {
@@ -275,22 +276,11 @@ export const PaymentService = {
     }
 
     // Enviar email de confirmación (try/catch independiente)
-    let generatedMagicUrl: string | undefined
     try {
       const student = enrollment.studentId as unknown as { _id: string; name: string; email: string }
 
-      // Si el alumno no tiene password (es invitado), emitir magic link para activar cuenta
-      const fullStudent = await User.findById(student._id).select('password').lean<{ password?: string }>()
-      const isGuest = !fullStudent?.password
-      if (isGuest) {
-        try {
-          const result = await issueMagicLink(String(student._id))
-          generatedMagicUrl = result.magicUrl
-        } catch {
-          // Si falla emisión, enviar email igual sin magic link
-        }
-      }
-
+      // No se incluye magic link en el email de confirmación — se muestra solo en la página de éxito.
+      // Esto evita que el enlace del email quede inválido por race condition con la página.
       await sendEnrollmentConfirmation({
         studentName: student.name,
         studentEmail: student.email,
@@ -301,7 +291,7 @@ export const PaymentService = {
         slotHora,
         direccion,
         profesorNombre,
-        magicUrl: generatedMagicUrl,
+        magicUrl: undefined,
       })
 
       // Notificar al profesor si hay datos disponibles
@@ -322,7 +312,7 @@ export const PaymentService = {
       // No bloquear el flujo por fallo de email
     }
 
-    return { magicUrl: generatedMagicUrl }
+    return {}
   },
 
   // [FINANCE RISK] Procesa pago aprobado de suscripción recurrente

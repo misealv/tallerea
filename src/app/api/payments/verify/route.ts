@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { paymentClient } from '@/lib/mercadopago'
 import { PaymentService } from '@/services/PaymentService'
+import dbConnect from '@/lib/db'
+import EnrollmentModel from '@/models/Enrollment'
+import User from '@/models/User'
+import { issueMagicLink } from '@/lib/issueMagicLink'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,6 +12,7 @@ export const dynamic = 'force-dynamic'
 // Fallback al webhook: la página /pago/exitoso lo llama con el paymentId del redirect.
 // Si el webhook ya procesó → operación es idempotente, retorna ok.
 // Si el webhook nunca llegó (DNS, timeout, NEXTAUTH_URL mal configurado) → procesa acá.
+// SIEMPRE devuelve magicUrl si el alumno es invitado — aunque el webhook haya llegado primero.
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}))
@@ -47,6 +52,33 @@ export async function POST(req: NextRequest) {
     } else {
       const result = await PaymentService.handleApprovedPayment(ref, String(id))
       magicUrl = result.magicUrl
+    }
+
+    // Si handleApprovedPayment retornó vacío (ya procesado por webhook), intentar emitir
+    // magic link fresco para la página de éxito. No se re-envía email.
+    if (!magicUrl && !ref.startsWith('sub:')) {
+      try {
+        await dbConnect()
+        const enrollmentId = ref.startsWith('enr:') ? ref.slice(4) : ref
+        const enrollment = await EnrollmentModel
+          .findOne({ _id: enrollmentId, pagoRef: String(id) })
+          .select('studentId')
+          .lean<{ studentId: unknown }>()
+
+        if (enrollment?.studentId) {
+          const student = await User
+            .findById(enrollment.studentId)
+            .select('password')
+            .lean<{ _id: unknown; password?: string }>()
+
+          if (student && !student.password) {
+            const result = await issueMagicLink(String(student._id))
+            magicUrl = result.magicUrl
+          }
+        }
+      } catch {
+        // No bloquear — la inscripción ya fue procesada, solo falta mostrar el link
+      }
     }
 
     return NextResponse.json({ status: 'approved', processed: true, ref, magicUrl })
