@@ -25,7 +25,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'weekly' as const,
       priority: 0.8,
     }))
-  } catch (_) {
+  } catch {
     // Si falla la DB no rompe el sitemap
   }
 
@@ -44,7 +44,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly' as const,
       priority: 0.6,
     }))
-  } catch (_) {
+  } catch {
     // Si falla la DB no rompe el sitemap
   }
 
