@@ -77,7 +77,7 @@ export const WorkshopService = {
     await dbConnect()
     return Workshop.findOne({ slug, activo: true, deletedAt: null })
       .populate('locationId', 'nombre direccion comuna ciudad coordenadas')
-      .populate('ownerId', 'name taller')
+      .populate('ownerId', 'name image taller')
       .lean<IWorkshop>()
   },
 

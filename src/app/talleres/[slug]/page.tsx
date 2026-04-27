@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { WorkshopService } from '@/services/WorkshopService'
 import { SiteConfigService } from '@/services/SiteConfigService'
 import Navbar from '@/components/Navbar'
@@ -50,7 +51,17 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
     nombre: string; direccion: string; comuna: string; ciudad: string
   } | null
   const owner = workshop.ownerId as unknown as {
-    name: string; taller?: { slug?: string; bio?: string }
+    name: string
+    image?: string
+    taller?: {
+      slug?: string
+      bio?: string
+      logo?: string
+      especialidades?: string[]
+      reviewsCount?: number
+      reviewsAvg?: number
+      redesSociales?: { instagram?: string; web?: string; facebook?: string }
+    }
   } | null
 
   return (
@@ -82,6 +93,17 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                 {loc && <><span>·</span><span>{loc.comuna}</span></>}
               </div>
               <h1 className="text-3xl font-bold text-gray-900">{workshop.titulo}</h1>
+
+              {/* Calificación del taller */}
+              {(workshop.reviewsCount ?? 0) > 0 && (
+                <div className="flex items-center gap-1.5 mt-2">
+                  {[1,2,3,4,5].map((star) => (
+                    <span key={star} className={`text-lg ${star <= Math.round(workshop.reviewsAvg) ? 'text-yellow-400' : 'text-gray-300'}`}>★</span>
+                  ))}
+                  <span className="text-sm font-semibold text-gray-800 ml-1">{workshop.reviewsAvg.toFixed(1)}</span>
+                  <span className="text-sm text-gray-500">({workshop.reviewsCount} {workshop.reviewsCount === 1 ? 'reseña' : 'reseñas'})</span>
+                </div>
+              )}
             </div>
 
             <div className="prose prose-gray max-w-none">
@@ -167,6 +189,106 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                 </div>
               </div>
             )}
+
+            {/* Sobre el profesor */}
+            {owner && (
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 mb-3">Sobre el profesor</h2>
+                <div className="bg-purple-50 border border-purple-100 rounded-xl p-5">
+                  <div className="flex items-start gap-4">
+                    {/* Avatar */}
+                    <div className="relative w-16 h-16 flex-shrink-0">
+                      {owner.taller?.logo || owner.image ? (
+                        <Image
+                          src={(owner.taller?.logo || owner.image)!}
+                          alt={owner.name}
+                          fill
+                          className="object-cover rounded-full"
+                          sizes="64px"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 bg-purple-200 rounded-full flex items-center justify-center text-purple-700 text-2xl font-bold">
+                          {owner.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="text-lg font-bold text-gray-900">{owner.name}</p>
+
+                      {/* Rating */}
+                      {(owner.taller?.reviewsCount ?? 0) > 0 && (
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className="text-yellow-400 text-sm">★</span>
+                          <span className="text-sm font-medium text-gray-700">
+                            {owner.taller!.reviewsAvg!.toFixed(1)}
+                          </span>
+                          <span className="text-sm text-gray-500">
+                            ({owner.taller!.reviewsCount} reseñas)
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Especialidades */}
+                      {(owner.taller?.especialidades?.length ?? 0) > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {owner.taller!.especialidades!.slice(0, 4).map((esp) => (
+                            <span key={esp} className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                              {esp}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bio resumida */}
+                  {owner.taller?.bio && (
+                    <p className="text-sm text-gray-600 mt-4 leading-relaxed line-clamp-3">
+                      {owner.taller.bio}
+                    </p>
+                  )}
+
+                  {/* Redes sociales */}
+                  {(owner.taller?.redesSociales?.instagram || owner.taller?.redesSociales?.web) && (
+                    <div className="flex gap-3 mt-3">
+                      {owner.taller?.redesSociales?.instagram && (
+                        <a
+                          href={`https://instagram.com/${owner.taller.redesSociales.instagram.replace('@', '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-purple-600 hover:underline"
+                        >
+                          Instagram
+                        </a>
+                      )}
+                      {owner.taller?.redesSociales?.web && (
+                        <a
+                          href={owner.taller.redesSociales.web}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-purple-600 hover:underline"
+                        >
+                          Sitio web
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Link al perfil completo */}
+                  {owner.taller?.slug && (
+                    <div className="mt-4">
+                      <Link
+                        href={`/talleristas/${owner.taller.slug}`}
+                        className="inline-flex items-center gap-1 text-sm font-medium text-purple-700 hover:text-purple-900"
+                      >
+                        Ver perfil completo →
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Sidebar derecha */}
@@ -211,37 +333,6 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               plan={workshop.plan ?? null}
               comisionPct={comisionPct}
             />
-
-            {/* Tallerista */}
-            {owner && (
-              owner.taller?.slug
-                ? (
-                  <Link
-                    href={`/talleristas/${owner.taller.slug}`}
-                    className="block bg-white rounded-xl border border-gray-200 p-4 hover:shadow transition-shadow"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-700 font-bold">
-                        {owner.name.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{owner.name}</p>
-                        <p className="text-xs text-gray-500">Ver perfil del tallerista</p>
-                      </div>
-                    </div>
-                  </Link>
-                )
-                : (
-                  <div className="bg-white rounded-xl border border-gray-200 p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-700 font-bold">
-                        {owner.name.charAt(0)}
-                      </div>
-                      <p className="font-medium text-gray-900">{owner.name}</p>
-                    </div>
-                  </div>
-                )
-            )}
           </div>
         </div>
       </main>
