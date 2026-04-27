@@ -39,6 +39,7 @@ interface FormData {
   duracionSesion: string
   cupoPorSesion: string
   fechaInicio: string
+  horaInicio: string
   locationId: string
   horasAntesCancelacion: string
   permitirReagendamiento: boolean
@@ -57,7 +58,7 @@ export default function EditarTallerPage() {
   const [form, setForm] = useState<FormData>({
     titulo: '', tipo: '', modalidad: 'presencial', precio: '',
     precioModalidad: 'bruto', descripcion: '', duracionSesion: '90',
-    cupoPorSesion: '10', fechaInicio: '', locationId: '',
+    cupoPorSesion: '10', fechaInicio: '', horaInicio: '', locationId: '',
     horasAntesCancelacion: '24', permitirReagendamiento: true,
     imagenes: [],
     sesionesIncluidas: '8', vigencia: 'mensual', modeloAcceso: 'puntual',
@@ -83,6 +84,9 @@ export default function EditarTallerPage() {
       .then(w => {
         if (w.error) { setError(w.error); return }
         const fechaIso = w.fechaInicio ? new Date(w.fechaInicio).toISOString().split('T')[0] : ''
+        const horaInicioPuntual = (w.modeloAcceso === 'puntual' && Array.isArray(w.slots) && w.slots[0]?.horaInicio)
+          ? String(w.slots[0].horaInicio)
+          : ''
         setForm({
           titulo: w.titulo ?? '',
           tipo: w.tipo ?? '',
@@ -93,6 +97,7 @@ export default function EditarTallerPage() {
           duracionSesion: String(w.duracionSesion ?? 90),
           cupoPorSesion: String(w.cupoPorSesion ?? 10),
           fechaInicio: fechaIso,
+          horaInicio: horaInicioPuntual,
           locationId: w.locationId
           ? (typeof w.locationId === 'object' ? String((w.locationId as { _id?: unknown })._id ?? '') : String(w.locationId))
           : '',
@@ -160,6 +165,7 @@ export default function EditarTallerPage() {
     e.preventDefault()
     if (!form.titulo.trim()) { setError('Escribe el nombre del taller'); return }
     if (!form.descripcion.trim()) { setError('Escribe la descripción'); return }
+    if (form.modeloAcceso === 'puntual' && !form.horaInicio) { setError('Selecciona la hora de inicio'); return }
 
     setSaving(true)
     setError('')
@@ -216,8 +222,23 @@ export default function EditarTallerPage() {
       // instancias generadas con fecha específica que muestra el calendario)
       body.plantillaSemanal = slots.map(s => ({ dia: s.dia, horaInicio: s.horaInicio, horaFin: s.horaFin }))
     } else {
-      // Puntual: los slots son la definición concreta (sin fecha automática)
-      body.slots = slots
+      // Puntual: regenerar slot único con fecha + hora + duración configuradas
+      const dur = parseInt(form.duracionSesion) || 90
+      const cupoMax = parseInt(form.cupoPorSesion) || 10
+      const [hh, mm] = form.horaInicio.split(':').map(Number)
+      const finTotal = hh * 60 + mm + dur
+      const horaFin = `${String(Math.floor(finTotal / 60) % 24).padStart(2, '0')}:${String(finTotal % 60).padStart(2, '0')}`
+      const fechaSlot = new Date(`${form.fechaInicio}T12:00:00.000Z`)
+      // Conservar reservas si existían en el slot anterior
+      const reservasPrev = (slots[0] as { reservas?: number } | undefined)?.reservas ?? 0
+      body.slots = [{
+        horaInicio: form.horaInicio,
+        horaFin,
+        fecha: fechaSlot,
+        cupoMax,
+        cupoDisponible: Math.max(0, cupoMax - reservasPrev),
+        reservas: reservasPrev,
+      }]
     }
 
     const res = await fetch(`/api/workshops/${id}`, {
@@ -347,11 +368,12 @@ export default function EditarTallerPage() {
           </div>
         )}
 
-        {/* Horarios de clase */}
-        <div className="border-t pt-4 space-y-6">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-800 mb-3">Horario semanal (patrón)</h3>
-            <p className="text-xs text-gray-500 mb-3">Define los días y horarios que se repiten cada semana.</p>
+        {/* Horarios de clase — solo recurrente */}
+        {form.modeloAcceso === 'recurrente' && (
+          <div className="border-t pt-4 space-y-6">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800 mb-3">Horario semanal (patrón)</h3>
+              <p className="text-xs text-gray-500 mb-3">Define los días y horarios que se repiten cada semana.</p>
             <SlotCalendar
               slots={slots}
               duracionSesion={parseInt(form.duracionSesion) || 90}
@@ -365,7 +387,8 @@ export default function EditarTallerPage() {
               Ver y gestionar sesiones programadas →
             </a>
           </div>
-        </div>
+          </div>
+        )}
 
         {/* Duración + cupo + fecha */}
         <div className="grid grid-cols-3 gap-4">
@@ -385,6 +408,15 @@ export default function EditarTallerPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
           </div>
         </div>
+
+        {form.modeloAcceso === 'puntual' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Hora de inicio</label>
+            <input type="time" value={form.horaInicio} onChange={e => up('horaInicio', e.target.value)}
+              className="w-full sm:w-1/3 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
+            <p className="text-xs text-gray-500 mt-1">La hora de término se calcula automáticamente según la duración.</p>
+          </div>
+        )}
 
         {/* Política */}
         <div className="border-t pt-4 space-y-3">

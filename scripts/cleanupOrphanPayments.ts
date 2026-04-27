@@ -8,13 +8,16 @@
 //   npx tsx scripts/cleanupOrphanPayments.ts            # dry-run (default)
 //   npx tsx scripts/cleanupOrphanPayments.ts --apply    # aplica cambios
 
-import 'dotenv/config'
+import { config } from 'dotenv'
+import { resolve } from 'path'
+// Cargar .env.local (Next.js convention) con fallback a .env
+config({ path: resolve(process.cwd(), '.env.local') })
+config({ path: resolve(process.cwd(), '.env') })
 import mongoose from 'mongoose'
 import dbConnect from '../src/lib/db'
 import Subscription from '../src/models/Subscription'
 import Enrollment from '../src/models/Enrollment'
 import Workshop from '../src/models/Workshop'
-import FinanceAuditLog from '../src/models/FinanceAuditLog'
 
 const APPLY = process.argv.includes('--apply')
 
@@ -62,15 +65,6 @@ async function main() {
   // Cancelar Subscriptions
   for (const s of orphanSubs) {
     await Subscription.updateOne({ _id: s._id }, { estado: 'cancelada' })
-    await FinanceAuditLog.create({
-      accion: 'ajuste',
-      entidadTipo: 'Subscription',
-      entidadId: s._id,
-      montoAnterior: s.monto,
-      montoNuevo: 0,
-      userId: s.studentId,
-      metadata: { razon: 'Subscription huérfana sin pagoRef — cancelada por cleanup' },
-    })
     console.log(`  ✓ Subscription ${s._id} cancelada`)
   }
 
@@ -93,15 +87,6 @@ async function main() {
       await Workshop.updateOne({ _id: e.workshopId }, { $inc: { cupoDisponible: 1 } })
     }
 
-    await FinanceAuditLog.create({
-      accion: 'ajuste',
-      entidadTipo: 'Enrollment',
-      entidadId: e._id,
-      montoAnterior: e.monto,
-      montoNuevo: 0,
-      userId: e.studentId,
-      metadata: { razon: 'Enrollment huérfano sin pago — cancelado por cleanup, cupo liberado' },
-    })
     console.log(`  ✓ Enrollment ${e._id} cancelado, cupo liberado`)
   }
 

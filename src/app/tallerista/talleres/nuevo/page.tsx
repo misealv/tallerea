@@ -30,6 +30,7 @@ interface Paso2Data {
   duracionSesion: string
   cupoPorSesion: string
   fechaInicio: string
+  horaInicio: string
   locationId: string
   imagenes: string[]
   // Plan (solo recurrente)
@@ -106,6 +107,7 @@ export default function NuevoTallerPage() {
     duracionSesion:      '90',
     cupoPorSesion:       '10',
     fechaInicio:         '',
+    horaInicio:          '',
     locationId:          '',
     imagenes:            [],
     sesionesIncluidas:   '8',
@@ -158,6 +160,7 @@ export default function NuevoTallerPage() {
     if (!p2.fechaInicio) return 'Selecciona la fecha de inicio'
     const cupo = parseInt(p2.cupoPorSesion)
     if (isNaN(cupo) || cupo < 1) return 'El cupo debe ser al menos 1'
+    if (p1.modeloAcceso === 'puntual' && !p2.horaInicio) return 'Selecciona la hora de inicio'
     if (p1.modeloAcceso === 'recurrente') {
       const ses = parseInt(p2.sesionesIncluidas)
       if (isNaN(ses) || ses < 1) return 'Las sesiones incluidas deben ser al menos 1'
@@ -194,6 +197,25 @@ export default function NuevoTallerPage() {
       duracionSesion: parseInt(p2.duracionSesion) || 90,
       cupoPorSesion:  parseInt(p2.cupoPorSesion) || 10,
       fechaInicio:    p2.fechaInicio,
+    }
+
+    if (p1.modeloAcceso === 'puntual') {
+      // Generar slot único con fecha + hora configuradas
+      const dur = parseInt(p2.duracionSesion) || 90
+      const cupoMax = parseInt(p2.cupoPorSesion) || 10
+      const [hh, mm] = p2.horaInicio.split(':').map(Number)
+      const finTotal = hh * 60 + mm + dur
+      const horaFin = `${String(Math.floor(finTotal / 60) % 24).padStart(2, '0')}:${String(finTotal % 60).padStart(2, '0')}`
+      // fecha anclada a mediodía UTC del día configurado para evitar desfases por DST
+      const fechaSlot = new Date(`${p2.fechaInicio}T12:00:00.000Z`)
+      body.slots = [{
+        horaInicio: p2.horaInicio,
+        horaFin,
+        fecha: fechaSlot,
+        cupoMax,
+        cupoDisponible: cupoMax,
+        reservas: 0,
+      }]
     }
 
     if (p1.modeloAcceso === 'recurrente') {
@@ -428,10 +450,19 @@ export default function NuevoTallerPage() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de inicio</label>
-            <input required type="date" value={p2.fechaInicio} onChange={e => up2('fechaInicio', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de inicio</label>
+              <input required type="date" value={p2.fechaInicio} onChange={e => up2('fechaInicio', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
+            </div>
+            {p1.modeloAcceso === 'puntual' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Hora de inicio</label>
+                <input required type="time" value={p2.horaInicio} onChange={e => up2('horaInicio', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
+              </div>
+            )}
           </div>
 
           {/* Plan + disponibilidad — solo recurrente */}
