@@ -15,7 +15,7 @@ import { Types } from 'mongoose'
 export const dynamic = 'force-dynamic'
 
 interface WorkshopRef { titulo: string; slug: string }
-interface WorkshopWithSlots { titulo: string; slug: string; slots: Array<{ horaInicio: string; horaFin: string }> }
+interface WorkshopWithSlots { titulo: string; slug: string; slots: Array<{ horaInicio: string; horaFin: string; cancelado?: boolean }> }
 interface OwnerRef { name: string }
 interface LocationRef { nombre: string; direccion: string; comuna: string; ciudad: string }
 interface SlotInfo { dia?: string; horaInicio: string; horaFin: string; fecha?: Date }
@@ -135,6 +135,13 @@ export default async function AlumnoDashboard() {
   const clasesPrueba = await resolveClasePrueba(enrollments).catch((err) => {
     console.error('[alumno] Error cargando detalles de clase de prueba:', err)
     return [] as ClasePruebaDetail[]
+  })
+
+  // Filtrar bookings cuyo slot fue cancelado pero el booking no se actualizó aún (datos inconsistentes)
+  const activeUpcomingBookings = upcomingBookings.filter(b => {
+    const w = b.workshopId as WorkshopWithSlots
+    const slot = w.slots?.[b.slotIndex]
+    return !slot?.cancelado
   })
 
   return (
@@ -274,7 +281,7 @@ export default async function AlumnoDashboard() {
       {/* Próximas sesiones */}
       <section>
         <h2 className="text-lg font-semibold text-gray-800 mb-3">Próximas sesiones</h2>
-        {upcomingBookings.length === 0 ? (
+        {activeUpcomingBookings.length === 0 ? (
           <p className="text-sm text-gray-400">
             Sin sesiones reservadas próximamente.{' '}
             {subscriptions.length > 0 && (
@@ -286,7 +293,7 @@ export default async function AlumnoDashboard() {
           </p>
         ) : (
           <div className="space-y-3">
-            {upcomingBookings.map((b, idx) => {
+            {activeUpcomingBookings.map((b, idx) => {
               const w = b.workshopId as WorkshopWithSlots
               const slot = w.slots?.[b.slotIndex]
               const fecha = new Date(b.fecha)
