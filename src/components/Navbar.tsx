@@ -4,9 +4,17 @@ import Link from 'next/link'
 import { useSession, signOut } from 'next-auth/react'
 import { useState } from 'react'
 
+function getPanelLink(session: ReturnType<typeof useSession>['data']) {
+  if (!session) return null
+  if (session.user.role === 'admin') return { href: '/admin', label: 'Panel admin' }
+  if (session.user.tallerEstado === 'aprobado') return { href: '/tallerista', label: 'Mi espacio' }
+  return { href: '/alumno', label: 'Mi panel' }
+}
+
 export default function Navbar() {
   const { data: session } = useSession()
   const [menuOpen, setMenuOpen] = useState(false)
+  const panel = getPanelLink(session)
 
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -19,12 +27,11 @@ export default function Navbar() {
           </Link>
           {session ? (
             <>
-              <Link href="/dashboard" className="text-gray-600 hover:text-purple-700 text-sm font-medium">
-                Mi espacio
-              </Link>
-              <Link href="/mis-talleres" className="text-gray-600 hover:text-purple-700 text-sm font-medium">
-                Mis inscripciones
-              </Link>
+              {panel && (
+                <Link href={panel.href} className="text-gray-600 hover:text-purple-700 text-sm font-medium">
+                  {panel.label}
+                </Link>
+              )}
               <button
                 onClick={() => signOut({ callbackUrl: '/' })}
                 className="text-sm text-gray-500 hover:text-red-600"
@@ -65,12 +72,11 @@ export default function Navbar() {
           </Link>
           {session ? (
             <>
-              <Link href="/dashboard" className="block py-2 text-gray-700" onClick={() => setMenuOpen(false)}>
-                Mi espacio
-              </Link>
-              <Link href="/mis-talleres" className="block py-2 text-gray-700" onClick={() => setMenuOpen(false)}>
-                Mis inscripciones
-              </Link>
+              {panel && (
+                <Link href={panel.href} className="block py-2 text-gray-700" onClick={() => setMenuOpen(false)}>
+                  {panel.label}
+                </Link>
+              )}
               <button onClick={() => signOut({ callbackUrl: '/' })} className="block py-2 text-red-600">
                 Salir
               </button>

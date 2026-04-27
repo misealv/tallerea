@@ -1,5 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async redirects() {
+    return [
+      {
+        source: '/mis-talleres',
+        destination: '/alumno',
+        permanent: true,
+      },
+      {
+        source: '/mis-talleres/suscripciones',
+        destination: '/alumno',
+        permanent: true,
+      },
+    ]
+  },
   images: {
     remotePatterns: [
       {

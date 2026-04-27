@@ -435,4 +435,249 @@ Mensaje de confirmación tras crear: "Listo. Belén Opazo inscrita con Juan Pabl
 
 ---
 
+## 12. Propuesta — Carga masiva desde CSV/Excel (pendiente de implementar)
+
+*Análisis y propuesta — 27 de abril de 2026. Estado: diseño, no implementado.*
+
+### 12.1 Problema
+
+El flujo actual de inscripción manual es **uno-por-uno** vía formulario en `/tallerista/talleres/[id]/inscribir`. Para un tallerista que migra desde otra plataforma con 30–80 alumnos, esto representa 30–80 formularios manuales: fricción crítica que bloquea la migración real.
+
+### 12.2 Caso de uso
+
+El tallerista exporta su lista de alumnos desde planilla Google / Excel / sistema previo, sube el archivo, **revisa y selecciona** qué filas inscribir, y el sistema procesa **una por una** con feedback por fila (no transacción atómica). Las filas con error no bloquean el resto.
+
+### 12.3 Principios de diseño
+
+1. **Detección flexible de columnas.** El parser detecta automáticamente columnas `nombre` y `email` por heurística sobre el header (`name|nombre|alumno|estudiante` y `email|correo|mail`). Si no detecta, el tallerista mapea manualmente columnas → campos.
+2. **Preview obligatorio antes de procesar.** Nunca se inscribe directo desde el archivo. El usuario ve la tabla parseada, marca filas válidas y confirma.
+3. **Batch persistido en MongoDB**, no en memoria del navegador. Modelo `ManualEnrollmentBatch` con estado `pendiente | procesando | completado | parcial | cancelado`. Sobrevive a refresh del navegador y permite reanudar.
+4. **Procesamiento secuencial server-side**, una fila a la vez vía `SubscriptionService.createManual` o `EnrollmentService.createManual` existentes. Sin reescribir lógica de inscripción.
+5. **Idempotencia por fila.** Cada fila lleva un `rowHash` (sha256 de email+workshopId+batchId). Si el batch se reanuda, las filas con `estado: 'completado'` no se reprocesan.
+6. **No PaymentBreakdown.** Igual que la inscripción manual single — `origenInscripcion: 'manual'`, sin afectar liquidaciones.
+7. **Email diferido.** El magic link se envía al final de cada fila exitosa, no en bulk: respeta el rate limit de Resend y permite reintentos por fila.
+
+### 12.4 Modelo de datos
+
+```ts
+// src/models/ManualEnrollmentBatch.ts
+interface IManualEnrollmentBatch {
+  _id: ObjectId
+  ownerId: ObjectId             // tallerista que sube el batch
+  workshopId: ObjectId          // taller destino (1 batch = 1 taller)
+  archivoNombre: string         // 'alumnos-marzo-2026.xlsx'
+  totalFilas: number
+  estado: 'pendiente' | 'procesando' | 'completado' | 'parcial' | 'cancelado'
+  configuracion: {
+    precioEspecial: boolean
+    precioSnapshot?: number     // mismo precio para todo el batch (MVP)
+    notaPrecioEspecial?: string
+  }
+  filas: [{
+    _id: ObjectId
+    rowHash: string             // idempotencia
+    nombre: string
+    email: string
+    dependentNombre?: string    // si la planilla tiene columna "apoderado_de"
+    seleccionada: boolean       // checkbox del preview; default true si nombre+email válidos
+    estado: 'pendiente' | 'procesando' | 'completado' | 'error' | 'omitida'
+    resultadoId?: ObjectId      // Subscription / Enrollment creado
+    error?: string
+    procesadaEn?: Date
+  }]
+  createdAt: Date
+  procesadoEn?: Date
+}
+```
+
+Índices:
+- `{ ownerId: 1, createdAt: -1 }` — historial del tallerista
+- `{ 'filas.rowHash': 1 }` — idempotencia
+
+### 12.5 Flujo UI
+
+```
+[1] /tallerista/talleres/[id]/inscribir/lote
+    ├── Subir archivo (.csv, .xlsx, .xls) — drag&drop, máx 5 MB, máx 200 filas
+    ├── Parser server-side (ver 12.6)
+    └── POST /api/tallerista/manual-enrollments/batch → crea batch en estado 'pendiente'
+
+[2] Preview del batch
+    ├── Tabla con todas las filas: nombre, email, dependiente, [✓ seleccionada]
+    ├── Filas con email inválido → automáticamente seleccionada=false + warning rojo
+    ├── Detección de duplicados (mismo email × workshop ya inscrito) → warning naranja
+    ├── Configuración global: ¿precio especial?, ¿monto?, ¿nota?
+    └── Botón "Procesar X filas" → POST /api/tallerista/manual-enrollments/batch/:id/process
+
+[3] Procesamiento (server-side, secuencial)
+    ├── Polling cada 2s desde el cliente: GET /api/tallerista/manual-enrollments/batch/:id
+    ├── Por cada fila: createManual → marca estado en el subdoc
+    ├── Si una fila falla → continúa con la siguiente, registra error
+    └── Al terminar → estado 'completado' o 'parcial' (si hubo errores)
+
+[4] Resumen final
+    ├── X exitosas, Y con error, Z omitidas
+    ├── Botón "Reintentar errores" → reprocesa solo filas en estado 'error'
+    └── Link a la lista de inscritos del taller
+```
+
+### 12.6 Parser de archivos
+
+- Librería: **`papaparse`** para CSV (no requiere build especial) + **`xlsx`** (SheetJS) para Excel.
+- Server-side en API route — no parsear en cliente para evitar bundle pesado.
+- **Respetar quotes**: los exports reales (ej. SuperSaaS) tienen direcciones con saltos de línea dentro de `"..."`. `papaparse` lo soporta nativamente con `quoteChar: '"'`.
+- Heurística de mapeo de columnas (orden: header match → contenido):
+  ```
+  email   ← header /e[-_ ]?mail|correo|usuario|nombre.*usuario|user.*name/i
+              + validación de contenido: al menos 80% de filas matchean /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+  nombre  ← header /name|nombre|nombre.*completo|alumno|estudiante|full.*name/i
+  apod    ← header /apoderado|tutor|padre|madre|representante/i
+  ```
+- **Columnas ignoradas explícitamente** (lista negra por seguridad): `contraseña|password|pwd|pass|hash|token|api.*key`. Si el header matchea → la columna no se lee ni se almacena, ni siquiera para preview.
+- Si la heurística falla → UI presenta dropdowns "qué columna es nombre / email / apoderado" con preview de las primeras 3 filas (con la columna de contraseña ya filtrada).
+- Validación por fila:
+  - `nombre.length >= 2` (trim antes)
+  - `email` matches RFC simple, lowercased + trim
+  - `email` no duplicado dentro del mismo batch
+  - Filas vacías o con header repetido → omitidas silenciosamente
+- **Campos extra ignorados**: teléfono, dirección, crédito y otras columnas se ignoran en MVP. (Decisión 12.14 #5: ¿importar teléfono/dirección al `User` en una fase posterior?)
+
+### 12.6.1 Caso de referencia — export SuperSaaS
+
+Export real adjuntado como referencia (`escuelaresonancias.csv`, 37 filas):
+
+```
+Nombre de usuario,Contraseña,Nombre completo,Teléfono móvil,Dirección,Crédito
+alfonso.anabalon@gmail.com,***************,Alfonso Anabalon A,+56996481330,"Hamburgo 550
+114",0.00
+...
+```
+
+Mapeo esperado del parser:
+| Columna SuperSaaS | Campo destino | Regla |
+|---|---|---|
+| `Nombre de usuario` | `email` | header matches `usuario` + contenido es email |
+| `Contraseña` | — | lista negra: ignorar siempre |
+| `Nombre completo` | `nombre` | header matches `nombre.*completo` |
+| `Teléfono móvil` | — | ignorado en MVP |
+| `Dirección` | — | ignorado en MVP, soporta saltos de línea entrecomillados |
+| `Crédito` | — | ignorado en MVP (futuro: mapear a `creditoDisponible`) |
+
+Particularidades observadas a manejar en el parser:
+- Direcciones con `\n` interno entrecomilladas (papaparse las maneja correctamente).
+- Teléfonos heterogéneos: `+56996481330`, `951844754`, `+56 9 3888 6574`, `56990798527`. No normalizar en MVP.
+- Filas con teléfono y/o dirección vacíos → válidas, no descartar.
+- Mayúsculas inconsistentes en email (`Andrea_perdigon@hotmail.com`) → normalizar a lowercase.
+- Espacios trailing en `Nombre completo` (`"Camilo Ignacio vera cárcamo "`) → trim obligatorio.
+- Caso especial: una fila tiene email con tilde de mayúscula al inicio. Validar que el regex de email tolere puntos y guiones bajos (`fer.isa.gonzalez.barrera@gmail.com`, `Andrea_perdigon@hotmail.com`).
+
+### 12.7 API endpoints
+
+```
+POST   /api/tallerista/manual-enrollments/batch
+       → multipart/form-data { file, workshopId } → crea batch en 'pendiente', retorna preview parseado
+
+GET    /api/tallerista/manual-enrollments/batch/:id
+       → estado actual + filas (para polling)
+
+PATCH  /api/tallerista/manual-enrollments/batch/:id
+       → body { filas: [{ _id, seleccionada }], configuracion } — edita selección y precio antes de procesar
+
+POST   /api/tallerista/manual-enrollments/batch/:id/process
+       → arranca procesamiento secuencial (job inline o worker; ver 12.8)
+
+POST   /api/tallerista/manual-enrollments/batch/:id/retry
+       → reprocesa solo filas en estado 'error'
+
+DELETE /api/tallerista/manual-enrollments/batch/:id
+       → cancela un batch en 'pendiente' (no permitido si ya inició procesamiento)
+```
+
+Todas requieren `authMiddleware` + `requireTallerAprobado` + ownership del workshop.
+
+### 12.8 Estrategia de procesamiento
+
+Vercel serverless tiene timeout de 10s (Hobby) o 60s (Pro). Para 200 filas a ~500ms cada una son ~100s, excede ambos.
+
+**Opción elegida (MVP): chunked self-invocation.**
+- El endpoint `/process` toma N filas (configurable, default 8), las procesa, marca estado, y si quedan filas pendientes hace `fetch` a sí mismo para procesar el siguiente chunk.
+- El cliente hace polling al endpoint `GET` para mostrar progreso.
+- Ventajas: sin Redis, sin worker, sin nuevas dependencias.
+- Desventaja: si Vercel mata el lambda en mitad de un chunk, el siguiente polling del cliente puede dispararlo de nuevo (idempotencia por `rowHash` lo cubre).
+
+**Opción futura (post-MVP):** mover a Vercel Queue / BullMQ con Redis cuando los volúmenes superen 500 filas/batch.
+
+### 12.9 Validaciones críticas
+
+- **Cupo:** verificar `workshop.maxAlumnosActivos` antes de cada fila. Si se llena a mitad de batch → marcar resto como `error: 'cupo agotado'`.
+- **Duplicados:** email × workshopId × dependentNombre ya con suscripción `activa` → fila se marca `omitida` con warning, no error.
+- **Tamaño máximo:** 200 filas por batch, 5 MB de archivo. Excedente → 413.
+- **Tipos MIME:** solo aceptar `text/csv`, `application/vnd.ms-excel`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`.
+- **PII en logs:** nunca loggear email completo. Usar hash o primeros 3 chars.
+
+### 12.10 Schema Zod
+
+```ts
+// src/schemas/manualEnrollmentBatch.ts
+export const BatchUploadSchema = z.object({
+  workshopId:     z.string().regex(/^[0-9a-fA-F]{24}$/),
+}).strict()
+
+export const BatchUpdateSchema = z.object({
+  filas: z.array(z.object({
+    _id:           z.string().regex(/^[0-9a-fA-F]{24}$/),
+    seleccionada:  z.boolean(),
+  })).max(200),
+  configuracion: z.object({
+    precioEspecial:      z.boolean(),
+    precioSnapshot:      z.number().int().min(0).optional(),
+    notaPrecioEspecial:  z.string().max(500).optional(),
+  }).optional(),
+}).strict()
+```
+
+### 12.11 Implementación por fases
+
+| Fase | Alcance | Bloquea |
+|---|---|---|
+| **L1** | Modelo `ManualEnrollmentBatch` + schemas Zod + parser CSV (sin Excel) + endpoints CRUD del batch | — |
+| **L2** | UI de upload + preview + edición de selección + configuración global de precio | L1 |
+| **L3** | Endpoint `/process` con chunked self-invocation + polling client-side | L1, L2 |
+| **L4** | Soporte Excel (`xlsx` SheetJS) + heurística de mapeo + UI de mapeo manual cuando falla | L3 |
+| **L5** | Endpoint `/retry` + UI de errores con reintento por fila + soporte para columna "apoderado_de" → dependientes | L3 |
+| **L6** | Auditoría: `FinanceAuditLog` con tipo `'batch_enrollment'` + tests integrales con MongoMemoryServer | L5 |
+
+### 12.12 Tests obligatorios (al implementar)
+
+1. Parser CSV con headers en mayúsculas / con tildes / con espacios.
+2. Heurística detecta nombre+email en 5 variantes de header.
+3. Batch de 50 filas: 45 ok, 3 con email inválido, 2 duplicadas → estado `parcial` con conteos correctos.
+4. Idempotencia: procesar el mismo batch dos veces no duplica subscripciones (verifica `rowHash`).
+5. Cupo agotado a mitad de batch: filas restantes marcadas `error: 'cupo agotado'`, no rotas con excepción.
+6. Cancelar batch en `pendiente` lo borra; cancelar en `procesando` retorna 409.
+7. Apoderado con dependientes: planilla con columna `apoderado_de` crea correctamente Belén → Juan Pablo, Belén → Fernando.
+8. Ningún `PaymentBreakdown` se crea en todo el flujo (verificación con `countDocuments({}) === 0`).
+
+### 12.13 Riesgos identificados
+
+| Riesgo | Mitigación |
+|---|---|
+| Lambda timeout a mitad de chunk | Idempotencia por `rowHash` + estado por fila + reintento del cliente |
+| Tallerista sube planilla con miles de filas | Hard limit 200 + validación temprana en endpoint |
+| Datos sensibles (RUT, teléfono) en columnas extra | Parser solo extrae nombre/email/apoderado, ignora resto |
+| Email del alumno cae en spam por bulk send | Magic links se envían 1-a-1, no en bulk; rate limit Resend respetado |
+| Talleristas suben CSV con encoding Latin1 | `papaparse` con auto-detect de encoding + fallback UTF-8 |
+| Batch huérfano en `procesando` por crash | Cron diario que mueve batches con `procesadoEn < now-1h` y estado `procesando` a `parcial` |
+
+### 12.14 Decisiones pendientes (preguntar antes de implementar)
+
+1. ¿Precio especial **uniforme por batch** (MVP) o **por fila** (más flexible, más complejo)?
+2. ¿Soportar carga de **clases prepagadas** en el mismo batch o solo para inscripción simple en MVP?
+3. ¿Los apoderados con varios hijos van en filas separadas (1 fila = 1 dependiente, mismo email titular) o en una columna `hijos: "Juan Pablo, Fernando"`?
+4. ¿Qué pasa si el email ya existe como tallerista en el sistema? Bloquear, omitir o permitir doble-rol.
+5. ¿Importar **teléfono y dirección** al perfil del User cuando vienen en el CSV (caso SuperSaaS), o ignorarlos en MVP? Implica agregar campos `phone` y `address` al modelo `User`.
+6. ¿La columna `Crédito` del export SuperSaaS se mapea a `User.creditoDisponible`? Riesgo financiero: estaríamos otorgando crédito sin pago confirmado. Recomendación: ignorar en MVP, evaluar caso por caso.
+
+---
+
 *Fin del documento.*
