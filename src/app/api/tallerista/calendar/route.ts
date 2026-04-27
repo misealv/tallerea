@@ -6,6 +6,8 @@ import dbConnect from '@/lib/db'
 import Workshop from '@/models/Workshop'
 import Booking from '@/models/Booking'
 import Enrollment from '@/models/Enrollment'
+import User from '@/models/User'
+import { sendSesionCancelada } from '@/lib/resend'
 import { Types } from 'mongoose'
 
 export const dynamic = 'force-dynamic'
@@ -43,6 +45,52 @@ export async function PATCH(req: NextRequest) {
 
   workshop.slots[slotIndex].cancelado = cancelado
   await workshop.save()
+
+  // Notificar a los inscritos cuando se cancela (no cuando se restaura)
+  if (cancelado) {
+    try {
+      const slot = workshop.slots[slotIndex] as SlotLean & { fecha?: Date; horaInicio: string; horaFin: string }
+      // Calcular fecha legible del slot
+      const slotFecha = slot.fecha
+        ? new Date(slot.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+        : 'fecha próxima'
+
+      // Obtener IDs de alumnos inscritos: bookings recurrentes + enrollments puntuales
+      interface BookingStudentLean { studentId: Types.ObjectId }
+      interface EnrollmentStudentLean { studentId: Types.ObjectId }
+      const [bookings, enrollments] = await Promise.all([
+        Booking.find({ workshopId: workshop._id, slotIndex, estado: { $nin: ['cancelada'] }, activo: true })
+          .select('studentId').lean<BookingStudentLean[]>(),
+        Enrollment.find({ workshopId: workshop._id, slotIndex, estado: { $nin: ['cancelado'] }, activo: true })
+          .select('studentId').lean<EnrollmentStudentLean[]>(),
+      ])
+
+      const allStudentIds = Array.from(new Set([
+        ...bookings.map(b => String(b.studentId)),
+        ...enrollments.map(e => String(e.studentId)),
+      ]))
+
+      if (allStudentIds.length > 0) {
+        interface UserEmailLean { _id: Types.ObjectId; name: string; email: string }
+        const students = await User.find({ _id: { $in: allStudentIds } })
+          .select('name email').lean<UserEmailLean[]>()
+
+        await Promise.allSettled(students.map(s =>
+          sendSesionCancelada({
+            studentEmail: s.email,
+            studentName: s.name,
+            workshopTitle: workshop.titulo,
+            workshopSlug: workshop.slug,
+            fecha: slotFecha,
+            horaInicio: slot.horaInicio,
+            horaFin: slot.horaFin,
+          })
+        ))
+      }
+    } catch {
+      // Error de email no bloquea la respuesta
+    }
+  }
 
   return NextResponse.json({ ok: true, cancelado })
 }

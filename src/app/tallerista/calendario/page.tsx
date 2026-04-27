@@ -110,6 +110,14 @@ export default function CalendarioTallerista() {
   }
 
   async function toggleCancelar(slot: SlotItem) {
+    // Pedir confirmación solo al cancelar (no al restaurar)
+    if (!slot.cancelado) {
+      const inscritos = slot.reservas
+      const msg = inscritos > 0
+        ? `¿Cancelar esta sesión?\n\n${inscritos} alumno${inscritos !== 1 ? 's' : ''} recibirá${inscritos !== 1 ? 'n' : ''} un email de notificación.`
+        : '¿Cancelar esta sesión? No hay alumnos inscritos.'
+      if (!confirm(msg)) return
+    }
     setCanceling(true)
     try {
       const res = await fetch('/api/tallerista/calendar', {

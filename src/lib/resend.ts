@@ -378,6 +378,55 @@ export async function sendSubscriptionVencida({
   })
 }
 
+// ─── Email cancelación de sesión por tallerista ──────────────────────────────
+
+export async function sendSesionCancelada({
+  studentEmail,
+  studentName,
+  workshopTitle,
+  workshopSlug,
+  fecha,
+  horaInicio,
+  horaFin,
+}: {
+  studentEmail: string
+  studentName: string
+  workshopTitle: string
+  workshopSlug: string
+  fecha: string    // ej: "lunes 4 de mayo de 2026"
+  horaInicio: string
+  horaFin: string
+}) {
+  if (!process.env.RESEND_API_KEY) return
+
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+  const firstName = studentName.split(' ')[0]
+
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: studentEmail,
+    subject: `Sesión cancelada: ${workshopTitle} — ${fecha}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7c3aed;">Sesión cancelada</h2>
+        <p>Hola <strong>${firstName}</strong>,</p>
+        <p>El tallerista canceló la siguiente sesión de <strong>${workshopTitle}</strong>:</p>
+        <div style="background: #fef2f2; border-left: 4px solid #ef4444; border-radius: 8px; padding: 16px 20px; margin: 16px 0;">
+          <p style="margin: 4px 0;"><strong>Taller:</strong> ${workshopTitle}</p>
+          <p style="margin: 4px 0;"><strong>Fecha:</strong> ${fecha}</p>
+          <p style="margin: 4px 0;"><strong>Horario:</strong> ${horaInicio} – ${horaFin}</p>
+        </div>
+        <p>Si tienes dudas o necesitas más información, puedes responder este correo o ver el taller en la plataforma.</p>
+        <a href="${baseUrl}/talleres/${workshopSlug}" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
+          Ver taller
+        </a>
+        <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
+      </div>
+    `,
+  })
+}
+
 export async function sendSubscriptionRenovar({
   email,
   name,
