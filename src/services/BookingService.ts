@@ -131,24 +131,59 @@ export const BookingService = {
 
     // Verificar plazo de cancelación
     const workshop = await Workshop.findById(booking.workshopId)
-    if (workshop?.plan?.horasAntesCancelacion) {
+    const dentroDelPlazo = (() => {
+      if (!workshop?.plan?.horasAntesCancelacion) return true
       const limite = new Date(booking.fecha)
       limite.setHours(limite.getHours() - workshop.plan.horasAntesCancelacion)
-      if (new Date() > limite) {
-        throw new Error(
-          `Plazo de cancelación vencido (${workshop.plan.horasAntesCancelacion}h antes)`
-        )
-      }
+      return new Date() <= limite
+    })()
+
+    if (!dentroDelPlazo) {
+      throw new Error(
+        `Plazo de cancelación vencido (${workshop!.plan.horasAntesCancelacion}h antes)`
+      )
     }
 
     booking.estado = 'cancelada'
     booking.canceladaEn = new Date()
+    booking.canceladaRazon = 'alumno_dentro_plazo'
     await booking.save()
 
-    // Devolver sesión a la suscripción
+    // Devolver sesión a la suscripción (dentro de plazo → NO consume prepagado)
     await SubscriptionService.devolverSesion(String(booking.subscriptionId))
 
     // [RACE] Decrementar reservas atómicamente
+    if (workshop) {
+      await Workshop.updateOne(
+        { _id: booking.workshopId },
+        { $inc: { [`slots.${booking.slotIndex}.reservas`]: -1 } }
+      )
+    }
+
+    return booking
+  },
+
+  // Cancelar reserva fuera de plazo (tallerista o sistema)
+  async cancelFueraDePlazo(bookingId: string, razon: 'alumno_fuera_plazo' | 'tallerista' | 'ciclo_vencido'): Promise<IBooking> {
+    await dbConnect()
+
+    const booking = await Booking.findById(bookingId)
+    if (!booking) throw new Error('Reserva no encontrada')
+    if (booking.estado !== 'reservada') throw new Error('Solo se pueden cancelar reservas activas')
+
+    booking.estado = 'cancelada'
+    booking.canceladaEn = new Date()
+    booking.canceladaRazon = razon
+    await booking.save()
+
+    // [PREPAGADO] Fuera de plazo → consume saldo prepagado (equivalente a no-show)
+    await SubscriptionService.consumePrepaid(
+      String(booking.subscriptionId),
+      'cancelacion_fuera_plazo'
+    ).catch(() => null) // silencioso si no hay saldo prepagado
+
+    // Liberar cupo del slot
+    const workshop = await Workshop.findById(booking.workshopId)
     if (workshop) {
       await Workshop.updateOne(
         { _id: booking.workshopId },
@@ -173,11 +208,24 @@ export const BookingService = {
     booking.estado = estado
     await booking.save()
 
-    // No-show con política reagendar: devolver sesión
-    if (estado === 'no_asistio') {
+    if (estado === 'asistio') {
+      // [PREPAGADO] Asistencia confirmada → consume saldo prepagado si existe
+      await SubscriptionService.consumePrepaid(
+        String(booking.subscriptionId),
+        'asistio'
+      ).catch(() => null)
+    } else {
+      // no_asistio: verificar política del taller
       const workshop = await Workshop.findById(booking.workshopId)
       if (workshop?.plan?.politicaNoShow === 'reagendar_una_vez') {
+        // Política: devolver sesión (no consume prepagado)
         await SubscriptionService.devolverSesion(String(booking.subscriptionId))
+      } else {
+        // Política por defecto: no-show consume saldo prepagado
+        await SubscriptionService.consumePrepaid(
+          String(booking.subscriptionId),
+          'no_show'
+        ).catch(() => null)
       }
     }
 

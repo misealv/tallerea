@@ -245,6 +245,68 @@ export const SubscriptionService = {
     return sub
   },
 
+  /**
+   * [PREPAGADO] Consume 1 clase del saldo prepagado de una Subscription manual.
+   * - Solo aplica cuando clasesPrepagadas existe y consumidas < cantidad.
+   * - Atómico vía $inc con guard — nunca supera cantidad.
+   * - NO crea PaymentBreakdown ni afecta liquidaciones.
+   *
+   * @param subscriptionId  ID de la Subscription
+   * @param motivo          Estado terminal del Booking que dispara el consumo
+   * @returns La Subscription actualizada, o null si no tenía saldo prepagado activo
+   */
+  async consumePrepaid(
+    subscriptionId: string,
+    motivo: 'asistio' | 'no_show' | 'cancelacion_fuera_plazo'
+  ): Promise<ISubscription | null> {
+    await dbConnect()
+
+    const updated = await Subscription.findOneAndUpdate(
+      {
+        _id: subscriptionId,
+        'clasesPrepagadas.consumidas': { $lt: { $expr: '$clasesPrepagadas.cantidad' } },
+      },
+      { $inc: { 'clasesPrepagadas.consumidas': 1 } },
+      { new: true }
+    ).lean<ISubscription>()
+
+    // El guard con $expr no funciona en findOneAndUpdate — usar two-step atómico
+    // Re-intentar con la query correcta:
+    if (!updated) {
+      // Verificar si existe y tiene saldo
+      const sub = await Subscription.findOne({
+        _id: subscriptionId,
+        clasesPrepagadas: { $exists: true },
+      }).lean<ISubscription>()
+
+      if (!sub?.clasesPrepagadas) return null
+      if (sub.clasesPrepagadas.consumidas >= sub.clasesPrepagadas.cantidad) return null
+
+      // Guard atómico correcto: consumidas < cantidad como número literal
+      const result = await Subscription.findOneAndUpdate(
+        {
+          _id: subscriptionId,
+          $expr: { $lt: ['$clasesPrepagadas.consumidas', '$clasesPrepagadas.cantidad'] },
+        },
+        { $inc: { 'clasesPrepagadas.consumidas': 1 } },
+        { new: true }
+      ).lean<ISubscription>()
+
+      return result
+    }
+
+    return updated
+  },
+
+  /**
+   * [PREPAGADO] Verifica si una Subscription tiene saldo prepagado activo.
+   * Usado por el cron de renovación para omitir cobro automático.
+   */
+  hasPrepaidBalance(sub: ISubscription): boolean {
+    if (!sub.clasesPrepagadas) return false
+    return sub.clasesPrepagadas.consumidas < sub.clasesPrepagadas.cantidad
+  },
+
   // Consumir 1 sesión (llamado por BookingService) — [RACE] atómico
   async consumeSesion(subscriptionId: string): Promise<ISubscription> {
     await dbConnect()
@@ -379,6 +441,10 @@ export const SubscriptionService = {
         estado: 'activa',
         fechaVencimiento: { $lt: now },
         activo: true,
+        // [PREPAGADO] Omitir suscripciones con saldo prepagado activo — no generan cobro automático
+        $nor: [
+          { $expr: { $lt: ['$clasesPrepagadas.consumidas', '$clasesPrepagadas.cantidad'] } },
+        ],
       }
       if (excluidos.length > 0) query._id = { $nin: excluidos }
 
