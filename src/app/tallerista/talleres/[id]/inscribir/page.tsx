@@ -47,6 +47,7 @@ export default function InscribirAlumnoPage() {
   const [prepMetodo, setPrepMetodo]         = useState('transferencia')
   const [prepMonto, setPrepMonto]           = useState('')
   const [prepNota, setPrepNota]             = useState('')
+  const [prepCaducaEn, setPrepCaducaEn]     = useState('')  // fecha de caducidad (opcional)
 
   useEffect(() => {
     fetch(`/api/tallerista/inscripciones-manuales/workshop-info?id=${workshopId}`)
@@ -111,6 +112,7 @@ export default function InscribirAlumnoPage() {
           metodoPago:     prepMetodo.trim(),
           montoDeclarado: prepMonto ? Number(prepMonto) : undefined,
           notaTallerista: prepNota.trim() || undefined,
+          caducaEn:       prepCaducaEn ? new Date(prepCaducaEn).toISOString() : undefined,
         }
       }
     }
@@ -298,6 +300,12 @@ export default function InscribirAlumnoPage() {
                   <input type="text" value={prepNota} onChange={e => setPrepNota(e.target.value)}
                     placeholder="Ej: pago de marzo + abril"
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Fecha de caducidad (opcional)</label>
+                  <input type="date" value={prepCaducaEn} onChange={e => setPrepCaducaEn(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                  <p className="text-xs text-gray-400 mt-1">Las clases no podrán reservarse después de esta fecha.</p>
                 </div>
               </div>
             )}

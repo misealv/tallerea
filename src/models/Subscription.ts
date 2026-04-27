@@ -8,6 +8,7 @@ export interface IClasesPrepagadas {
   montoDeclarado?: number;
   notaTallerista?: string;
   creadoPor: Types.ObjectId;
+  caducaEn?: Date;  // fecha hasta la que son válidas las clases prepagadas
 }
 
 export interface ISubscription extends Document {
@@ -76,6 +77,7 @@ const SubscriptionSchema = new Schema<ISubscription>({
     montoDeclarado:  { type: Number, min: 0 },
     notaTallerista:  { type: String, maxlength: 500 },
     creadoPor:       { type: Schema.Types.ObjectId, ref: 'User' },
+    caducaEn:        { type: Date },  // opcional: fecha límite de validez
   },
 }, { timestamps: true });
 

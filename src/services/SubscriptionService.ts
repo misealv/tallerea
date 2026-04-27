@@ -327,10 +327,12 @@ export const SubscriptionService = {
 
   /**
    * [PREPAGADO] Verifica si una Subscription tiene saldo prepagado activo.
+   * Retorna false si las clases ya caducaron (caducaEn < ahora).
    * Usado por el cron de renovación para omitir cobro automático.
    */
   hasPrepaidBalance(sub: ISubscription): boolean {
     if (!sub.clasesPrepagadas) return false
+    if (sub.clasesPrepagadas.caducaEn && new Date() > sub.clasesPrepagadas.caducaEn) return false
     return sub.clasesPrepagadas.consumidas < sub.clasesPrepagadas.cantidad
   },
 
@@ -526,6 +528,7 @@ export const SubscriptionService = {
       metodoPago: string
       montoDeclarado?: number
       notaTallerista?: string
+      caducaEn?: Date  // opcional: fecha límite de validez de las clases prepagadas
     }
     notaTallerista?: string
     isAdmin?: boolean
@@ -654,6 +657,7 @@ export const SubscriptionService = {
       montoDeclarado: input.clasesPrepagadas.montoDeclarado,
       notaTallerista: input.clasesPrepagadas.notaTallerista?.trim(),
       creadoPor: new mongoose.Types.ObjectId(input.ownerId),
+      ...(input.clasesPrepagadas.caducaEn ? { caducaEn: input.clasesPrepagadas.caducaEn } : {}),
     } : undefined
 
     const subscription = await new Subscription({
