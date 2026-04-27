@@ -29,9 +29,14 @@ export default function ClasePruebaCTA({ workshopId, workshopSlug, precio, varia
         body: JSON.stringify({ workshopId, esClasePrueba: true }),
       })
       const data = await res.json()
-      if (!res.ok) return
+      if (!res.ok) {
+        alert(data?.error ?? 'No se pudo procesar la reserva. Inténtalo de nuevo.')
+        return
+      }
       if (data.free || !data.initPoint) { router.push('/alumno?pago=ok'); return }
       window.location.href = data.initPoint
+    } catch {
+      alert('Error de conexión. Inténtalo de nuevo.')
     } finally {
       setLoading(false)
     }
