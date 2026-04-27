@@ -13,7 +13,7 @@ interface WorkshopCardProps {
   comuna?: string
   imagen?: string
   horarios?: { dia?: string; horaInicio: string }[]
-  slots?: { dia?: string; horaInicio: string }[]
+  slots?: { dia?: string; horaInicio: string; horaFin?: string; fecha?: string | Date }[]
   espacioNombre?: string
   espacioSlug?: string
   talleristaNombre?: string   // nombre del owner
@@ -43,6 +43,17 @@ export default function WorkshopCard({
   const precioMostrar = precioDesde ?? precio
   const esGratis = precioMostrar === 0
 
+  // Para puntual: extraer fecha y hora del primer slot
+  const slotPuntual = modeloAcceso === 'puntual' && slots && slots.length > 0 ? slots[0] : null
+  const fechaPuntualLabel = slotPuntual?.fecha
+    ? new Date(slotPuntual.fecha).toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+    : null
+  const horaPuntualLabel = slotPuntual?.horaInicio
+    ? slotPuntual.horaFin
+      ? `${slotPuntual.horaInicio} – ${slotPuntual.horaFin} hrs`
+      : `${slotPuntual.horaInicio} hrs`
+    : null
+
   return (
     <Link href={`/talleres/${slug}`} className="group block bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-xl hover:-translate-y-1 hover:border-purple-200 transition-all duration-300">
       {/* Imagen */}
@@ -65,9 +76,9 @@ export default function WorkshopCard({
           </span>
         )}
 
-        {/* Badge sesión única */}
+        {/* Badge sesión única — izquierda, apilado bajo prueba si ambos existen */}
         {modeloAcceso === 'puntual' && (
-          <span className="absolute top-2 right-2 bg-amber-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full shadow">
+          <span className={`absolute ${clasePruebaDisponible ? 'top-8' : 'top-2'} left-2 bg-amber-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full shadow`}>
             📅 Sesión única
           </span>
         )}
@@ -91,7 +102,15 @@ export default function WorkshopCard({
           <p className="text-xs text-gray-500">por <span className="font-medium text-gray-700">{talleristaNombre}</span></p>
         )}
 
-        {displaySlots && displaySlots.length > 0 && (
+        {/* Fecha y hora — solo puntual */}
+        {fechaPuntualLabel && (
+          <p className="text-xs font-medium text-amber-700 bg-amber-50 rounded-md px-2 py-1">
+            📅 {fechaPuntualLabel}{horaPuntualLabel && <span className="text-gray-500"> · {horaPuntualLabel}</span>}
+          </p>
+        )}
+
+        {/* Horarios recurrentes */}
+        {!fechaPuntualLabel && displaySlots && displaySlots.length > 0 && (
           <p className="text-xs text-gray-500">
             {displaySlots.map(h => h.dia ? `${h.dia} ${h.horaInicio}` : h.horaInicio).slice(0, 2).join(' · ')}
           </p>
