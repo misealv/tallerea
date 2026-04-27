@@ -11,6 +11,7 @@ import mongoose from 'mongoose'
 import dotenv from 'dotenv'
 
 dotenv.config({ path: '.env.local' })
+dotenv.config({ path: '.env' })  // fallback si MONGODB_URI vive en .env
 
 const isDryRun = process.argv.includes('--dry-run')
 
