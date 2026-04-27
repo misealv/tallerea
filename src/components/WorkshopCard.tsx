@@ -7,6 +7,7 @@ interface WorkshopCardProps {
   tipo: string
   modalidad: string
   precio: number
+  precioDesde?: number        // precio mínimo entre todas las opciones
   cupoPorSesion: number
   comuna?: string
   imagen?: string
@@ -14,10 +15,16 @@ interface WorkshopCardProps {
   slots?: { dia?: string; horaInicio: string }[]
   espacioNombre?: string
   espacioSlug?: string
+  talleristaNombre?: string   // nombre del owner
+  clasePruebaDisponible?: boolean
+  clasePruebaPrecio?: number  // 0 = gratis
 }
 
 const tipoIcon: Record<string, string> = {
-  visual: '🎨', teatro: '🎭', danza: '💃', musica: '🎵', otro: '✨',
+  visual: '🎨', teatro: '🎭', danza: '💃', musica: '🎵',
+  ceramica: '🏺', yoga: '🧘', cocina: '🍳', manualidades: '✂️',
+  fotografia: '📷', escritura: '✍️', bienestar: '🌿',
+  tecnologia: '💻', idiomas: '🗣️', infantil: '🧸', otro: '✨',
 }
 
 const modalidadLabel: Record<string, string> = {
@@ -25,10 +32,14 @@ const modalidadLabel: Record<string, string> = {
 }
 
 export default function WorkshopCard({
-  slug, titulo, tipo, modalidad, precio, cupoPorSesion,
+  slug, titulo, tipo, modalidad, precio, precioDesde, cupoPorSesion,
   comuna, imagen, horarios, slots, espacioNombre, espacioSlug,
+  talleristaNombre, clasePruebaDisponible, clasePruebaPrecio,
 }: WorkshopCardProps) {
   const displaySlots = (slots && slots.length > 0) ? slots : horarios
+  const precioMostrar = precioDesde ?? precio
+  const esGratis = precioMostrar === 0
+
   return (
     <Link href={`/talleres/${slug}`} className="group block bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
       {/* Imagen */}
@@ -36,6 +47,13 @@ export default function WorkshopCard({
         {imagen
           ? <Image src={imagen} alt={titulo} fill className="object-cover" sizes="(max-width: 768px) 100vw, 33vw" />
           : tipoIcon[tipo] || '✨'}
+
+        {/* Badge clase de prueba */}
+        {clasePruebaDisponible && (
+          <span className="absolute top-2 left-2 bg-purple-600 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full shadow">
+            {clasePruebaPrecio === 0 ? '🎁 Prueba gratis' : '🎟️ Clase de prueba'}
+          </span>
+        )}
       </div>
 
       {/* Contenido */}
@@ -51,6 +69,11 @@ export default function WorkshopCard({
           {titulo}
         </h3>
 
+        {/* Nombre del tallerista */}
+        {talleristaNombre && (
+          <p className="text-xs text-gray-500">por <span className="font-medium text-gray-700">{talleristaNombre}</span></p>
+        )}
+
         {displaySlots && displaySlots.length > 0 && (
           <p className="text-xs text-gray-500">
             {displaySlots.map(h => `${h.dia} ${h.horaInicio}`).slice(0, 2).join(' · ')}
@@ -58,9 +81,14 @@ export default function WorkshopCard({
         )}
 
         <div className="flex items-center justify-between pt-1">
-          <span className="text-lg font-bold text-purple-700">
-            {precio === 0 ? 'Gratis' : `$${precio.toLocaleString('es-CL')}`}
-          </span>
+          <div>
+            {!esGratis && (
+              <p className="text-[10px] text-gray-400 leading-none mb-0.5">Precio desde</p>
+            )}
+            <span className="text-lg font-bold text-purple-700">
+              {esGratis ? 'Gratis' : `$${precioMostrar.toLocaleString('es-CL')}`}
+            </span>
+          </div>
           <span className={`text-xs px-2 py-1 rounded-full ${cupoPorSesion > 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
             {cupoPorSesion > 0 ? `${cupoPorSesion} cupos/sesión` : 'Sin cupos'}
           </span>

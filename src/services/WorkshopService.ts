@@ -52,6 +52,7 @@ export const WorkshopService = {
     const [data, total] = await Promise.all([
       Workshop.find(query)
         .populate('locationId', 'nombre comuna ciudad')
+        .populate('ownerId', 'name taller')
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)

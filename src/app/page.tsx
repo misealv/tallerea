@@ -18,7 +18,8 @@ export default async function Home() {
         {/* Hero */}
         <main className="max-w-6xl mx-auto px-4 py-20 text-center">
           <h1 className="text-5xl font-bold text-gray-900 mb-6">
-            Encuentra tu taller de arte
+            Encuentra tus talleres de<br className="hidden sm:block" />{' '}
+            <span className="text-purple-600">cultura, artes y oficios</span>
           </h1>
           <p className="text-xl text-gray-600 mb-10 max-w-2xl mx-auto">
             Conectamos talleristas e instituciones de artes visuales, teatro, danza y música
@@ -26,21 +27,31 @@ export default async function Home() {
           </p>
 
           {/* Categorías */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 max-w-3xl mx-auto mb-16">
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 max-w-4xl mx-auto mb-16">
             {[
               { name: "Artes Visuales", emoji: "🎨", slug: "visual" },
-              { name: "Teatro", emoji: "🎭", slug: "teatro" },
-              { name: "Danza", emoji: "💃", slug: "danza" },
-              { name: "Música", emoji: "🎵", slug: "musica" },
-              { name: "Otros", emoji: "✨", slug: "otro" },
+              { name: "Teatro",         emoji: "🎭", slug: "teatro" },
+              { name: "Danza",          emoji: "💃", slug: "danza" },
+              { name: "Música",         emoji: "🎵", slug: "musica" },
+              { name: "Cerámica",       emoji: "🏺", slug: "ceramica" },
+              { name: "Yoga",           emoji: "🧘", slug: "yoga" },
+              { name: "Cocina",         emoji: "🍳", slug: "cocina" },
+              { name: "Manualidades",   emoji: "✂️", slug: "manualidades" },
+              { name: "Fotografía",     emoji: "📷", slug: "fotografia" },
+              { name: "Escritura",      emoji: "✍️", slug: "escritura" },
+              { name: "Bienestar",      emoji: "🌿", slug: "bienestar" },
+              { name: "Tecnología",     emoji: "💻", slug: "tecnologia" },
+              { name: "Idiomas",        emoji: "🗣️", slug: "idiomas" },
+              { name: "Infantil",       emoji: "🧸", slug: "infantil" },
+              { name: "Otros",          emoji: "✨", slug: "otro" },
             ].map((cat) => (
               <Link
                 key={cat.slug}
                 href={`/talleres?tipo=${cat.slug}`}
-                className="flex flex-col items-center p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100"
+                className="flex flex-col items-center p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100"
               >
-                <span className="text-4xl mb-2">{cat.emoji}</span>
-                <span className="text-sm font-medium text-gray-700">{cat.name}</span>
+                <span className="text-3xl mb-1.5">{cat.emoji}</span>
+                <span className="text-xs font-medium text-gray-700 text-center leading-tight">{cat.name}</span>
               </Link>
             ))}
           </div>
@@ -58,9 +69,23 @@ export default async function Home() {
                 {featured.data.map((w) => {
                   const loc = w.locationId as unknown as { comuna?: string } | null;
                   const acc = w.accountId as unknown as { nombre: string; slug: string; precioModalidad?: string } | null;
-                  const precioPublico = (acc?.precioModalidad === 'neto' || w.precioModalidad === 'neto')
-                    ? Math.round(w.precio * 100 / (100 - comisionPct))
-                    : w.precio;
+                  const owner = w.ownerId as unknown as { name: string } | null;
+                  const esNeto = acc?.precioModalidad === 'neto' || w.precioModalidad === 'neto'
+                  const toBruto = (n: number) => esNeto && n > 0 ? Math.round(n * 100 / (100 - comisionPct)) : n
+                  const precioPublico = toBruto(w.precio ?? 0)
+
+                  // Precio desde: mínimo entre precio fijo, paquetes y clase de prueba
+                  const candidatos: number[] = [precioPublico]
+                  if (w.paquetes?.length) {
+                    w.paquetes.forEach((p: { precio: number; activo: boolean }) => {
+                      if (p.activo) candidatos.push(toBruto(p.precio))
+                    })
+                  }
+                  if (w.clasePrueba?.habilitada && w.clasePrueba.precio >= 0) {
+                    candidatos.push(w.clasePrueba.precio)
+                  }
+                  const precioDesde = Math.min(...candidatos)
+
                   return (
                     <WorkshopCard
                       key={String(w._id)}
@@ -69,12 +94,16 @@ export default async function Home() {
                       tipo={w.tipo}
                       modalidad={w.modalidad}
                       precio={precioPublico}
+                      precioDesde={precioDesde}
                       cupoPorSesion={w.cupoPorSesion}
                       comuna={loc?.comuna}
                       imagen={w.imagenes?.[0]}
                       slots={w.slots}
                       espacioNombre={acc?.nombre}
                       espacioSlug={acc?.slug}
+                      talleristaNombre={owner?.name}
+                      clasePruebaDisponible={!!w.clasePrueba?.habilitada}
+                      clasePruebaPrecio={w.clasePrueba?.precio}
                     />
                   );
                 })}
