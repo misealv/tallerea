@@ -11,6 +11,8 @@ import Workshop from '@/models/Workshop'
 import Location from '@/models/Location'
 import CancelBookingButton from '@/components/CancelBookingButton'
 import TallerCard from '@/components/TallerCard'
+import SaldoTooltipButton from '@/components/SaldoTooltipButton'
+import { shouldHideTrial } from '@/lib/trialFilters'
 import { Types } from 'mongoose'
 
 export const dynamic = 'force-dynamic'
@@ -72,9 +74,7 @@ async function resolveClasePrueba(
   slugsConSubHistorica: Set<string>,
 ): Promise<ClasePruebaDetail[]> {
   const pruebas = enrolls.filter(e => (e as unknown as { esClasePrueba?: boolean }).esClasePrueba)
-  // Umbral: 48h post-fecha del slot (o post-createdAt si el slot perdió fecha). Si pasó más, ya fue consumida → ocultar
-  const ahora = Date.now()
-  const VENTANA_POST_CLASE_MS = 48 * 60 * 60 * 1000
+  const now = Date.now()
   const details: ClasePruebaDetail[] = []
   for (const e of pruebas) {
     try {
@@ -87,9 +87,12 @@ async function resolveClasePrueba(
         .lean<{ ownerId: Types.ObjectId; locationId?: Types.ObjectId; slots: SlotInfo[] }>()
       if (!wDoc) continue
       const slot: SlotInfo | undefined = e.slotIndex != null ? wDoc.slots[e.slotIndex] : undefined
-      // Filtrar pruebas consumidas: slot pasado >48h, o slot sin fecha pero enrollment con >48h de antigüedad
-      const referenciaMs = slot?.fecha ? new Date(slot.fecha).getTime() : new Date(e.createdAt).getTime()
-      if (ahora - referenciaMs > VENTANA_POST_CLASE_MS) continue
+      // Filtrar pruebas consumidas usando helper puro (testeado en trialFilters.test.ts)
+      const oculta = shouldHideTrial(
+        { workshopSlug: w.slug, slotFecha: slot?.fecha, enrollmentCreatedAt: e.createdAt },
+        { slugsConSubHistorica, now },
+      )
+      if (oculta) continue
       const [owner, loc] = await Promise.all([
         User.findById(wDoc.ownerId).select('name').lean<OwnerRef>(),
         wDoc.locationId ? Location.findById(wDoc.locationId).select('nombre direccion comuna ciudad').lean<LocationRef>() : null,
@@ -226,11 +229,7 @@ export default async function AlumnoDashboard() {
             </div>
             {/* Tooltip accesible — funciona con hover, focus y tap (mobile) */}
             <div className="relative group inline-flex items-center shrink-0">
-              <button
-                type="button"
-                className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-100 text-green-700 text-sm font-bold cursor-help select-none hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors"
-                aria-label="¿Qué es el saldo a favor?"
-              >?</button>
+              <SaldoTooltipButton />
               <div
                 role="tooltip"
                 className="absolute bottom-full right-0 mb-2 w-64 bg-gray-800 text-white text-xs rounded-lg px-3 py-2.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-20 shadow-lg"

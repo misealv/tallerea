@@ -1,6 +1,9 @@
+'use client'
+
 import Link from 'next/link'
 import Image from 'next/image'
 import { getCloudinaryUrl, TRANSFORM } from '@/lib/cloudinary-transform'
+import { trackTallerCardClick, trackTooltipClasesOpen } from '@/lib/analytics'
 
 export interface TallerCardProps {
   titulo: string
@@ -49,6 +52,14 @@ export default function TallerCard({
 }: TallerCardProps) {
   const thumbUrl = getCloudinaryUrl(imageUrl, TRANSFORM.dashboardCard)
   const hasCaducado = caducaEn ? new Date(caducaEn) < new Date() : false
+
+  // Tipo para analítica de clic (Fase 8)
+  const tipoCard: 'puntual' | 'recurrente' | 'prueba' = esClasePrueba
+    ? 'prueba'
+    : subscriptionId
+      ? 'recurrente'
+      : 'puntual'
+  const onCardClick = () => trackTallerCardClick(tipoCard, slug)
 
   return (
     <div className={`bg-white rounded-xl border ${devueltas > 0 ? 'border-amber-300' : 'border-gray-200'}`}>
@@ -117,6 +128,8 @@ export default function TallerCard({
               <div className="relative group inline-flex items-center">
                 <button
                   type="button"
+                  onMouseEnter={trackTooltipClasesOpen}
+                  onFocus={trackTooltipClasesOpen}
                   className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-xs font-bold cursor-help select-none hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-300 transition-colors"
                   aria-label="Información sobre clases pagadas"
                 >?</button>
@@ -161,6 +174,7 @@ export default function TallerCard({
         {esClasePrueba ? (
           <Link
             href={`/talleres/${slug}`}
+            onClick={onCardClick}
             className="flex items-center justify-center text-sm font-semibold text-purple-700 border border-purple-200 bg-purple-50 hover:bg-purple-100 py-2.5 rounded-lg transition-colors"
           >
             Suscribirme al taller completo →
@@ -172,6 +186,7 @@ export default function TallerCard({
                 ? `/alumno/reservas?sub=${subscriptionId}&workshop=${encodeURIComponent(slug)}`
                 : `/talleres/${slug}`
             }
+            onClick={onCardClick}
             className={`flex items-center justify-center text-sm font-semibold text-white py-2.5 rounded-lg transition-colors ${
               clasesRestantes > 0
                 ? 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800'
@@ -185,6 +200,7 @@ export default function TallerCard({
         {!esClasePrueba && (
           <Link
             href={`/talleres/${slug}`}
+            onClick={onCardClick}
             className="flex items-center justify-center text-xs text-gray-400 hover:text-purple-600 transition-colors py-1"
           >
             Ver detalles del taller
