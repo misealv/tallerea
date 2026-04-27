@@ -8,8 +8,14 @@ export interface IEnrollment extends Document {
   pagoRef?: string;
   monto: number;
   creditoAplicado: number;
-  esClasePrueba: boolean;             // true = clase de prueba
-  montoPagadoVoluntario?: number;     // solo si workshop.modalidadPrecio === 'voluntario'
+  esClasePrueba: boolean;
+  montoPagadoVoluntario?: number;
+  // Inscripción manual
+  dependentId?: Types.ObjectId;
+  dependentNombreSnapshot?: string;
+  origenInscripcion: 'checkout' | 'manual';
+  inscritoPor?: Types.ObjectId;
+  notaTallerista?: string;
   activo: boolean;
   createdAt: Date;
 }
@@ -24,8 +30,22 @@ const EnrollmentSchema = new Schema<IEnrollment>({
   creditoAplicado: { type: Number, default: 0, min: 0 },
   esClasePrueba:   { type: Boolean, default: false },
   montoPagadoVoluntario: { type: Number, min: 0 },
+  // Inscripción manual
+  dependentId:           { type: Schema.Types.ObjectId },
+  dependentNombreSnapshot: { type: String, maxlength: 100 },
+  origenInscripcion:     { type: String, enum: ['checkout', 'manual'], default: 'checkout' },
+  inscritoPor:           { type: Schema.Types.ObjectId, ref: 'User' },
+  notaTallerista:        { type: String, maxlength: 500 },
   activo:          { type: Boolean, default: true },
 }, { timestamps: true });
+
+// Validación: inscripción manual requiere inscritoPor
+EnrollmentSchema.pre('save', function (next) {
+  if (this.origenInscripcion === 'manual' && !this.inscritoPor) {
+    return next(new Error('[MANUAL] inscritoPor es obligatorio para origenInscripcion manual'))
+  }
+  next()
+});
 
 EnrollmentSchema.index({ workshopId: 1 });
 EnrollmentSchema.index({ studentId: 1 });

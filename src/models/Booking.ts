@@ -18,6 +18,9 @@ export interface IBooking extends Document {
   canceladaEn: Date | null;
   canceladaRazon?: 'alumno_dentro_plazo' | 'alumno_fuera_plazo' | 'tallerista' | 'ciclo_vencido' | null;
   reagendamiento?: IReagendamiento;
+  // Dependiente (heredado de Subscription al crear el Booking)
+  dependentId?: Types.ObjectId;
+  dependentNombreSnapshot?: string;
   activo: boolean;
   createdAt: Date;
 }
@@ -44,6 +47,9 @@ const BookingSchema = new Schema<IBooking>({
     default: null,
   },
   reagendamiento: { type: ReagendamientoSchema },
+  // Dependiente — copiado desde Subscription al momento de crear el Booking
+  dependentId:             { type: Schema.Types.ObjectId },
+  dependentNombreSnapshot: { type: String, maxlength: 100 },
   activo: { type: Boolean, default: true },
 }, { timestamps: true });
 

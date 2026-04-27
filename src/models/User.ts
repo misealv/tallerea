@@ -9,6 +9,15 @@ export interface IDatosBancarios {
   emailPagos: string
 }
 
+export interface IDependent {
+  _id: Types.ObjectId
+  nombre: string
+  fechaNacimiento?: Date
+  notas?: string
+  activo: boolean
+  createdAt: Date
+}
+
 export interface ITallerHistorial {
   accion: 'solicitud' | 'aprobacion' | 'rechazo' | 'suspension' | 'reactivacion' | 're_postulacion'
   fecha: Date
@@ -49,6 +58,7 @@ export interface IUser {
   role: 'user' | 'admin'
   taller?: ITaller
   creditoDisponible: number
+  dependents: IDependent[]
   magicLinkToken?: string
   magicLinkExpiresAt?: Date
   activo: boolean
@@ -66,6 +76,13 @@ const DatosBancariosSchema = new Schema({
   nombreTitular: { type: String, required: true },
   emailPagos: { type: String, required: true },
 }, { _id: false })
+
+const DependentSchema = new Schema({
+  nombre: { type: String, required: true, trim: true, maxlength: 100 },
+  fechaNacimiento: { type: Date },
+  notas: { type: String, maxlength: 500 },
+  activo: { type: Boolean, default: true },
+}, { timestamps: { createdAt: true, updatedAt: false } })
 
 const TallerHistorialSchema = new Schema({
   accion: {
@@ -123,6 +140,7 @@ const UserSchema = new Schema<IUser>({
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
   taller: TallerSchema,
   creditoDisponible: { type: Number, default: 0 },
+  dependents: { type: [DependentSchema], default: [] },
   magicLinkToken: { type: String, select: false },
   magicLinkExpiresAt: { type: Date, select: false },
   activo: { type: Boolean, default: true },

@@ -1,5 +1,15 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
+export interface IClasesPrepagadas {
+  cantidad: number;
+  consumidas: number;
+  fechaPago: Date;
+  metodoPago: 'transferencia' | 'efectivo' | 'otro';
+  montoDeclarado?: number;
+  notaTallerista?: string;
+  creadoPor: Types.ObjectId;
+}
+
 export interface ISubscription extends Document {
   workshopId: Types.ObjectId;
   studentId: Types.ObjectId;
@@ -20,6 +30,14 @@ export interface ISubscription extends Document {
   precioSnapshot?: number;
   sesionesPorPeriodoSnapshot?: number;
   activo: boolean;
+  // Inscripción manual
+  dependentId?: Types.ObjectId;
+  dependentNombreSnapshot?: string;
+  origenInscripcion: 'checkout' | 'manual';
+  inscritoPor?: Types.ObjectId;
+  precioEspecial: boolean;
+  notaPrecioEspecial?: string;
+  clasesPrepagadas?: IClasesPrepagadas;
   createdAt: Date;
 }
 
@@ -43,7 +61,40 @@ const SubscriptionSchema = new Schema<ISubscription>({
   precioSnapshot:            { type: Number, min: 0 },
   sesionesPorPeriodoSnapshot:{ type: Number, min: 1 },
   activo: { type: Boolean, default: true },
+  // Inscripción manual
+  dependentId:              { type: Schema.Types.ObjectId },
+  dependentNombreSnapshot:  { type: String, maxlength: 100 },
+  origenInscripcion:        { type: String, enum: ['checkout', 'manual'], default: 'checkout' },
+  inscritoPor:              { type: Schema.Types.ObjectId, ref: 'User' },
+  precioEspecial:           { type: Boolean, default: false },
+  notaPrecioEspecial:       { type: String, maxlength: 500 },
+  clasesPrepagadas: {
+    cantidad:        { type: Number, min: 1 },
+    consumidas:      { type: Number, default: 0, min: 0 },
+    fechaPago:       { type: Date },
+    metodoPago:      { type: String, enum: ['transferencia', 'efectivo', 'otro'] },
+    montoDeclarado:  { type: Number, min: 0 },
+    notaTallerista:  { type: String, maxlength: 500 },
+    creadoPor:       { type: Schema.Types.ObjectId, ref: 'User' },
+  },
 }, { timestamps: true });
+
+// Validaciones de inscripción manual
+SubscriptionSchema.pre('save', function (next) {
+  if (this.origenInscripcion === 'manual' && !this.inscritoPor) {
+    return next(new Error('[MANUAL] inscritoPor es obligatorio para origenInscripcion manual'))
+  }
+  if (this.clasesPrepagadas) {
+    const { cantidad, consumidas } = this.clasesPrepagadas
+    if (consumidas > cantidad) {
+      return next(new Error('[PREPAGADO] consumidas no puede superar cantidad'))
+    }
+    if (this.origenInscripcion !== 'manual') {
+      return next(new Error('[PREPAGADO] clasesPrepagadas solo permitido en inscripción manual'))
+    }
+  }
+  next()
+});
 
 SubscriptionSchema.index({ workshopId: 1, studentId: 1, estado: 1 });
 SubscriptionSchema.index({ studentId: 1, estado: 1 });
