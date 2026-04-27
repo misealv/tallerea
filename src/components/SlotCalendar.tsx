@@ -50,6 +50,8 @@ function addMinutes(time: string, mins: number): string {
 export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlotsChange }: SlotCalendarProps) {
   const [popover, setPopover] = useState<{ dia: string; hora: string; slotIdx?: number } | null>(null)
   const [popoverCupo, setPopoverCupo] = useState(String(cupoDefault))
+  const [popoverHoraInicio, setPopoverHoraInicio] = useState('')
+  const [popoverHoraFin, setPopoverHoraFin] = useState('')
   const [popoverRepeatDias, setPopoverRepeatDias] = useState<string[]>([])
   const [showRepeatInEdit, setShowRepeatInEdit] = useState(false)
   const gridRef = useRef<HTMLDivElement>(null)
@@ -63,22 +65,28 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
     if (existingIdx >= 0) {
       setPopover({ dia, hora: slots[existingIdx].horaInicio, slotIdx: existingIdx })
       setPopoverCupo(String(slots[existingIdx].cupoMax))
+      setPopoverHoraInicio(slots[existingIdx].horaInicio)
+      setPopoverHoraFin(slots[existingIdx].horaFin)
       return
     }
     const horaInicio = minutesToTime(minuteOfDay)
+    const horaFin = addMinutes(horaInicio, duracionSesion)
     setPopover({ dia, hora: horaInicio })
+    setPopoverHoraInicio(horaInicio)
+    setPopoverHoraFin(horaFin)
     setPopoverCupo(String(cupoDefault))
     setPopoverRepeatDias([])
   }, [slots, cupoDefault])
 
   const handleCreate = () => {
     if (!popover || popover.slotIdx !== undefined) return
-    const horaFin = addMinutes(popover.hora, duracionSesion)
+    const horaInicio = popoverHoraInicio || popover.hora
+    const horaFin = popoverHoraFin || addMinutes(horaInicio, duracionSesion)
     const cupo = Math.max(1, Number(popoverCupo) || cupoDefault)
     const diasToCreate = [popover.dia, ...popoverRepeatDias.filter(d => d !== popover.dia)]
     const newSlots = diasToCreate
-      .filter(d => !slots.some(s => s.dia === d && s.horaInicio === popover.hora))
-      .map(d => ({ dia: d, horaInicio: popover.hora, horaFin, cupoMax: cupo, cupoDisponible: cupo }))
+      .filter(d => !slots.some(s => s.dia === d && s.horaInicio === horaInicio))
+      .map(d => ({ dia: d, horaInicio, horaFin, cupoMax: cupo, cupoDisponible: cupo }))
     onSlotsChange([...slots, ...newSlots])
     setPopover(null)
     setPopoverRepeatDias([])
@@ -166,6 +174,8 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
                   onClick={() => {
                     setPopover({ dia: slot.dia, hora: slot.horaInicio, slotIdx: idx })
                     setPopoverCupo(String(slot.cupoMax))
+                    setPopoverHoraInicio(slot.horaInicio)
+                    setPopoverHoraFin(slot.horaFin)
                   }}
                 >
                   <div className="font-medium truncate">{slot.horaInicio}</div>
@@ -184,8 +194,24 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
             {popover.slotIdx !== undefined ? (
               <>
                 <h3 className="font-semibold text-gray-900">
-                  {DIA_LABEL[popover.dia]} {slots[popover.slotIdx].horaInicio} — {slots[popover.slotIdx].horaFin}
+                  {DIA_LABEL[normalizeDia(popover.dia)]} — Editar bloque
                 </h3>
+
+                {/* Editar hora */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-500">Hora inicio</label>
+                    <input type="time" value={popoverHoraInicio}
+                      onChange={e => setPopoverHoraInicio(e.target.value)}
+                      className="w-full mt-1 px-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Hora fin</label>
+                    <input type="time" value={popoverHoraFin}
+                      onChange={e => setPopoverHoraFin(e.target.value)}
+                      className="w-full mt-1 px-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
+                  </div>
+                </div>
 
                 {/* Editar cupo */}
                 <div>
@@ -201,7 +227,7 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
                   onClick={() => {
                     const cupo = Math.max(1, Number(popoverCupo) || 1)
                     const updated = slots.map((s, i) =>
-                      i === popover.slotIdx ? { ...s, cupoMax: cupo, cupoDisponible: cupo } : s
+                      i === popover.slotIdx ? { ...s, horaInicio: popoverHoraInicio || s.horaInicio, horaFin: popoverHoraFin || s.horaFin, cupoMax: cupo, cupoDisponible: cupo } : s
                     )
                     onSlotsChange(updated)
                     setPopover(null)
@@ -263,10 +289,24 @@ export default function SlotCalendar({ slots, duracionSesion, cupoDefault, onSlo
               </>
             ) : (
               <>
-                <h3 className="font-semibold text-gray-900">Nuevo bloque</h3>
-                <p className="text-sm text-gray-600">
-                  {DIA_LABEL[popover.dia]} · {popover.hora} → {addMinutes(popover.hora, duracionSesion)} ({duracionSesion} min)
-                </p>
+                <h3 className="font-semibold text-gray-900">Nuevo bloque — {DIA_LABEL[normalizeDia(popover.dia)]}</h3>
+
+                {/* Hora inicio / fin editables */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-500">Hora inicio</label>
+                    <input type="time" value={popoverHoraInicio}
+                      onChange={e => setPopoverHoraInicio(e.target.value)}
+                      className="w-full mt-1 px-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Hora fin</label>
+                    <input type="time" value={popoverHoraFin}
+                      onChange={e => setPopoverHoraFin(e.target.value)}
+                      className="w-full mt-1 px-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
+                  </div>
+                </div>
+
                 <div>
                   <label className="text-xs text-gray-500">Cupo máximo</label>
                   <input type="number" min="1" value={popoverCupo}
