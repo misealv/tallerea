@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
 
 /**
  * Tests para Fase 1.5 — consumo de clases prepagadas.
@@ -73,7 +73,10 @@ vi.mock('@/models/Subscription', () => ({
 }))
 
 // Importar después de los mocks
-const { SubscriptionService } = await import('@/services/SubscriptionService')
+let SubscriptionService: typeof import('@/services/SubscriptionService')['SubscriptionService']
+beforeAll(async () => {
+  ;({ SubscriptionService } = await import('@/services/SubscriptionService'))
+})
 
 beforeEach(() => {
   subStore = {}
