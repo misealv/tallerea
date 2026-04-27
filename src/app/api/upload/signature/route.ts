@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const { folder } = await req.json()
-    const validFolders = ['tallerea/workshops', 'tallerea/accounts']
+    const validFolders = ['tallerea/workshops', 'tallerea/accounts', 'tallerea/comprobantes']
     if (!folder || !validFolders.includes(folder)) {
       return NextResponse.json({ error: 'Folder inválido' }, { status: 400 })
     }
