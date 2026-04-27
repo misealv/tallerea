@@ -107,7 +107,7 @@ export default async function AlumnoDashboard() {
   await dbConnect()
   const studentId = session.user.id
 
-  const [user, enrollments, subscriptions, upcomingBookings] = await Promise.all([
+  const [user, enrollments, subscriptions, upcomingBookings, cancelledByProf] = await Promise.all([
     User.findById(studentId).select('name creditoDisponible').lean<{ name: string; creditoDisponible: number }>(),
     Enrollment.find({ studentId, estado: 'pagado', activo: true })
       .populate('workshopId', 'titulo slug')
@@ -123,6 +123,13 @@ export default async function AlumnoDashboard() {
       .sort({ fecha: 1 })
       .limit(5)
       .lean<BookingLean[]>(),
+    // Bookings cancelados por el tallerista en los últimos 30 días (para mostrar devoluciones)
+    Booking.find({
+      studentId,
+      canceladaRazon: 'tallerista',
+      canceladaEn: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      activo: true,
+    }).populate('workshopId', 'titulo slug').lean<BookingLean[]>(),
   ])
 
   const clasesPrueba = await resolveClasePrueba(enrollments).catch((err) => {
@@ -228,6 +235,42 @@ export default async function AlumnoDashboard() {
         </section>
       )}
 
+      {/* Banner: sesiones canceladas por el profesor (últimos 30 días) */}
+      {cancelledByProf.length > 0 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">⚠️</span>
+            <p className="font-semibold text-amber-800 text-sm">
+              Tu profesor canceló {cancelledByProf.length === 1 ? 'una sesión' : `${cancelledByProf.length} sesiones`}
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            {cancelledByProf.map(b => {
+              const w = b.workshopId as WorkshopRef
+              const fecha = new Date(b.fecha)
+              return (
+                <div key={String(b._id)} className="flex items-start gap-2 text-sm text-amber-900">
+                  <span className="shrink-0 text-amber-500">→</span>
+                  <span>
+                    <span className="font-medium">{w.titulo}</span>
+                    {' — '}
+                    <span className="capitalize">
+                      {fecha.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    </span>
+                    <span className="ml-1.5 inline-flex items-center bg-green-100 text-green-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                      ✓ 1 sesión devuelta
+                    </span>
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-xs text-amber-700 pt-1">
+            Las sesiones devueltas ya están disponibles en tu suscripción. Puedes reservar otro horario.
+          </p>
+        </div>
+      )}
+
       {/* Próximas sesiones */}
       <section>
         <h2 className="text-lg font-semibold text-gray-800 mb-3">Próximas sesiones</h2>
@@ -295,34 +338,50 @@ export default async function AlumnoDashboard() {
             {subscriptions.map(s => {
               const prepaid = s.clasesPrepagadas
               const prepaidActivo = prepaid && prepaid.consumidas < prepaid.cantidad
+              const workshopRef = s.workshopId as WorkshopRef
+              // Contar cancelaciones del prof en este taller (últimos 30 días)
+              const devueltas = cancelledByProf.filter(b => (b.workshopId as WorkshopRef).slug === workshopRef.slug).length
+              // Sesiones disponibles efectivas
+              const disponibles = prepaidActivo ? (prepaid!.cantidad - prepaid!.consumidas) : s.sesionesDisponibles
               return (
-              <div key={String(s._id)} className="bg-white border border-gray-200 rounded-xl px-4 py-4">
-                <p className="font-medium text-gray-900 text-sm">{(s.workshopId as WorkshopRef).titulo}</p>
+              <div key={String(s._id)} className={`bg-white rounded-xl px-4 py-4 border ${devueltas > 0 ? 'border-amber-300' : 'border-gray-200'}`}>
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <p className="font-medium text-gray-900 text-sm leading-snug">{workshopRef.titulo}</p>
+                  {/* Contador de sesiones disponibles */}
+                  <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${disponibles > 0 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {disponibles} {disponibles === 1 ? 'sesión' : 'sesiones'}
+                  </span>
+                </div>
+
+                {/* Aviso devolución */}
+                {devueltas > 0 && (
+                  <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5 mb-2 flex items-center gap-1.5">
+                    <span>⚡</span>
+                    {devueltas === 1 ? '1 sesión devuelta por tu profesor — ya disponible' : `${devueltas} sesiones devueltas por tu profesor — ya disponibles`}
+                  </p>
+                )}
+
                 {prepaidActivo ? (
-                  <p className="text-xs mt-1">
-                    <span className="inline-block bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                      Prepagada — {prepaid!.cantidad - prepaid!.consumidas}/{prepaid!.cantidad}
-                    </span>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Prepagada ·{' '}
                     {prepaid!.caducaEn ? (
-                      <span className={`ml-2 ${new Date(prepaid!.caducaEn) < new Date() ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                        · {new Date(prepaid!.caducaEn) < new Date() ? 'Caducó' : 'Caduca'} el {new Date(prepaid!.caducaEn).toLocaleDateString('es-CL')}
+                      <span className={new Date(prepaid!.caducaEn) < new Date() ? 'text-red-600 font-medium' : ''}>
+                        {new Date(prepaid!.caducaEn) < new Date() ? 'Caducó' : 'Caduca'} el {new Date(prepaid!.caducaEn).toLocaleDateString('es-CL')}
                       </span>
                     ) : (
-                      <span className="text-gray-500 ml-2">
-                        · Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}
-                      </span>
+                      <>Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}</>
                     )}
                   </p>
                 ) : (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {s.sesionesDisponibles} de {s.sesionesTotales} sesiones · Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}
+                  <p className="text-xs text-gray-500 mb-3">
+                    {s.sesionesTotales} totales · Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}
                   </p>
                 )}
                 <Link
-                  href={`/alumno/reservas?sub=${String(s._id)}&workshop=${encodeURIComponent((s.workshopId as WorkshopRef).slug)}`}
-                  className="mt-3 flex items-center justify-center gap-1 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors"
+                  href={`/alumno/reservas?sub=${String(s._id)}&workshop=${encodeURIComponent(workshopRef.slug)}`}
+                  className={`flex items-center justify-center gap-1 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors ${disponibles > 0 ? 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800' : 'bg-gray-300 cursor-not-allowed pointer-events-none'}`}
                 >
-                  Reservar sesión
+                  {disponibles > 0 ? 'Reservar sesión' : 'Sin sesiones disponibles'}
                 </Link>
               </div>
               )

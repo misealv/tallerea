@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth'
 import dbConnect from '@/lib/db'
 import Workshop from '@/models/Workshop'
 import Booking from '@/models/Booking'
+import Subscription from '@/models/Subscription'
 import Enrollment from '@/models/Enrollment'
 import User from '@/models/User'
 import { sendSesionCancelada } from '@/lib/resend'
@@ -45,6 +46,38 @@ export async function PATCH(req: NextRequest) {
 
   workshop.slots[slotIndex].cancelado = cancelado
   await workshop.save()
+
+  // Cuando se cancela: cancelar bookings existentes y devolver sesión a cada subscription
+  let cancelledCount = 0
+  if (cancelado) {
+    interface BookingToCancel { _id: Types.ObjectId; subscriptionId: Types.ObjectId; studentId: Types.ObjectId; dependentNombreSnapshot?: string }
+    const bookingsToCancel = await Booking.find({
+      workshopId: workshop._id,
+      slotIndex,
+      estado: 'reservada',
+      activo: true,
+    }).select('_id subscriptionId studentId dependentNombreSnapshot').lean<BookingToCancel[]>()
+
+    if (bookingsToCancel.length > 0) {
+      const now = new Date()
+      // Marcar todos los bookings como cancelados por el tallerista
+      await Booking.updateMany(
+        { _id: { $in: bookingsToCancel.map(b => b._id) } },
+        { estado: 'cancelada', canceladaEn: now, canceladaRazon: 'tallerista' }
+      )
+      // Devolver 1 sesión a cada subscription afectada
+      for (const b of bookingsToCancel) {
+        await Subscription.updateOne(
+          { _id: b.subscriptionId, sesionesDisponibles: { $exists: true } },
+          { $inc: { sesionesDisponibles: 1, sesionesUsadas: -1 } }
+        )
+      }
+      // Decrementar contador de reservas del slot
+      workshop.slots[slotIndex].reservas = Math.max(0, (workshop.slots[slotIndex].reservas ?? 0) - bookingsToCancel.length)
+      await workshop.save()
+      cancelledCount = bookingsToCancel.length
+    }
+  }
 
   // Notificar a los inscritos cuando se cancela (no cuando se restaura)
   if (cancelado) {
@@ -108,7 +141,7 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, cancelado })
+  return NextResponse.json({ ok: true, cancelado, sesionesDevueltas: cancelledCount })
 }
 interface WorkshopLean {
   _id: Types.ObjectId
