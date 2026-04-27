@@ -74,15 +74,12 @@ export default async function Home() {
                   const toBruto = (n: number) => esNeto && n > 0 ? Math.round(n * 100 / (100 - comisionPct)) : n
                   const precioPublico = toBruto(w.precio ?? 0)
 
-                  // Precio desde: mínimo entre precio fijo, paquetes y clase de prueba
+                  // Precio desde: mínimo entre precio fijo y paquetes (sin clase de prueba)
                   const candidatos: number[] = [precioPublico]
                   if (w.paquetes?.length) {
                     w.paquetes.forEach((p: { precio: number; activo: boolean }) => {
                       if (p.activo) candidatos.push(toBruto(p.precio))
                     })
-                  }
-                  if (w.clasePrueba?.habilitada && w.clasePrueba.precio >= 0) {
-                    candidatos.push(w.clasePrueba.precio)
                   }
                   const precioDesde = Math.min(...candidatos)
 
