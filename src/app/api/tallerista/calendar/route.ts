@@ -56,11 +56,11 @@ export async function PATCH(req: NextRequest) {
         : 'fecha próxima'
 
       // Obtener IDs de alumnos inscritos: bookings recurrentes + enrollments puntuales
-      interface BookingStudentLean { studentId: Types.ObjectId }
+      interface BookingStudentLean { studentId: Types.ObjectId; dependentNombreSnapshot?: string }
       interface EnrollmentStudentLean { studentId: Types.ObjectId }
       const [bookings, enrollments] = await Promise.all([
         Booking.find({ workshopId: workshop._id, slotIndex, estado: { $nin: ['cancelada'] }, activo: true })
-          .select('studentId').lean<BookingStudentLean[]>(),
+          .select('studentId dependentNombreSnapshot').lean<BookingStudentLean[]>(),
         Enrollment.find({ workshopId: workshop._id, slotIndex, estado: { $nin: ['cancelado'] }, activo: true })
           .select('studentId').lean<EnrollmentStudentLean[]>(),
       ])
@@ -75,6 +75,12 @@ export async function PATCH(req: NextRequest) {
         const students = await User.find({ _id: { $in: allStudentIds } })
           .select('name email').lean<UserEmailLean[]>()
 
+        // Mapa studentId → dependentNombreSnapshot (solo de bookings, enrollments no tienen dependiente)
+        const dependentMap = new Map<string, string>()
+        for (const b of bookings) {
+          if (b.dependentNombreSnapshot) dependentMap.set(String(b.studentId), b.dependentNombreSnapshot)
+        }
+
         await Promise.allSettled(students.map(s =>
           sendSesionCancelada({
             studentEmail: s.email,
@@ -84,6 +90,7 @@ export async function PATCH(req: NextRequest) {
             fecha: slotFecha,
             horaInicio: slot.horaInicio,
             horaFin: slot.horaFin,
+            dependentNombre: dependentMap.get(String(s._id)),
           })
         ))
       }

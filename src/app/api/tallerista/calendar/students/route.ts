@@ -7,11 +7,12 @@ import Workshop from '@/models/Workshop'
 import Booking from '@/models/Booking'
 import Enrollment from '@/models/Enrollment'
 import User from '@/models/User'
+import { sendSesionCancelada } from '@/lib/resend'
 import { Types } from 'mongoose'
 
 export const dynamic = 'force-dynamic'
 
-interface BookingLean { _id: Types.ObjectId; studentId: Types.ObjectId; estado: string }
+interface BookingLean { _id: Types.ObjectId; studentId: Types.ObjectId; estado: string; dependentNombreSnapshot?: string }
 interface UserLean { _id: Types.ObjectId; name: string; email: string }
 
 // GET /api/tallerista/calendar/students?workshopId=...&slotIndex=...
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
     slotIndex,
     estado: { $nin: ['cancelada'] },
     activo: true,
-  }).select('_id studentId estado').lean<BookingLean[]>()
+  }).select('_id studentId estado dependentNombreSnapshot').lean<BookingLean[]>()
 
   // [FIX] Enrollments puntuales y clasePrueba para este slot
   interface EnrollmentLean { _id: Types.ObjectId; studentId: Types.ObjectId; estado: string; esClasePrueba?: boolean }
@@ -75,7 +76,17 @@ export async function GET(req: NextRequest) {
 
   const bookingRows = bookings.map(b => {
     const u = userMap.get(String(b.studentId))
-    return { bookingId: String(b._id), name: u?.name ?? 'Alumno', email: u?.email ?? '', estado: b.estado }
+    // Si el booking es para un dependiente, mostrar "Juan Pablo (Belén Opazo)"
+    const displayName = b.dependentNombreSnapshot
+      ? `${b.dependentNombreSnapshot} (${u?.name ?? 'titular'})`
+      : (u?.name ?? 'Alumno')
+    return {
+      bookingId: String(b._id),
+      name: displayName,
+      email: u?.email ?? '',
+      estado: b.estado,
+      dependentNombre: b.dependentNombreSnapshot,
+    }
   })
 
   // Enrollments se presentan con prefijo 'e:' en bookingId para distinguirlos en el frontend
@@ -129,6 +140,27 @@ export async function PATCH(req: NextRequest) {
       await workshop.save()
     }
   }
+
+  // Notificar al titular por email, mencionando al dependiente si aplica
+  try {
+    const student = await User.findById(booking.studentId).select('name email').lean<{ name: string; email: string }>()
+    if (student) {
+      const slotData = workshop.slots[slotIndex] as { fecha?: Date; horaInicio: string; horaFin: string }
+      const slotFecha = slotData?.fecha
+        ? new Date(slotData.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+        : 'próxima sesión'
+      await sendSesionCancelada({
+        studentEmail: student.email,
+        studentName:  student.name,
+        workshopTitle: workshop.titulo,
+        workshopSlug:  workshop.slug,
+        fecha:         slotFecha,
+        horaInicio:    slotData?.horaInicio ?? '',
+        horaFin:       slotData?.horaFin ?? '',
+        dependentNombre: booking.dependentNombreSnapshot ?? undefined,
+      })
+    }
+  } catch { /* error de email no bloquea la respuesta */ }
 
   return NextResponse.json({ ok: true })
 }

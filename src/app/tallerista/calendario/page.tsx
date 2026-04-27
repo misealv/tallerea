@@ -36,7 +36,7 @@ interface SlotItem {
   slotIndex: number; horaInicio: string; horaFin: string
   fecha: string; cancelado: boolean; reservas: number; cupo: number
 }
-interface Inscrito { bookingId: string; name: string; email: string; estado: string }
+interface Inscrito { bookingId: string; name: string; email: string; estado: string; dependentNombre?: string }
 
 export default function CalendarioTallerista() {
   const searchParams = useSearchParams()
@@ -344,7 +344,12 @@ export default function CalendarioTallerista() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="font-medium text-gray-800 dark:text-gray-200 truncate">{insc.name}</p>
-                          <p className="text-gray-400 truncate">{insc.email}</p>
+                          {insc.dependentNombre && (
+                            <p className="text-[10px] text-violet-500 dark:text-violet-400 truncate">apoderado: {insc.email}</p>
+                          )}
+                          {!insc.dependentNombre && (
+                            <p className="text-gray-400 truncate">{insc.email}</p>
+                          )}
                         </div>
                         {/* Solo bookings (no enrollments puntuales/prueba) admiten anulación desde el calendario */}
                         {!insc.bookingId.startsWith('e:') && (

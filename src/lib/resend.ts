@@ -388,6 +388,7 @@ export async function sendSesionCancelada({
   fecha,
   horaInicio,
   horaFin,
+  dependentNombre,
 }: {
   studentEmail: string
   studentName: string
@@ -396,12 +397,17 @@ export async function sendSesionCancelada({
   fecha: string    // ej: "lunes 4 de mayo de 2026"
   horaInicio: string
   horaFin: string
+  dependentNombre?: string  // si la sesión era para un dependiente
 }) {
   if (!process.env.RESEND_API_KEY) return
 
   const resend = getResend()
   const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
   const firstName = studentName.split(' ')[0]
+  // Si la sesión era para un dependiente, personalizar saludo y cuerpo
+  const saludoHtml = dependentNombre
+    ? `<p>Hola <strong>${firstName}</strong>,</p><p>El tallerista canceló la siguiente sesión de <strong>${workshopTitle}</strong> para <strong>${dependentNombre}</strong>:</p>`
+    : `<p>Hola <strong>${firstName}</strong>,</p><p>El tallerista canceló la siguiente sesión de <strong>${workshopTitle}</strong>:</p>`
 
   await resend.emails.send({
     from: FROM_EMAIL,
@@ -410,10 +416,10 @@ export async function sendSesionCancelada({
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #7c3aed;">Sesión cancelada</h2>
-        <p>Hola <strong>${firstName}</strong>,</p>
-        <p>El tallerista canceló la siguiente sesión de <strong>${workshopTitle}</strong>:</p>
+        ${saludoHtml}
         <div style="background: #fef2f2; border-left: 4px solid #ef4444; border-radius: 8px; padding: 16px 20px; margin: 16px 0;">
           <p style="margin: 4px 0;"><strong>Taller:</strong> ${workshopTitle}</p>
+          ${dependentNombre ? `<p style="margin: 4px 0;"><strong>Alumno:</strong> ${dependentNombre}</p>` : ''}
           <p style="margin: 4px 0;"><strong>Fecha:</strong> ${fecha}</p>
           <p style="margin: 4px 0;"><strong>Horario:</strong> ${horaInicio} – ${horaFin}</p>
         </div>
