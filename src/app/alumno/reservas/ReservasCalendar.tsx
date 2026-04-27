@@ -33,17 +33,13 @@ export default function ReservasCalendar({
 }: Props) {
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()))
 
-  const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekStart.getDate() + 7)
+  // Aritmética en ms para evitar drift por DST y por uso de getDate() local sobre fecha UTC
+  const weekEnd = new Date(weekStart.getTime() + 7 * 86400000)
 
   const visibleSlots = slotsBetween(allSlots, weekStart, weekEnd)
 
   function handleWeekChange(delta: number) {
-    setWeekStart(prev => {
-      const d = new Date(prev)
-      d.setDate(d.getDate() + delta * 7)
-      return d
-    })
+    setWeekStart(prev => new Date(prev.getTime() + delta * 7 * 86400000))
   }
 
   const vence = new Date(fechaVencimiento)
