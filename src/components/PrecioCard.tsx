@@ -51,6 +51,7 @@ export default function PrecioCard({
   // Estado para paquetes
   const activePaquetes = (paquetes ?? []).filter(p => p.activo)
   const [paqueteSeleccionado, setPaqueteSeleccionado] = useState<string>(activePaquetes[0]?._id ?? '')
+  const [verMasPaquetes, setVerMasPaquetes] = useState(false)
 
   // Estado para voluntario
   const sugerido = aporteVoluntario?.sugerido ?? 0
@@ -169,10 +170,12 @@ export default function PrecioCard({
       )
     }
     if (modalidadPrecio === 'paquetes' && activePaquetes.length > 0) {
+      const paquetesVisibles = verMasPaquetes ? activePaquetes : activePaquetes.slice(0, 2)
+      const hayMas = activePaquetes.length > 2
       return (
         <div className="space-y-2">
           <p className="text-sm font-medium text-gray-700">Elige tu plan</p>
-          {activePaquetes.map(pq => (
+          {paquetesVisibles.map(pq => (
             <label
               key={pq._id}
               className={`flex items-center gap-3 border-2 rounded-lg p-3 cursor-pointer transition-colors ${
@@ -194,6 +197,14 @@ export default function PrecioCard({
               <p className="font-bold text-purple-700 text-sm">{CLP(pq.precio)}</p>
             </label>
           ))}
+          {hayMas && (
+            <button
+              onClick={() => setVerMasPaquetes(v => !v)}
+              className="w-full text-xs text-purple-600 hover:text-purple-800 py-1 transition-colors"
+            >
+              {verMasPaquetes ? '▲ Ver menos planes' : `▼ Ver más planes (${activePaquetes.length - 2} más)`}
+            </button>
+          )}
         </div>
       )
     }
