@@ -67,18 +67,29 @@ const DIAS_LABEL: Record<string, string> = {
   viernes: 'Viernes', sabado: 'Sábado', domingo: 'Domingo',
 }
 
-async function resolveClasePrueba(enrolls: EnrollmentLean[]): Promise<ClasePruebaDetail[]> {
+async function resolveClasePrueba(
+  enrolls: EnrollmentLean[],
+  slugsConSubHistorica: Set<string>,
+): Promise<ClasePruebaDetail[]> {
   const pruebas = enrolls.filter(e => (e as unknown as { esClasePrueba?: boolean }).esClasePrueba)
+  // Umbral: 48h post-fecha del slot (o post-createdAt si el slot perdió fecha). Si pasó más, ya fue consumida → ocultar
+  const ahora = Date.now()
+  const VENTANA_POST_CLASE_MS = 48 * 60 * 60 * 1000
   const details: ClasePruebaDetail[] = []
   for (const e of pruebas) {
     try {
       const w = e.workshopId as WorkshopRef | null
       if (!w?.slug) continue
+      // Si ya tuvo (o tiene) suscripción al mismo taller, la prueba ya cumplió su función → ocultar
+      if (slugsConSubHistorica.has(w.slug)) continue
       const wDoc = await Workshop.findOne({ slug: w.slug })
         .select('ownerId locationId slots')
         .lean<{ ownerId: Types.ObjectId; locationId?: Types.ObjectId; slots: SlotInfo[] }>()
       if (!wDoc) continue
       const slot: SlotInfo | undefined = e.slotIndex != null ? wDoc.slots[e.slotIndex] : undefined
+      // Filtrar pruebas consumidas: slot pasado >48h, o slot sin fecha pero enrollment con >48h de antigüedad
+      const referenciaMs = slot?.fecha ? new Date(slot.fecha).getTime() : new Date(e.createdAt).getTime()
+      if (ahora - referenciaMs > VENTANA_POST_CLASE_MS) continue
       const [owner, loc] = await Promise.all([
         User.findById(wDoc.ownerId).select('name').lean<OwnerRef>(),
         wDoc.locationId ? Location.findById(wDoc.locationId).select('nombre direccion comuna ciudad').lean<LocationRef>() : null,
@@ -110,7 +121,7 @@ export default async function AlumnoDashboard() {
   await dbConnect()
   const studentId = session.user.id
 
-  const [user, enrollments, subscriptions, upcomingBookings, cancelledByProf] = await Promise.all([
+  const [user, enrollments, subscriptions, upcomingBookings, cancelledByProf, allSubsHistorical] = await Promise.all([
     User.findById(studentId).select('name creditoDisponible').lean<{ name: string; creditoDisponible: number }>(),
     Enrollment.find({ studentId, estado: 'pagado', activo: true })
       .populate('workshopId', 'titulo slug')
@@ -133,9 +144,20 @@ export default async function AlumnoDashboard() {
       canceladaEn: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
       activo: true,
     }).populate('workshopId', 'titulo slug').lean<BookingLean[]>(),
+    // Subs históricas (cualquier estado) — solo para filtrar pruebas cuyo upgrade ya ocurrió
+    Subscription.find({ studentId, activo: true })
+      .select('workshopId')
+      .populate('workshopId', 'slug')
+      .lean<{ workshopId: { slug: string } | null }[]>(),
   ])
 
-  const clasesPrueba = await resolveClasePrueba(enrollments).catch((err) => {
+  const slugsConSubHistorica = new Set(
+    allSubsHistorical
+      .map(s => s.workshopId?.slug)
+      .filter((slug): slug is string => Boolean(slug))
+  )
+
+  const clasesPrueba = await resolveClasePrueba(enrollments, slugsConSubHistorica).catch((err) => {
     console.error('[alumno] Error cargando detalles de clase de prueba:', err)
     return [] as ClasePruebaDetail[]
   })

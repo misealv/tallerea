@@ -18,6 +18,7 @@ interface EnrollmentLean {
   workshopId: WorkshopRef | null
   estado: string
   monto: number
+  esClasePrueba?: boolean
   createdAt: Date
 }
 
@@ -127,9 +128,16 @@ export default async function HistorialPage() {
               <div key={String(e._id)} className="bg-white border border-gray-200 rounded-xl px-5 py-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <Link href={`/talleres/${w.slug}`} className="font-medium text-gray-900 text-sm hover:underline">
-                      {w.titulo}
-                    </Link>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Link href={`/talleres/${w.slug}`} className="font-medium text-gray-900 text-sm hover:underline">
+                        {w.titulo}
+                      </Link>
+                      {e.esClasePrueba && (
+                        <span className="inline-block text-[10px] font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                          🌱 Clase de prueba
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-400 mt-0.5">
                       ${(e.monto ?? 0).toLocaleString('es-CL')} · {new Date(e.createdAt).toLocaleDateString('es-CL')}
                     </p>
