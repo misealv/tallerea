@@ -152,6 +152,13 @@ export default async function MisTalleresPage() {
                     </Link>
                     <span className="text-gray-300">·</span>
                     <Link
+                      href={`/tallerista/talleres/${String(w._id)}/inscribir`}
+                      className="text-xs text-green-600 hover:text-green-800 font-medium"
+                    >
+                      + Inscribir alumno
+                    </Link>
+                    <span className="text-gray-300">·</span>
+                    <Link
                       href={`/talleres/${w.slug}`}
                       className="text-xs text-gray-500 hover:text-gray-700"
                       target="_blank"
