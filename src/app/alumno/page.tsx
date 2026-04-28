@@ -117,6 +117,44 @@ async function resolveClasePrueba(
   return details
 }
 
+async function resolvePuntualSessions(enrolls: EnrollmentLean[]): Promise<ClasePruebaDetail[]> {
+  const puntuales = enrolls.filter(e => !(e as unknown as { esClasePrueba?: boolean }).esClasePrueba)
+  const now = new Date()
+  const details: ClasePruebaDetail[] = []
+  for (const e of puntuales) {
+    try {
+      const w = e.workshopId as WorkshopRef | null
+      if (!w?.slug) continue
+      const wDoc = await Workshop.findOne({ slug: w.slug })
+        .select('ownerId locationId slots')
+        .lean<{ ownerId: Types.ObjectId; locationId?: Types.ObjectId; slots: SlotInfo[] }>()
+      if (!wDoc) continue
+      const slot: SlotInfo | undefined = e.slotIndex != null ? wDoc.slots[e.slotIndex] : undefined
+      // Si tiene fecha concreta y ya pasó, no mostrar
+      if (slot?.fecha && new Date(slot.fecha) < now) continue
+      const [owner, loc] = await Promise.all([
+        User.findById(wDoc.ownerId).select('name').lean<OwnerRef>(),
+        wDoc.locationId ? Location.findById(wDoc.locationId).select('nombre direccion comuna ciudad').lean<LocationRef>() : null,
+      ])
+      details.push({
+        titulo: w.titulo,
+        slug: w.slug,
+        horaInicio: slot?.horaInicio ?? '',
+        horaFin: slot?.horaFin ?? '',
+        fechaSlot: slot?.fecha ? new Date(slot.fecha).toISOString().slice(0, 10) : null,
+        diaSemana: slot?.dia ? (DIAS_LABEL[slot.dia] ?? slot.dia) : null,
+        profesorNombre: owner?.name ?? 'Tallerista',
+        direccion: loc ? `${loc.direccion}, ${loc.comuna}` : null,
+        monto: e.monto,
+        enrollmentId: String(e._id),
+      })
+    } catch {
+      continue
+    }
+  }
+  return details
+}
+
 export default async function AlumnoDashboard() {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/alumno/acceso')
@@ -160,10 +198,18 @@ export default async function AlumnoDashboard() {
       .filter((slug): slug is string => Boolean(slug))
   )
 
-  const clasesPrueba = await resolveClasePrueba(enrollments, slugsConSubHistorica).catch((err) => {
-    console.error('[alumno] Error cargando detalles de clase de prueba:', err)
-    return [] as ClasePruebaDetail[]
-  })
+  const [clasesPrueba, puntualSessions] = await Promise.all([
+    resolveClasePrueba(enrollments, slugsConSubHistorica).catch((err) => {
+      console.error('[alumno] Error cargando detalles de clase de prueba:', err)
+      return [] as ClasePruebaDetail[]
+    }),
+    resolvePuntualSessions(enrollments).catch((err) => {
+      console.error('[alumno] Error cargando sesiones puntuales:', err)
+      return [] as ClasePruebaDetail[]
+    }),
+  ])
+
+  const proximaPuntual = puntualSessions[0] ?? null
 
   // Batch-fetch nombres de profesores (para las cards de taller)
   const ownerIds = subscriptions
@@ -195,7 +241,7 @@ export default async function AlumnoDashboard() {
       ? prepaid.cantidad - prepaid.consumidas
       : s.sesionesDisponibles)
   }, 0)
-  const hasActiveTalleres = subscriptions.length > 0 || clasesPrueba.length > 0
+  const hasActiveTalleres = subscriptions.length > 0 || clasesPrueba.length > 0 || puntualSessions.length > 0
   const proximaBooking = activeUpcomingBookings[0] ?? null
   const otrasBookingsCount = Math.max(0, activeUpcomingBookings.length - 1)
 
@@ -285,6 +331,78 @@ export default async function AlumnoDashboard() {
             <CancelBookingButton bookingId={String(proximaBooking._id)} />
           </div>
         </div>
+      ) : proximaPuntual ? (
+        // Estado: hay sesión puntual inscrita → hero destacado
+        <div className="relative overflow-hidden bg-gradient-to-br from-purple-700 via-purple-600 to-indigo-600 rounded-2xl p-6 text-white shadow-xl">
+          {/* Decoración de fondo */}
+          <div className="absolute -top-10 -right-10 w-52 h-52 bg-white/5 rounded-full pointer-events-none" />
+          <div className="absolute -bottom-8 -left-8 w-36 h-36 bg-indigo-400/10 rounded-full pointer-events-none" />
+
+          {/* Badge "Próxima sesión" */}
+          <span className="relative inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm border border-white/20 text-white text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full mb-5">
+            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
+            Próxima sesión
+          </span>
+
+          {/* Título del taller */}
+          <h2 className="relative text-2xl font-extrabold leading-tight tracking-tight">{proximaPuntual.titulo}</h2>
+
+          {/* Horario */}
+          {proximaPuntual.horaInicio && (
+            <p className="relative text-5xl font-black tabular-nums mt-4 mb-1 leading-none tracking-tight">
+              {proximaPuntual.horaInicio}
+              <span className="text-purple-300 font-light mx-2">–</span>
+              {proximaPuntual.horaFin}
+            </p>
+          )}
+
+          {/* Fecha o día de la semana */}
+          {(proximaPuntual.fechaSlot || proximaPuntual.diaSemana) && (
+            <p className="relative text-purple-200 text-base capitalize mt-2 font-medium">
+              {proximaPuntual.fechaSlot
+                ? new Date(proximaPuntual.fechaSlot + 'T12:00:00').toLocaleDateString('es-CL', {
+                    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+                  })
+                : proximaPuntual.diaSemana}
+            </p>
+          )}
+
+          {/* Separador */}
+          <div className="relative mt-5 pt-5 border-t border-white/20 flex flex-wrap gap-x-5 gap-y-2">
+            {/* Profesor */}
+            <div className="flex items-center gap-2 text-sm text-purple-100">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-purple-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+              </svg>
+              <span className="font-medium">{proximaPuntual.profesorNombre}</span>
+            </div>
+
+            {/* Ubicación */}
+            {proximaPuntual.direccion && (
+              <div className="flex items-center gap-2 text-sm text-purple-100">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-purple-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                </svg>
+                <span>{proximaPuntual.direccion}</span>
+              </div>
+            )}
+          </div>
+
+          {/* CTA */}
+          <div className="relative mt-5">
+            <Link
+              href={`/talleres/${proximaPuntual.slug}`}
+              className="inline-flex items-center gap-2 bg-white text-purple-700 font-bold text-sm px-5 py-2.5 rounded-xl hover:bg-purple-50 active:bg-purple-100 transition-colors shadow-md"
+            >
+              Ver detalles del taller
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+              </svg>
+            </Link>
+          </div>
+        </div>
+
       ) : hasActiveTalleres ? (
         // Estado: tiene talleres activos pero sin clase agendada → hero gris
         <div className="bg-gray-100 border border-gray-200 rounded-2xl px-5 py-5">
