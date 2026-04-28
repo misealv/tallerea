@@ -13,8 +13,9 @@ import Liquidation from '../src/models/Liquidation'
 import CreditTransaction from '../src/models/CreditTransaction'
 import FinanceAuditLog from '../src/models/FinanceAuditLog'
 
-const EMAIL = 'miseal@gmail.com'
+const EMAIL = process.argv.find(a => a.startsWith('--email='))?.split('=')[1] || 'miseal@gmail.com'
 const APPLY = process.argv.includes('--apply')
+const FORCE = process.argv.includes('--force')
 
 async function main() {
   await mongoose.connect(process.env.MONGODB_URI as string)
@@ -56,6 +57,27 @@ async function main() {
 
   if (!APPLY) {
     console.log('\n⚠️  DRY-RUN. Para borrar: npx tsx scripts/wipeUser.ts --apply')
+    await mongoose.disconnect()
+    return
+  }
+
+  // [SAFETY] Bloquear borrado si hay PaymentBreakdown confirmados (pago real de MP)
+  const paidEnrollIds = await Enrollment.find({
+    studentId: uid,
+    estado: 'pagado',
+  }).distinct('_id')
+  const confirmedPayments = paidEnrollIds.length > 0
+    ? await PaymentBreakdown.countDocuments({
+        $or: [
+          { studentId: uid, estado: 'cobrado' },
+          { studentId: uid, mercadoPagoId: { $exists: true, $ne: null } },
+        ],
+      })
+    : 0
+  if (confirmedPayments > 0 && !FORCE) {
+    console.log(`\n🚨 BLOQUEADO: el usuario tiene ${confirmedPayments} PaymentBreakdown(s) confirmado(s) y ${paidEnrollIds.length} enrollment(s) pagado(s).`)
+    console.log('   Esto borraría datos financieros reales (pagos de MercadoPago).')
+    console.log('   Si realmente quieres continuar, agrega la flag --force.')
     await mongoose.disconnect()
     return
   }
