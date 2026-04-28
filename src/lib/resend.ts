@@ -90,6 +90,7 @@ export async function sendClasePruebaProfesor({
   slotFecha,
   slotHora,
   dashboardUrl,
+  esClasePrueba = false,
 }: {
   profesorEmail: string
   profesorNombre: string
@@ -99,20 +100,29 @@ export async function sendClasePruebaProfesor({
   slotFecha?: string
   slotHora?: string
   dashboardUrl: string
+  esClasePrueba?: boolean
 }) {
   if (!process.env.RESEND_API_KEY) return
 
   const resend = getResend()
 
+  const asunto = esClasePrueba
+    ? `Nueva clase de prueba reservada: ${workshopTitle}`
+    : `Nueva inscripción: ${workshopTitle}`
+  const titulo = esClasePrueba ? '¡Nueva clase de prueba reservada!' : '¡Nueva inscripción confirmada!'
+  const cuerpo = esClasePrueba
+    ? `Un alumno reservó una clase de prueba en <strong>${workshopTitle}</strong>.`
+    : `Un alumno se inscribió en <strong>${workshopTitle}</strong>.`
+
   await resend.emails.send({
     from: FROM_EMAIL,
     to: profesorEmail,
-    subject: `Nueva clase de prueba reservada: ${workshopTitle}`,
+    subject: asunto,
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #7c3aed;">¡Nueva clase de prueba reservada!</h2>
+        <h2 style="color: #7c3aed;">${titulo}</h2>
         <p>Hola <strong>${profesorNombre}</strong>,</p>
-        <p>Un alumno reservó una clase de prueba en <strong>${workshopTitle}</strong>.</p>
+        <p>${cuerpo}</p>
         <div style="background: #f9fafb; border-radius: 12px; padding: 20px; margin: 16px 0;">
           <p style="margin: 4px 0;"><strong>Alumno:</strong> ${studentName}</p>
           <p style="margin: 4px 0;"><strong>Email:</strong> ${studentEmail}</p>

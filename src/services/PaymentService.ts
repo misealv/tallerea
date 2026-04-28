@@ -297,6 +297,7 @@ export const PaymentService = {
       // Notificar al profesor si hay datos disponibles
       if (profesorEmail && profesorNombre) {
         const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+        const esClasePrueba = !!(enrollment as unknown as { esClasePrueba?: boolean }).esClasePrueba
         await sendClasePruebaProfesor({
           profesorEmail,
           profesorNombre,
@@ -306,6 +307,7 @@ export const PaymentService = {
           slotFecha,
           slotHora,
           dashboardUrl: `${baseUrl}/tallerista`,
+          esClasePrueba,
         }).catch(() => { /* no bloquear */ })
       }
     } catch {
