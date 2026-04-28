@@ -24,6 +24,8 @@ export interface TallerCardProps {
   devueltas?: number
   // Clase de prueba
   esClasePrueba?: boolean
+  // Inscripción puntual (sesión única ya pagada, no recurrente)
+  esPuntual?: boolean
   horaInicioSlot?: string
   horaFinSlot?: string
   fechaSlotStr?: string | null
@@ -44,6 +46,7 @@ export default function TallerCard({
   hideProximaBooking = false,
   devueltas = 0,
   esClasePrueba = false,
+  esPuntual = false,
   horaInicioSlot,
   horaFinSlot,
   fechaSlotStr,
@@ -56,9 +59,11 @@ export default function TallerCard({
   // Tipo para analítica de clic (Fase 8)
   const tipoCard: 'puntual' | 'recurrente' | 'prueba' = esClasePrueba
     ? 'prueba'
-    : subscriptionId
-      ? 'recurrente'
-      : 'puntual'
+    : esPuntual
+      ? 'puntual'
+      : subscriptionId
+        ? 'recurrente'
+        : 'puntual'
   const onCardClick = () => trackTallerCardClick(tipoCard, slug)
 
   return (
@@ -80,6 +85,11 @@ export default function TallerCard({
               🌱 Clase de prueba
             </span>
           )}
+          {esPuntual && (
+            <span className="inline-block text-xs font-semibold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full mb-1">
+              🎫 Sesión puntual
+            </span>
+          )}
           <p className="font-semibold text-gray-900 text-sm leading-tight">{titulo}</p>
           <p className="text-xs text-gray-500 mt-0.5">con {profesorNombre}</p>
         </div>
@@ -87,7 +97,7 @@ export default function TallerCard({
 
       <div className="px-4 pb-4 space-y-2.5">
         {/* Próxima clase reservada (solo subscriptions, oculta si ya está en hero) */}
-        {!esClasePrueba && proximaBooking && !hideProximaBooking && (
+        {!esClasePrueba && !esPuntual && proximaBooking && !hideProximaBooking && (
           <div className="flex items-center gap-2 text-sm">
             <span className="text-purple-500 shrink-0">📅</span>
             <span className="text-gray-700">
@@ -102,14 +112,14 @@ export default function TallerCard({
           </div>
         )}
 
-        {/* Horario clase de prueba */}
-        {esClasePrueba && horaInicioSlot && (
+        {/* Horario clase de prueba o puntual */}
+        {(esClasePrueba || esPuntual) && horaInicioSlot && (
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-amber-500 shrink-0">🕐</span>
+            <span className={`shrink-0 ${esPuntual ? 'text-indigo-500' : 'text-amber-500'}`}>🕐</span>
             <span className="text-gray-700">
               {diaSemana ?? ''}
               {fechaSlotStr
-                ? ` ${new Date(fechaSlotStr + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
+                ? ` ${new Date(fechaSlotStr + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' })}`
                 : ''}{' '}
               · {horaInicioSlot} – {horaFinSlot}
             </span>
@@ -117,7 +127,7 @@ export default function TallerCard({
         )}
 
         {/* Clases restantes + vencimiento (subscription) */}
-        {!esClasePrueba && (
+        {!esClasePrueba && !esPuntual && (
           <div className="flex items-center justify-between flex-wrap gap-x-3 gap-y-1">
             <div className="flex items-center gap-1.5">
               <span className="text-sm">🎟️</span>
@@ -155,8 +165,8 @@ export default function TallerCard({
           </div>
         )}
 
-        {/* Monto pagado (clase de prueba) */}
-        {esClasePrueba && montoPagado !== undefined && (
+        {/* Monto pagado (clase de prueba o puntual) */}
+        {(esClasePrueba || esPuntual) && montoPagado !== undefined && (
           <p className="text-xs text-gray-400">💳 Pagado: ${montoPagado.toLocaleString('es-CL')} CLP</p>
         )}
 
@@ -179,6 +189,14 @@ export default function TallerCard({
           >
             Suscribirme al taller completo →
           </Link>
+        ) : esPuntual ? (
+          <Link
+            href={`/talleres/${slug}`}
+            onClick={onCardClick}
+            className="flex items-center justify-center text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 py-2.5 rounded-lg transition-colors"
+          >
+            Ver detalles del taller →
+          </Link>
         ) : (
           <Link
             href={
@@ -197,7 +215,7 @@ export default function TallerCard({
           </Link>
         )}
 
-        {!esClasePrueba && (
+        {!esClasePrueba && !esPuntual && (
           <Link
             href={`/talleres/${slug}`}
             onClick={onCardClick}

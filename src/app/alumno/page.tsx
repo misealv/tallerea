@@ -463,10 +463,13 @@ export default async function AlumnoDashboard() {
       )}
 
 
-      {/* Mis talleres: suscripciones activas + clases de prueba unificadas */}
-      {(subscriptions.length > 0 || clasesPrueba.length > 0) && (
+      {/* Mis talleres: suscripciones + puntuales + clases de prueba (resumen) */}
+      {(subscriptions.length > 0 || clasesPrueba.length > 0 || puntualSessions.length > 0) && (
         <section>
-          <h2 className="text-lg font-semibold text-gray-800 mb-3">Mis talleres</h2>
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-800">Mis talleres</h2>
+            <Link href="/alumno/mis-talleres" className="text-xs font-medium text-purple-600 hover:text-purple-800">Ver todos →</Link>
+          </div>
           <div className="space-y-3">
             {subscriptions.map(s => {
               const prepaid = s.clasesPrepagadas
@@ -509,6 +512,20 @@ export default async function AlumnoDashboard() {
                 fechaSlotStr={cp.fechaSlot}
                 diaSemana={cp.diaSemana || undefined}
                 montoPagado={cp.monto}
+              />
+            ))}
+            {puntualSessions.map(ps => (
+              <TallerCard
+                key={ps.enrollmentId}
+                titulo={ps.titulo}
+                slug={ps.slug}
+                profesorNombre={ps.profesorNombre}
+                esPuntual
+                horaInicioSlot={ps.horaInicio || undefined}
+                horaFinSlot={ps.horaFin || undefined}
+                fechaSlotStr={ps.fechaSlot}
+                diaSemana={ps.diaSemana || undefined}
+                montoPagado={ps.monto}
               />
             ))}
           </div>
