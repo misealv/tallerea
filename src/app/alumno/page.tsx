@@ -255,6 +255,24 @@ export default async function AlumnoDashboard() {
     proximaFecha = new Date(proximaBooking.fecha)
   }
 
+  // Hero: elegir la sesión más cercana entre recurrente (booking) y puntual
+  const fechaBookingMs = proximaFecha ? proximaFecha.getTime() : Infinity
+  const fechaPuntualMs = proximaPuntual?.fechaSlot
+    ? new Date(proximaPuntual.fechaSlot + 'T12:00:00').getTime()
+    : Infinity
+  const heroEsRecurrente = proximaBooking !== null && fechaBookingMs <= fechaPuntualMs
+  const heroEsPuntual = !heroEsRecurrente && proximaPuntual !== null
+
+  // Nombre del profesor para hero recurrente (buscar en profMap via subscription)
+  let heroRecProfNombre: string | null = null
+  if (heroEsRecurrente && proximaBooking) {
+    const subForBooking = subscriptions.find(s => String(s._id) === String(proximaBooking!.subscriptionId))
+    if (subForBooking) {
+      const wMedia = subForBooking.workshopId as unknown as WorkshopWithMedia
+      heroRecProfNombre = profMap.get(String(wMedia.ownerId)) ?? null
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Saludo */}
@@ -310,96 +328,87 @@ export default async function AlumnoDashboard() {
         </div>
       )}
 
-      {/* Hero unificado: próxima clase / sin reserva / bienvenida */}
-      {proximaBooking !== null && proximaWorkshop && proximaFecha ? (
-        // Estado: hay clase reservada → hero morado
-        <div className="bg-purple-600 rounded-2xl px-5 py-5 text-white">
-          <p className="text-xs font-semibold uppercase tracking-wide text-purple-200">Tu próxima clase</p>
-          <p className="font-bold text-lg mt-1 leading-tight">{proximaWorkshop.titulo}</p>
-          {proximaSlot && (
-            <p className="text-3xl font-bold mt-3 tabular-nums">{proximaSlot.horaInicio} – {proximaSlot.horaFin}</p>
-          )}
-          <p className="text-sm text-purple-200 mt-1 capitalize">
-            {proximaFecha.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </p>
-          {otrasBookingsCount > 0 && (
-            <p className="text-xs text-purple-200 mt-2">
-              + {otrasBookingsCount} {otrasBookingsCount === 1 ? 'clase reservada' : 'clases reservadas'} más
-            </p>
-          )}
-          <div className="mt-4 pt-3 border-t border-purple-500">
-            <CancelBookingButton bookingId={String(proximaBooking._id)} />
-          </div>
-        </div>
-      ) : proximaPuntual ? (
-        // Estado: hay sesión puntual inscrita → hero destacado
+      {/* Hero unificado: sesión más próxima (recurrente o puntual) */}
+      {(heroEsRecurrente || heroEsPuntual) ? (
         <div className="relative overflow-hidden bg-gradient-to-br from-purple-700 via-purple-600 to-indigo-600 rounded-2xl p-6 text-white shadow-xl">
           {/* Decoración de fondo */}
           <div className="absolute -top-10 -right-10 w-52 h-52 bg-white/5 rounded-full pointer-events-none" />
           <div className="absolute -bottom-8 -left-8 w-36 h-36 bg-indigo-400/10 rounded-full pointer-events-none" />
 
-          {/* Badge "Próxima sesión" */}
+          {/* Badge */}
           <span className="relative inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm border border-white/20 text-white text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full mb-5">
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
             Próxima sesión
           </span>
 
           {/* Título del taller */}
-          <h2 className="relative text-2xl font-extrabold leading-tight tracking-tight">{proximaPuntual.titulo}</h2>
+          <h2 className="relative text-2xl font-extrabold leading-tight tracking-tight">
+            {heroEsRecurrente ? proximaWorkshop!.titulo : proximaPuntual!.titulo}
+          </h2>
 
           {/* Horario */}
-          {proximaPuntual.horaInicio && (
+          {(heroEsRecurrente ? proximaSlot?.horaInicio : proximaPuntual!.horaInicio) && (
             <p className="relative text-5xl font-black tabular-nums mt-4 mb-1 leading-none tracking-tight">
-              {proximaPuntual.horaInicio}
+              {heroEsRecurrente ? proximaSlot!.horaInicio : proximaPuntual!.horaInicio}
               <span className="text-purple-300 font-light mx-2">–</span>
-              {proximaPuntual.horaFin}
+              {heroEsRecurrente ? proximaSlot!.horaFin : proximaPuntual!.horaFin}
             </p>
           )}
 
-          {/* Fecha o día de la semana */}
-          {(proximaPuntual.fechaSlot || proximaPuntual.diaSemana) && (
-            <p className="relative text-purple-200 text-base capitalize mt-2 font-medium">
-              {proximaPuntual.fechaSlot
-                ? new Date(proximaPuntual.fechaSlot + 'T12:00:00').toLocaleDateString('es-CL', {
+          {/* Fecha */}
+          <p className="relative text-purple-200 text-base capitalize mt-2 font-medium">
+            {heroEsRecurrente
+              ? proximaFecha!.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })
+              : proximaPuntual!.fechaSlot
+                ? new Date(proximaPuntual!.fechaSlot + 'T12:00:00').toLocaleDateString('es-CL', {
                     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
                   })
-                : proximaPuntual.diaSemana}
-            </p>
-          )}
+                : (proximaPuntual!.diaSemana ?? '')}
+          </p>
 
-          {/* Separador */}
+          {/* Profesor + ubicación */}
           <div className="relative mt-5 pt-5 border-t border-white/20 flex flex-wrap gap-x-5 gap-y-2">
-            {/* Profesor */}
-            <div className="flex items-center gap-2 text-sm text-purple-100">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-purple-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-              </svg>
-              <span className="font-medium">{proximaPuntual.profesorNombre}</span>
-            </div>
-
-            {/* Ubicación */}
-            {proximaPuntual.direccion && (
+            {(heroEsRecurrente ? heroRecProfNombre : proximaPuntual!.profesorNombre) && (
+              <div className="flex items-center gap-2 text-sm text-purple-100">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-purple-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                </svg>
+                <span className="font-medium">{heroEsRecurrente ? heroRecProfNombre : proximaPuntual!.profesorNombre}</span>
+              </div>
+            )}
+            {!heroEsRecurrente && proximaPuntual!.direccion && (
               <div className="flex items-center gap-2 text-sm text-purple-100">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-purple-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
                 </svg>
-                <span>{proximaPuntual.direccion}</span>
+                <span>{proximaPuntual!.direccion}</span>
               </div>
             )}
           </div>
 
-          {/* CTA */}
-          <div className="relative mt-5">
-            <Link
-              href={`/talleres/${proximaPuntual.slug}`}
-              className="inline-flex items-center gap-2 bg-white text-purple-700 font-bold text-sm px-5 py-2.5 rounded-xl hover:bg-purple-50 active:bg-purple-100 transition-colors shadow-md"
-            >
-              Ver detalles del taller
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-              </svg>
-            </Link>
+          {/* CTA: cancelar booking (recurrente) vs ver taller (puntual) */}
+          <div className="relative mt-5 flex flex-wrap items-center gap-3">
+            {heroEsRecurrente ? (
+              <>
+                <CancelBookingButton bookingId={String(proximaBooking!._id)} />
+                {otrasBookingsCount > 0 && (
+                  <p className="text-xs text-purple-200">
+                    + {otrasBookingsCount} {otrasBookingsCount === 1 ? 'clase reservada' : 'clases reservadas'} más
+                  </p>
+                )}
+              </>
+            ) : (
+              <Link
+                href={`/talleres/${proximaPuntual!.slug}`}
+                className="inline-flex items-center gap-2 bg-white text-purple-700 font-bold text-sm px-5 py-2.5 rounded-xl hover:bg-purple-50 active:bg-purple-100 transition-colors shadow-md"
+              >
+                Ver detalles del taller
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                </svg>
+              </Link>
+            )}
           </div>
         </div>
 
