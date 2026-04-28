@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { useSearchParams } from 'next/navigation'
 import SearchFilters from './SearchFilters'
 
@@ -10,8 +10,28 @@ const FILTER_KEYS = [
   'horario', 'edadRango', 'modeloAcceso', 'clasePrueba', 'conCupo',
 ]
 
+/**
+ * Estado del drawer a nivel de módulo. Sobrevive re-renders y remounts
+ * causados por `router.push` desde SearchFilters (Next puede remountar
+ * el árbol cliente cuando cambia el segmento de ruta).
+ */
+let openState = false
+const listeners = new Set<() => void>()
+function setOpenState(v: boolean) {
+  if (openState === v) return
+  openState = v
+  listeners.forEach(l => l())
+}
+function subscribe(l: () => void) {
+  listeners.add(l)
+  return () => { listeners.delete(l) }
+}
+function getSnapshot() { return openState }
+function getServerSnapshot() { return false }
+
 export default function MobileFiltersDrawer() {
-  const [open, setOpen] = useState(false)
+  const open = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+  const setOpen = setOpenState
   const searchParams = useSearchParams()
 
   // Contar filtros activos para el badge del botón
@@ -25,6 +45,14 @@ export default function MobileFiltersDrawer() {
       document.body.style.overflow = ''
     }
     return () => { document.body.style.overflow = '' }
+  }, [open])
+
+  // Cerrar con tecla Escape
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
   return (
