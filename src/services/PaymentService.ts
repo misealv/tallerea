@@ -392,32 +392,40 @@ export const PaymentService = {
       // No bloquear flujo por fallo de audit
     }
 
-    // Email + magic link si guest
+    // Email al alumno + notificación al tallerista
     try {
-      const workshop = await Workshop.findById(subscription.workshopId).lean<{ titulo: string; slug: string }>()
-      const student = await User.findById(subscription.studentId).select('+password name email').lean<{
-        _id: string; name: string; email: string; password?: string
+      const workshopFull = await Workshop.findById(subscription.workshopId)
+        .populate<{ ownerId: { _id: string; name: string; email: string } }>('ownerId', 'name email')
+        .lean<{ titulo: string; slug: string; ownerId: { _id: string; name: string; email: string } }>()
+      const student = await User.findById(subscription.studentId).select('name email').lean<{
+        _id: string; name: string; email: string
       }>()
-      if (!workshop || !student) return
+      if (!workshopFull || !student) return
 
-      let magicUrl: string | undefined
-      if (!student.password) {
-        try {
-          const result = await issueMagicLink(String(student._id))
-          magicUrl = result.magicUrl
-        } catch {
-          // Si falla emisión, enviar email igual sin magic link
-        }
-      }
-
+      // Email al alumno — sin magic link (se muestra en página de éxito)
       await sendEnrollmentConfirmation({
         studentName: student.name,
         studentEmail: student.email,
-        workshopTitle: workshop.titulo,
-        workshopSlug: workshop.slug,
+        workshopTitle: workshopFull.titulo,
+        workshopSlug: workshopFull.slug,
         monto: subscription.monto,
-        magicUrl,
+        magicUrl: undefined,
       })
+
+      // Notificación al tallerista
+      if (workshopFull.ownerId?.email && workshopFull.ownerId?.name) {
+        const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+        await sendClasePruebaProfesor({
+          profesorEmail: workshopFull.ownerId.email,
+          profesorNombre: workshopFull.ownerId.name,
+          studentName: student.name,
+          studentEmail: student.email,
+          workshopTitle: workshopFull.titulo,
+          dashboardUrl: `${baseUrl}/tallerista`,
+          esClasePrueba: false,
+          esSuscripcion: true,
+        }).catch(() => { /* no bloquear */ })
+      }
     } catch {
       // No bloquear el flujo por fallo de email
     }

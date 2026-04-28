@@ -91,6 +91,7 @@ export async function sendClasePruebaProfesor({
   slotHora,
   dashboardUrl,
   esClasePrueba = false,
+  esSuscripcion = false,
 }: {
   profesorEmail: string
   profesorNombre: string
@@ -101,18 +102,29 @@ export async function sendClasePruebaProfesor({
   slotHora?: string
   dashboardUrl: string
   esClasePrueba?: boolean
+  esSuscripcion?: boolean
 }) {
   if (!process.env.RESEND_API_KEY) return
 
   const resend = getResend()
 
-  const asunto = esClasePrueba
-    ? `Nueva clase de prueba reservada: ${workshopTitle}`
-    : `Nueva inscripción: ${workshopTitle}`
-  const titulo = esClasePrueba ? '¡Nueva clase de prueba reservada!' : '¡Nueva inscripción confirmada!'
-  const cuerpo = esClasePrueba
-    ? `Un alumno reservó una clase de prueba en <strong>${workshopTitle}</strong>.`
-    : `Un alumno se inscribió en <strong>${workshopTitle}</strong>.`
+  let asunto: string
+  let titulo: string
+  let cuerpo: string
+
+  if (esSuscripcion) {
+    asunto = `Nueva suscripción activa: ${workshopTitle}`
+    titulo = '¡Nueva suscripción confirmada!'
+    cuerpo = `Un alumno se suscribió al plan recurrente de <strong>${workshopTitle}</strong>.`
+  } else if (esClasePrueba) {
+    asunto = `Nueva clase de prueba reservada: ${workshopTitle}`
+    titulo = '¡Nueva clase de prueba reservada!'
+    cuerpo = `Un alumno reservó una clase de prueba en <strong>${workshopTitle}</strong>.`
+  } else {
+    asunto = `Nueva inscripción: ${workshopTitle}`
+    titulo = '¡Nueva inscripción confirmada!'
+    cuerpo = `Un alumno se inscribió en <strong>${workshopTitle}</strong>.`
+  }
 
   await resend.emails.send({
     from: FROM_EMAIL,
