@@ -120,7 +120,6 @@ async function resolveClasePrueba(
 export default async function AlumnoDashboard() {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/alumno/acceso')
-  redirect('/alumno/historial')
 
   await dbConnect()
   const studentId = session.user.id
