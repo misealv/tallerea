@@ -71,6 +71,11 @@ export async function PATCH(req: NextRequest) {
           { _id: b.subscriptionId, sesionesDisponibles: { $exists: true } },
           { $inc: { sesionesDisponibles: 1, sesionesUsadas: -1 } }
         )
+        // [SYNC] Mantener clasesPrepagadas.consumidas en sintona con sesionesUsadas
+        await Subscription.updateOne(
+          { _id: b.subscriptionId, 'clasesPrepagadas.consumidas': { $gt: 0 } },
+          { $inc: { 'clasesPrepagadas.consumidas': -1 } }
+        )
       }
       // Decrementar contador de reservas del slot
       workshop.slots[slotIndex].reservas = Math.max(0, (workshop.slots[slotIndex].reservas ?? 0) - bookingsToCancel.length)

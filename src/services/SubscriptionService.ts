@@ -365,6 +365,24 @@ export const SubscriptionService = {
       if (sub.fechaVencimiento < now) throw new Error('Suscripción vencida')
       throw new Error('No quedan sesiones disponibles')
     }
+
+    // [SYNC] Si la suscripción tiene saldo prepagado activo, sincronizar el contador
+    // de consumidas. El panel del alumno y la inscripción manual usan este campo
+    // como fuente de verdad, así que debe moverse junto con sesionesUsadas.
+    await Subscription.updateOne(
+      {
+        _id: subscriptionId,
+        'clasesPrepagadas.cantidad': { $gt: 0 },
+        $expr: { $lt: ['$clasesPrepagadas.consumidas', '$clasesPrepagadas.cantidad'] },
+        $or: [
+          { 'clasesPrepagadas.caducaEn': { $exists: false } },
+          { 'clasesPrepagadas.caducaEn': null },
+          { 'clasesPrepagadas.caducaEn': { $gt: now } },
+        ],
+      },
+      { $inc: { 'clasesPrepagadas.consumidas': 1 } }
+    )
+
     return updated
   },
 
@@ -383,6 +401,13 @@ export const SubscriptionService = {
       if (!sub) throw new Error('Suscripción no encontrada')
       return sub
     }
+
+    // [SYNC] Mantener clasesPrepagadas.consumidas en sintona con sesionesUsadas
+    await Subscription.updateOne(
+      { _id: subscriptionId, 'clasesPrepagadas.consumidas': { $gt: 0 } },
+      { $inc: { 'clasesPrepagadas.consumidas': -1 } }
+    )
+
     return updated
   },
 
