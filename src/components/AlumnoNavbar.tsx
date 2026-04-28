@@ -21,7 +21,7 @@ function getInitials(name: string): string {
 const LINKS = [
   { href: '/alumno',              label: 'Inicio' },
   { href: '/talleres',            label: 'Explorar' },
-  { href: '/alumno/historial',    label: 'Historial' },
+  { href: '/alumno/historial',    label: 'Historial de compras' },
   { href: '/alumno/credito',      label: 'Saldo' },
   { href: '/alumno/reviews',      label: 'Reseñas' },
   { href: '/alumno/dependientes', label: 'Dependientes' },

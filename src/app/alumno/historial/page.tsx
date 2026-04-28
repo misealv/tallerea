@@ -75,7 +75,7 @@ export default async function HistorialPage() {
     <div className="space-y-10 max-w-2xl">
       <div>
         <Link href="/alumno" className="text-sm text-indigo-600 hover:underline">← Volver</Link>
-        <h1 className="mt-3 text-2xl font-bold text-gray-900">Historial</h1>
+        <h1 className="mt-3 text-2xl font-bold text-gray-900">Historial de compras</h1>
       </div>
 
       {/* Suscripciones */}
