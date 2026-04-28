@@ -17,12 +17,6 @@ export default function MobileFiltersDrawer() {
   // Contar filtros activos para el badge del botón
   const activeCount = FILTER_KEYS.filter(k => searchParams.get(k)).length
 
-  // Cerrar el drawer cuando cambien los filtros (después de seleccionar algo)
-  useEffect(() => {
-    if (open) setOpen(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.toString()])
-
   // Bloquear scroll del body cuando el drawer está abierto
   useEffect(() => {
     if (open) {

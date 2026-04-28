@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -59,6 +59,38 @@ export default function PrecioCard({
 
   const { data: session } = useSession()
   const isGuest = !session?.user
+
+  // Consultar si el alumno autenticado ya compró este taller
+  const [accessStatus, setAccessStatus] = useState<{
+    loading: boolean
+    enrolled: boolean
+    subscribed: boolean
+  }>({ loading: !!session?.user, enrolled: false, subscribed: false })
+
+  useEffect(() => {
+    if (!session?.user) {
+      setAccessStatus({ loading: false, enrolled: false, subscribed: false })
+      return
+    }
+    let cancelled = false
+    setAccessStatus(s => ({ ...s, loading: true }))
+    fetch(`/api/users/me/workshop-access?workshopId=${encodeURIComponent(workshopId)}`)
+      .then(r => r.ok ? r.json() : { enrolled: false, subscribed: false })
+      .then(data => {
+        if (cancelled) return
+        setAccessStatus({
+          loading: false,
+          enrolled: !!data.enrolled,
+          subscribed: !!data.subscribed,
+        })
+      })
+      .catch(() => {
+        if (!cancelled) setAccessStatus({ loading: false, enrolled: false, subscribed: false })
+      })
+    return () => { cancelled = true }
+  }, [session?.user, workshopId])
+
+  const yaInscrito = accessStatus.enrolled || accessStatus.subscribed
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -213,6 +245,38 @@ export default function PrecioCard({
 
   // ── Render CTA principal ─────────────────────────────────────────────
   const renderCTA = () => {
+    // Si el alumno ya compró el taller, ocultar el botón de inscripción/suscripción
+    // y mostrar acceso directo al hub "Mis talleres"
+    if (yaInscrito) {
+      const label = accessStatus.subscribed ? 'Ya tienes una suscripción activa' : 'Ya estás inscrito en este taller'
+      return (
+        <div className="space-y-2">
+          <div className="w-full text-center bg-green-50 border border-green-200 text-green-800 py-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2.2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+            </svg>
+            {label}
+          </div>
+          <Link
+            href="/alumno/mis-talleres"
+            className="block w-full text-center bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
+          >
+            Ir a mis talleres →
+          </Link>
+        </div>
+      )
+    }
+
+    // Mientras verificamos el estado del alumno autenticado, deshabilitar para
+    // evitar mostrar/clickear "Inscribirme" antes de saber si ya compró.
+    if (accessStatus.loading) {
+      return (
+        <div className="w-full text-center bg-gray-100 text-gray-400 py-3 rounded-lg font-semibold">
+          Cargando…
+        </div>
+      )
+    }
+
     if (modeloAcceso === 'recurrente') {
       const disabled = loading || (modalidadPrecio === 'paquetes' && !paqueteSeleccionado)
       const label = modalidadPrecio === 'gratuito'
