@@ -5,6 +5,20 @@ import { createHash } from 'crypto'
 import dbConnect from './db'
 import User from '@/models/User'
 
+/**
+ * Extrae el _id como string de un campo que puede venir como ObjectId
+ * o como objeto populado (ej. `{ _id, name, email }`).
+ * Evita el bug `String({_id,...}) === "[object Object]"` en checks de ownership.
+ */
+export function extractIdString(field: unknown): string {
+  if (field == null) return ''
+  if (typeof field === 'string') return field
+  if (typeof field === 'object' && '_id' in (field as Record<string, unknown>)) {
+    return String((field as { _id: unknown })._id)
+  }
+  return String(field)
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({

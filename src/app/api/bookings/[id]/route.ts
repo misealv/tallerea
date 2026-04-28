@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { authOptions, extractIdString } from '@/lib/auth'
 import { BookingService } from '@/services/BookingService'
 
 export async function GET(
@@ -14,7 +14,9 @@ export async function GET(
     const booking = await BookingService.getById(params.id)
     if (!booking) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-    if (session.user.role !== 'admin' && String(booking.studentId) !== session.user.id) {
+    // studentId puede venir populado ({_id,name,email}) por BookingService.getById
+    const studentIdStr = extractIdString(booking.studentId)
+    if (session.user.role !== 'admin' && studentIdStr !== session.user.id) {
       return NextResponse.json({ error: 'Prohibido' }, { status: 403 })
     }
 
@@ -37,7 +39,9 @@ export async function DELETE(
     const booking = await BookingService.getById(params.id)
     if (!booking) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-    if (session.user.role !== 'admin' && String(booking.studentId) !== session.user.id) {
+    // studentId puede venir populado ({_id,name,email}) por BookingService.getById
+    const studentIdStr = extractIdString(booking.studentId)
+    if (session.user.role !== 'admin' && studentIdStr !== session.user.id) {
       return NextResponse.json({ error: 'Prohibido' }, { status: 403 })
     }
 

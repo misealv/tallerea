@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { authOptions, extractIdString } from '@/lib/auth'
 import { SubscriptionService } from '@/services/SubscriptionService'
 
 export async function GET(
@@ -14,8 +14,8 @@ export async function GET(
     const sub = await SubscriptionService.getById(params.id)
     if (!sub) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-    // Solo el alumno dueño o admin puede ver
-    if (session.user.role !== 'admin' && String(sub.studentId) !== session.user.id) {
+    // Solo el alumno dueño o admin puede ver. studentId puede venir populado.
+    if (session.user.role !== 'admin' && extractIdString(sub.studentId) !== session.user.id) {
       return NextResponse.json({ error: 'Prohibido' }, { status: 403 })
     }
 
@@ -38,7 +38,7 @@ export async function DELETE(
     const sub = await SubscriptionService.getById(params.id)
     if (!sub) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-    if (session.user.role !== 'admin' && String(sub.studentId) !== session.user.id) {
+    if (session.user.role !== 'admin' && extractIdString(sub.studentId) !== session.user.id) {
       return NextResponse.json({ error: 'Prohibido' }, { status: 403 })
     }
 
