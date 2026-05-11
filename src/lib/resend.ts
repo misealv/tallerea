@@ -795,7 +795,7 @@ export async function sendRecordatorioReservar({
   await resend.emails.send({
     from: FROM_EMAIL,
     to: studentEmail,
-    subject: `🎨 Tienes una clase disponible esta semana${destino} — ${workshopTitle}`,
+    subject: `Reserva tu clase esta semana${destino} — ${workshopTitle}`,
     html: `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
         <h2 style="color:#7c3aed;">¡Agenda tu clase de esta semana!</h2>
@@ -814,9 +814,7 @@ export async function sendRecordatorioReservar({
           <tbody>${slotsHtml}</tbody>
         </table>
 
-        <a href="${ctaUrl}" style="display:inline-block;background:#7c3aed;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;margin:8px 0;">
-          Reservar mi clase →
-        </a>
+        <table border="0" cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background:#7c3aed;"><a href="${ctaUrl}" target="_blank" style="display:inline-block;background:#7c3aed;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;font-family:sans-serif;">Reservar mi clase</a></td></tr></table>
 
         <p style="color:#9ca3af;font-size:12px;margin-top:32px;">
           Si no puedes esta semana, tu sesión queda disponible para el próximo período.<br>
