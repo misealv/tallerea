@@ -551,7 +551,6 @@ export async function sendBookingPorTallerista({
   studentEmail,
   studentName,
   workshopTitle,
-  workshopSlug,
   profesorNombre,
   fechaClase,
   horaClase,
@@ -559,7 +558,6 @@ export async function sendBookingPorTallerista({
   studentEmail: string
   studentName: string
   workshopTitle: string
-  workshopSlug: string
   profesorNombre: string
   fechaClase: string
   horaClase: string

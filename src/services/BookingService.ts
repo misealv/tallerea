@@ -436,7 +436,6 @@ export const BookingService = {
           studentEmail:  student.email,
           studentName:   student.name,
           workshopTitle: workshop.titulo,
-          workshopSlug:  workshop.slug,
           profesorNombre: owner.name,
           fechaClase,
           horaClase,
