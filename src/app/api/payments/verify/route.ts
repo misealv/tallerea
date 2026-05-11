@@ -3,6 +3,7 @@ import { paymentClient } from '@/lib/mercadopago'
 import { PaymentService } from '@/services/PaymentService'
 import dbConnect from '@/lib/db'
 import EnrollmentModel from '@/models/Enrollment'
+import SubscriptionModel from '@/models/Subscription'
 import User from '@/models/User'
 import { issueMagicLink } from '@/lib/issueMagicLink'
 
@@ -54,20 +55,31 @@ export async function POST(req: NextRequest) {
       magicUrl = result.magicUrl
     }
 
-    // Si handleApprovedPayment retornó vacío (ya procesado por webhook), intentar emitir
-    // magic link fresco para la página de éxito. No se re-envía email.
-    if (!magicUrl && !ref.startsWith('sub:')) {
+    // Si no hay magicUrl todavía (caso: ya procesado por webhook, o flujo de suscripción),
+    // intentar emitir uno fresco si el alumno es invitado. No se re-envía email.
+    if (!magicUrl) {
       try {
         await dbConnect()
-        const enrollmentId = ref.startsWith('enr:') ? ref.slice(4) : ref
-        const enrollment = await EnrollmentModel
-          .findOne({ _id: enrollmentId, pagoRef: String(id) })
-          .select('studentId')
-          .lean<{ studentId: unknown }>()
+        let studentId: unknown = null
 
-        if (enrollment?.studentId) {
+        if (ref.startsWith('sub:')) {
+          const sub = await SubscriptionModel
+            .findOne({ _id: ref.slice(4), pagoRef: String(id) })
+            .select('studentId')
+            .lean<{ studentId: unknown }>()
+          studentId = sub?.studentId ?? null
+        } else {
+          const enrollmentId = ref.startsWith('enr:') ? ref.slice(4) : ref
+          const enrollment = await EnrollmentModel
+            .findOne({ _id: enrollmentId, pagoRef: String(id) })
+            .select('studentId')
+            .lean<{ studentId: unknown }>()
+          studentId = enrollment?.studentId ?? null
+        }
+
+        if (studentId) {
           const student = await User
-            .findById(enrollment.studentId)
+            .findById(studentId)
             .select('password')
             .lean<{ _id: unknown; password?: string }>()
 

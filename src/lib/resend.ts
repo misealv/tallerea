@@ -41,7 +41,7 @@ export async function sendEnrollmentConfirmation(input: EnrollmentConfirmationIn
   // Bloque CTA: magic link tiene prioridad si existe (alumno recién creado)
   const accessBlock = input.magicUrl
     ? `
-        <p>Te creamos una cuenta. Ingresa con este enlace seguro (válido <strong>15 minutos</strong>, un solo uso):</p>
+        <p>Te creamos una cuenta. Ingresa con este enlace seguro (válido <strong>48 horas</strong>, un solo uso):</p>
         <a href="${input.magicUrl}" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; margin-top: 8px; font-size: 16px;">
           Activar mi cuenta
         </a>
@@ -164,7 +164,7 @@ export async function sendMagicLink({ email, magicUrl }: { email: string; magicU
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #7c3aed;">Accede a tus talleres</h2>
-        <p>Haz clic en el siguiente enlace para ingresar a tu cuenta. El enlace es válido por <strong>15 minutos</strong> y solo puede usarse una vez.</p>
+        <p>Haz clic en el siguiente enlace para ingresar a tu cuenta. El enlace es válido por <strong>48 horas</strong> y solo puede usarse una vez.</p>
         <a href="${magicUrl}" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; margin: 16px 0; font-size: 16px;">
           Ingresar a Tallerea
         </a>

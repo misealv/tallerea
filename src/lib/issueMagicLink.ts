@@ -23,7 +23,8 @@ export async function issueMagicLink(userId: string): Promise<IssueMagicLinkResu
 
   const rawToken = randomBytes(32).toString('hex')
   const tokenHash = createHash('sha256').update(rawToken).digest('hex')
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000)
+  // TTL 48h: cubre alumnos que no abren el email el mismo día (especialmente post-pago de suscripción)
+  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000)
 
   const updated = await User.updateOne(
     { _id: userId, activo: true },

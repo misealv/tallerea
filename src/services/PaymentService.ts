@@ -396,19 +396,32 @@ export const PaymentService = {
       const workshopFull = await Workshop.findById(subscription.workshopId)
         .populate<{ ownerId: { _id: string; name: string; email: string } }>('ownerId', 'name email')
         .lean<{ titulo: string; slug: string; ownerId: { _id: string; name: string; email: string } }>()
-      const student = await User.findById(subscription.studentId).select('name email').lean<{
-        _id: string; name: string; email: string
+      const student = await User.findById(subscription.studentId).select('name email password').lean<{
+        _id: string; name: string; email: string; password?: string
       }>()
       if (!workshopFull || !student) return
 
-      // Email al alumno — sin magic link (se muestra en página de éxito)
+      // Si el alumno es invitado (sin password), emitir magic link para que pueda entrar
+      // y reservar sus sesiones. Sin esto, el alumno paga pero queda sin acceso al panel.
+      let magicUrl: string | undefined
+      if (!student.password) {
+        try {
+          const { issueMagicLink } = await import('@/lib/issueMagicLink')
+          const result = await issueMagicLink(String(student._id))
+          magicUrl = result.magicUrl
+        } catch {
+          // No bloquear el flujo de confirmación por fallo de emisión
+        }
+      }
+
+      // Email al alumno (CTA "Activar mi cuenta" cuando hay magicUrl)
       await sendEnrollmentConfirmation({
         studentName: student.name,
         studentEmail: student.email,
         workshopTitle: workshopFull.titulo,
         workshopSlug: workshopFull.slug,
         monto: subscription.monto,
-        magicUrl: undefined,
+        magicUrl,
       })
 
       // Notificación al tallerista
