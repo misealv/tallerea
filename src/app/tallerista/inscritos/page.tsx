@@ -7,6 +7,7 @@ import Workshop from '@/models/Workshop'
 import Enrollment from '@/models/Enrollment'
 import Subscription from '@/models/Subscription'
 import { Types } from 'mongoose'
+import ReservarClaseModal from './ReservarClaseModal'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,7 @@ interface SubLean {
   estado: string
   sesionesUsadas: number
   sesionesTotales: number
+  sesionesDisponibles: number
   fechaVencimiento: Date
   monto: number
   createdAt: Date
@@ -179,6 +181,7 @@ export default async function InscritosGlobalPage() {
                   <th className="px-4 py-3">Estado</th>
                   <th className="px-4 py-3">Vence</th>
                   <th className="px-4 py-3"></th>
+                  <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody>
@@ -209,6 +212,16 @@ export default async function InscritosGlobalPage() {
                         >
                           Ver taller
                         </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        {s.estado === 'activa' && (
+                          <ReservarClaseModal
+                            subscriptionId={String(s._id)}
+                            studentName={student.name}
+                            workshopTitle={workshop.titulo}
+                            sesionesDisponibles={s.sesionesDisponibles}
+                          />
+                        )}
                       </td>
                     </tr>
                   )

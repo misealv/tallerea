@@ -546,6 +546,54 @@ export async function sendSubscriptionRenovar({
 
 // ─── Emancipación de dependiente ─────────────────────────────────────────────
 
+// Notifica al alumno que el tallerista le reservó una clase
+export async function sendBookingPorTallerista({
+  studentEmail,
+  studentName,
+  workshopTitle,
+  workshopSlug,
+  profesorNombre,
+  fechaClase,
+  horaClase,
+}: {
+  studentEmail: string
+  studentName: string
+  workshopTitle: string
+  workshopSlug: string
+  profesorNombre: string
+  fechaClase: string
+  horaClase: string
+}) {
+  if (!process.env.RESEND_API_KEY) {
+    console.log('[booking-por-tallerista]', { studentEmail, workshopTitle, fechaClase })
+    return
+  }
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: studentEmail,
+    subject: `${profesorNombre} te reservó una clase en ${workshopTitle}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7c3aed;">Tu clase está reservada</h2>
+        <p>Hola ${studentName},</p>
+        <p>${profesorNombre} te reservó una clase en <strong>${workshopTitle}</strong>:</p>
+        <div style="background: #f5f3ff; border-radius: 8px; padding: 16px; margin: 16px 0;">
+          <p style="margin: 4px 0;"><strong>Fecha:</strong> ${fechaClase}</p>
+          <p style="margin: 4px 0;"><strong>Hora:</strong> ${horaClase}</p>
+        </div>
+        <p>Puedes ver todas tus clases en tu panel de alumno:</p>
+        <a href="${baseUrl}/alumno/mis-clases" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
+          Ver mis clases
+        </a>
+        <p style="color: #6b7280; font-size: 13px;">Si necesitas cancelar o reagendar, hazlo con al menos 6 horas de anticipación desde tu panel.</p>
+        <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
+      </div>
+    `,
+  })
+}
+
 export async function sendEmancipationConfirmation({
   apoderadoEmail,
   apoderadoName,

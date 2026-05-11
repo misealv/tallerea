@@ -344,4 +344,108 @@ export const BookingService = {
       .sort({ fecha: 1 })
       .lean<IBooking[]>()
   },
+
+  // El tallerista reserva una clase a nombre de un alumno suscrito.
+  // Misma lógica de cupos y sesión que reserve(), pero:
+  // - Ownership check: el taller debe pertenecer al tallerista (ownerId)
+  // - No aplica restricción de horas de anticipación para el tallerista
+  // - Booking queda marcado con reservadoPor: 'tallerista'
+  // - Email de aviso al alumno (fire-and-forget)
+  async reserveByTallerista(
+    ownerId: string,
+    subscriptionId: string,
+    slotIndex: number
+  ): Promise<IBooking> {
+    await dbConnect()
+
+    // Validar suscripción activa
+    const sub = await Subscription.findById(subscriptionId)
+    if (!sub || sub.estado !== 'activa') throw new Error('Suscripción no activa')
+    if (sub.sesionesDisponibles <= 0) throw new Error('No quedan sesiones disponibles')
+
+    // Ownership: el taller pertenece al tallerista (soporta workshops legacy con accountId)
+    const workshop = await Workshop.findOne({
+      _id: sub.workshopId,
+      $or: [{ ownerId }, { accountId: ownerId }],
+    })
+    if (!workshop) throw new Error('No tienes acceso a este taller')
+
+    const slot = workshop.slots[slotIndex]
+    if (!slot) throw new Error('Sesión no encontrada')
+    if (slot.cancelado) throw new Error('Sesión cancelada')
+    if (!slot.fecha) throw new Error('Sesión sin fecha definida')
+    if (new Date(slot.fecha) <= new Date()) throw new Error('No se puede reservar una sesión que ya ocurrió')
+
+    // Cupo disponible
+    if (slot.reservas >= workshop.cupoPorSesion) throw new Error('Sesión llena — no hay cupo disponible')
+
+    // Reserva duplicada
+    const existing = await Booking.findOne({
+      workshopId: sub.workshopId, studentId: sub.studentId, slotIndex,
+      estado: { $ne: 'cancelada' },
+      dependentId: { $exists: false },
+    })
+    if (existing) throw new Error('Este alumno ya tiene una reserva en esta sesión')
+
+    // Consumir sesión (atómico)
+    await SubscriptionService.consumeSesion(subscriptionId)
+
+    // Decrementar cupo atómico
+    const updated = await Workshop.updateOne(
+      {
+        _id: sub.workshopId,
+        [`slots.${slotIndex}.cancelado`]: false,
+        [`slots.${slotIndex}.reservas`]: { $lt: workshop.cupoPorSesion },
+      },
+      { $inc: { [`slots.${slotIndex}.reservas`]: 1 } }
+    )
+    if (updated.modifiedCount === 0) {
+      await SubscriptionService.devolverSesion(subscriptionId).catch(() => null)
+      throw new Error('Sesión llena — no hay cupo disponible')
+    }
+
+    let booking: IBooking
+    try {
+      booking = await new Booking({
+        subscriptionId: sub._id,
+        workshopId:     sub.workshopId,
+        studentId:      sub.studentId,
+        slotIndex,
+        fecha:          slot.fecha,
+        estado:         'reservada',
+        reservadoPor:   'tallerista',
+      }).save()
+    } catch (err) {
+      await Promise.all([
+        SubscriptionService.devolverSesion(subscriptionId).catch(() => null),
+        Workshop.updateOne({ _id: sub.workshopId }, { $inc: { [`slots.${slotIndex}.reservas`]: -1 } }).catch(() => null),
+      ])
+      throw err
+    }
+
+    // Email al alumno (fire-and-forget)
+    try {
+      const student = await User.findById(sub.studentId).select('name email').lean<{ name: string; email: string }>()
+      const owner   = await User.findById(ownerId).select('name').lean<{ name: string }>()
+      if (student && owner) {
+        const { sendBookingPorTallerista } = await import('@/lib/resend')
+        const fechaDate = new Date(slot.fecha)
+        const fechaClase = fechaDate.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Santiago' })
+        const horaClase  = fechaDate.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Santiago' })
+        await sendBookingPorTallerista({
+          studentEmail:  student.email,
+          studentName:   student.name,
+          workshopTitle: workshop.titulo,
+          workshopSlug:  workshop.slug,
+          profesorNombre: owner.name,
+          fechaClase,
+          horaClase,
+        })
+      }
+    } catch {
+      // No bloquear el flujo por fallo de email
+    }
+
+    return booking
+  },
 }

@@ -21,6 +21,8 @@ export interface IBooking extends Document {
   // Dependiente (heredado de Subscription al crear el Booking)
   dependentId?: Types.ObjectId;
   dependentNombreSnapshot?: string;
+  // Quien generó la reserva: el alumno (default) o el tallerista a nombre del alumno
+  reservadoPor: 'alumno' | 'tallerista';
   activo: boolean;
   createdAt: Date;
 }
@@ -50,6 +52,7 @@ const BookingSchema = new Schema<IBooking>({
   // Dependiente — copiado desde Subscription al momento de crear el Booking
   dependentId:             { type: Schema.Types.ObjectId },
   dependentNombreSnapshot: { type: String, maxlength: 100 },
+  reservadoPor: { type: String, enum: ['alumno', 'tallerista'], default: 'alumno' },
   activo: { type: Boolean, default: true },
 }, { timestamps: true });
 
