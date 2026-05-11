@@ -762,3 +762,66 @@ export async function sendNuevoInscritoTallerista({
       </div>`,
   })
 }
+
+// Recordatorio semanal (lunes): alumno con suscripción activa sin reserva esta semana
+export async function sendRecordatorioReservar({
+  studentEmail, studentName, workshopTitle, profesorNombre,
+  slotsDisponibles, magicUrl, dependentNombre,
+}: {
+  studentEmail: string
+  studentName: string
+  workshopTitle: string
+  profesorNombre: string
+  slotsDisponibles: Array<{ fechaTexto: string; horaTexto: string; cupoDisponible: number }>
+  magicUrl?: string
+  dependentNombre?: string
+}) {
+  if (!process.env.RESEND_API_KEY) return
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+  const destino = dependentNombre ? ` para ${dependentNombre}` : ''
+  const ctaUrl = magicUrl ?? `${baseUrl}/alumno/mis-clases`
+
+  const slotsHtml = slotsDisponibles.length > 0
+    ? slotsDisponibles.map(s =>
+        `<tr>
+          <td style="padding:8px 12px;border-bottom:1px solid #e9d5ff;">${s.fechaTexto}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #e9d5ff;">${s.horaTexto}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #e9d5ff;color:#7c3aed;">${s.cupoDisponible} lugar${s.cupoDisponible !== 1 ? 'es' : ''}</td>
+        </tr>`
+      ).join('')
+    : `<tr><td colspan="3" style="padding:12px;color:#6b7280;">No hay sesiones disponibles esta semana.</td></tr>`
+
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: studentEmail,
+    subject: `🎨 Tienes una clase disponible esta semana${destino} — ${workshopTitle}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+        <h2 style="color:#7c3aed;">¡Agenda tu clase de esta semana!</h2>
+        <p>Hola ${studentName},</p>
+        <p>Tienes sesiones disponibles en <strong>${workshopTitle}</strong> con <strong>${profesorNombre}</strong>${destino}.</p>
+        <p style="color:#6b7280;font-size:14px;">Elige tu horario antes de que se llenen — las clases se reservan por orden de llegada.</p>
+
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;background:#f5f3ff;border-radius:8px;overflow:hidden;">
+          <thead>
+            <tr style="background:#7c3aed;color:white;">
+              <th style="padding:10px 12px;text-align:left;font-size:13px;">Fecha</th>
+              <th style="padding:10px 12px;text-align:left;font-size:13px;">Horario</th>
+              <th style="padding:10px 12px;text-align:left;font-size:13px;">Cupo</th>
+            </tr>
+          </thead>
+          <tbody>${slotsHtml}</tbody>
+        </table>
+
+        <a href="${ctaUrl}" style="display:inline-block;background:#7c3aed;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;margin:8px 0;">
+          Reservar mi clase →
+        </a>
+
+        <p style="color:#9ca3af;font-size:12px;margin-top:32px;">
+          Si no puedes esta semana, tu sesión queda disponible para el próximo período.<br>
+          — Tallerea.cl
+        </p>
+      </div>`,
+  })
+}
