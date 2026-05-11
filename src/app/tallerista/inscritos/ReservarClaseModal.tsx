@@ -85,8 +85,8 @@ export default function ReservarClaseModal({
       <button
         onClick={() => setOpen(true)}
         disabled={sesionesDisponibles <= 0}
-        className="text-xs text-violet-600 hover:underline disabled:text-gray-300 disabled:cursor-not-allowed"
-        title={sesionesDisponibles <= 0 ? 'Sin sesiones disponibles' : `Reservar clase para ${studentName}`}
+        className="inline-flex items-center gap-1 text-xs bg-violet-600 text-white px-2.5 py-1 rounded-lg hover:bg-violet-700 transition-colors disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
+        title={sesionesDisponibles <= 0 ? 'Sin sesiones disponibles' : `Reservar clase para ${dependentNombre ?? studentName}`}
       >
         Reservar clase
       </button>

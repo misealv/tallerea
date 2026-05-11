@@ -11,12 +11,13 @@ import { Types } from 'mongoose'
 import MarcaAsistenciaButton from '@/components/MarcaAsistenciaButton'
 import EditarPrecioButton from '@/components/EditarPrecioButton'
 import CancelarInscripcionButton from '@/components/CancelarInscripcionButton'
+import ReservarClaseModal from '@/app/tallerista/inscritos/ReservarClaseModal'
 
 export const dynamic = 'force-dynamic'
 
 interface StudentRef { name: string; email: string }
 interface EnrollmentLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; monto: number; slotIndex: number | null; createdAt: Date; origenInscripcion?: string }
-interface SubLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; sesionesUsadas: number; sesionesTotales: number; fechaVencimiento: Date; monto: number; clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }; origenInscripcion?: string; precioEspecial?: boolean; precioSnapshot?: number; notaPrecioEspecial?: string }
+interface SubLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; sesionesUsadas: number; sesionesTotales: number; sesionesDisponibles: number; fechaVencimiento: Date; monto: number; clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }; origenInscripcion?: string; precioEspecial?: boolean; precioSnapshot?: number; notaPrecioEspecial?: string; dependentNombreSnapshot?: string }
 interface BookingLean { _id: Types.ObjectId; studentId: StudentRef; subscriptionId: Types.ObjectId; slotIndex: number; fecha: Date; estado: string; dependentNombreSnapshot?: string }
 interface WorkshopLean { _id: Types.ObjectId; titulo: string; ownerId?: Types.ObjectId; accountId?: Types.ObjectId; slots: { horaInicio: string; horaFin: string; fecha?: Date }[] }
 
@@ -163,7 +164,7 @@ export default async function InscritosPage({
             <table className="w-full text-sm border-collapse">
               <thead><tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
                 <th className="px-4 py-2">Alumno</th><th className="px-4 py-2">Precio</th><th className="px-4 py-2">Acceso</th>
-                <th className="px-4 py-2">Estado</th><th className="px-4 py-2">Vence</th><th className="px-4 py-2"></th><th className="px-4 py-2"></th>
+                <th className="px-4 py-2">Estado</th><th className="px-4 py-2">Vence</th><th className="px-4 py-2"></th><th className="px-4 py-2"></th><th className="px-4 py-2"></th>
               </tr></thead>
               <tbody>{subscriptionsFiltradas.map(s => {
                 const prepaid = s.clasesPrepagadas
@@ -222,6 +223,17 @@ export default async function InscritosPage({
                         tipo="subscription"
                         nombreAlumno={(s.studentId as StudentRef).name}
                       />
+                    </td>
+                    <td className="px-4 py-2">
+                      {s.estado === 'activa' && (
+                        <ReservarClaseModal
+                          subscriptionId={String(s._id)}
+                          studentName={(s.studentId as StudentRef).name}
+                          workshopTitle={workshop.titulo}
+                          sesionesDisponibles={s.sesionesDisponibles}
+                          dependentNombre={s.dependentNombreSnapshot}
+                        />
+                      )}
                     </td>
                   </tr>
                 )
