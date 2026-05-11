@@ -30,6 +30,8 @@ export const PaymentService = {
     usarCredito = false,
     montoVoluntario?: number,   // solo si workshop.modalidadPrecio === 'voluntario'
     esClasePrueba = false,
+    dependentNombre?: string,
+    dependentFechaNacimiento?: string,
   ): Promise<CreatePaymentResult> {
     const workshop = await WorkshopService.getById(workshopId)
     if (!workshop) throw new Error('Taller no encontrado')
@@ -79,6 +81,8 @@ export const PaymentService = {
         monto: montoBase,
         slotIndex: slotIndex ?? null,
         usarCredito,
+        dependentNombre,
+        dependentFechaNacimiento,
       })
     }
 

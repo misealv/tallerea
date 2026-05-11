@@ -85,6 +85,8 @@ export const SubscriptionService = {
     studentId: string,
     studentEmail: string,
     paqueteId?: string,
+    dependentNombre?: string,
+    dependentFechaNacimiento?: string,
   ): Promise<CreateSubscriptionResult> {
     await dbConnect()
 
@@ -172,6 +174,33 @@ export const SubscriptionService = {
       fechaVencimiento = calcularVencimiento(vigencia, fechaCompra)
     }
 
+    // Upsert del dependiente en User.dependents[] si el apoderado inscribe a otro
+    let resolvedDependentId: mongoose.Types.ObjectId | undefined
+    let resolvedDependentSnapshot: string | undefined
+    if (dependentNombre?.trim()) {
+      const nombre = dependentNombre.trim()
+      const parentUser = await User.findById(studentId).select('dependents')
+      if (parentUser) {
+        const existing = parentUser.dependents.find(
+          (d: IDependent) => d.activo && d.nombre.toLowerCase() === nombre.toLowerCase()
+        )
+        if (existing) {
+          resolvedDependentId = existing._id
+          resolvedDependentSnapshot = existing.nombre
+        } else {
+          parentUser.dependents.push({
+            nombre,
+            fechaNacimiento: dependentFechaNacimiento ? new Date(dependentFechaNacimiento) : undefined,
+            activo: true,
+          })
+          await parentUser.save()
+          const added = parentUser.dependents[parentUser.dependents.length - 1]
+          resolvedDependentId = added._id
+          resolvedDependentSnapshot = added.nombre
+        }
+      }
+    }
+
     // [FINANCE] Crear suscripción en estado 'pendiente_pago'.
     // El PaymentBreakdown NO se crea acá — se difiere a handleApprovedSubscription
     // cuando MercadoPago confirme el pago (Principio #10: nunca registrar dinero antes de confirmación).
@@ -192,6 +221,11 @@ export const SubscriptionService = {
         paqueteNombreSnapshot:      paqueteNombre,
         precioSnapshot:             monto,
         sesionesPorPeriodoSnapshot: sesiones,
+      }),
+      // Dependiente (apoderado inscribiendo a hijo/a)
+      ...(resolvedDependentId && {
+        dependentId:             resolvedDependentId,
+        dependentNombreSnapshot: resolvedDependentSnapshot,
       }),
     }).save()
 

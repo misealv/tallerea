@@ -48,7 +48,15 @@ export const EnrollmentService = {
     return this.getAll({ workshopId }, page, limit)
   },
 
-  async create(data: { workshopId: string; studentId: string; monto: number; slotIndex?: number | null; usarCredito?: boolean }): Promise<IEnrollment> {
+  async create(data: {
+    workshopId: string
+    studentId: string
+    monto: number
+    slotIndex?: number | null
+    usarCredito?: boolean
+    dependentNombre?: string
+    dependentFechaNacimiento?: string
+  }): Promise<IEnrollment> {
     await dbConnect()
 
     const slotIndex = data.slotIndex ?? null
@@ -87,6 +95,33 @@ export const EnrollmentService = {
     })
     if (existing) throw new Error('Ya estás inscrito en este horario')
 
+    // Upsert del dependiente antes de la transacción (distinto documento, no necesita ser atómico)
+    let resolvedDependentId: mongoose.Types.ObjectId | undefined
+    let resolvedDependentSnapshot: string | undefined
+    if (data.dependentNombre?.trim()) {
+      const nombre = data.dependentNombre.trim()
+      const parentUser = await User.findById(data.studentId).select('dependents')
+      if (parentUser) {
+        const existing = parentUser.dependents.find(
+          (d: IDependent) => d.activo && d.nombre.toLowerCase() === nombre.toLowerCase()
+        )
+        if (existing) {
+          resolvedDependentId = existing._id
+          resolvedDependentSnapshot = existing.nombre
+        } else {
+          parentUser.dependents.push({
+            nombre,
+            fechaNacimiento: data.dependentFechaNacimiento ? new Date(data.dependentFechaNacimiento) : undefined,
+            activo: true,
+          })
+          await parentUser.save()
+          const added = parentUser.dependents[parentUser.dependents.length - 1]
+          resolvedDependentId = added._id
+          resolvedDependentSnapshot = added.nombre
+        }
+      }
+    }
+
     // Transacción: crear enrollment + decrementar cupo + opcionalmente usar crédito
     const session = await mongoose.startSession()
     session.startTransaction()
@@ -111,6 +146,11 @@ export const EnrollmentService = {
         creditoAplicado,
         estado:          'pendiente',
         activo:          true,
+        // Dependiente (apoderado inscribiendo a hijo/a)
+        ...(resolvedDependentId && {
+          dependentId:             resolvedDependentId,
+          dependentNombreSnapshot: resolvedDependentSnapshot,
+        }),
       }], { session })
 
       if (workshop.slots && workshop.slots.length > 0 && slotIndex !== null) {

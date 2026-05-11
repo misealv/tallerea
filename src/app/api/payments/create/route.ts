@@ -33,6 +33,16 @@ export async function POST(req: NextRequest) {
     const { workshopId, slotIndex } = body
     if (!workshopId) return NextResponse.json({ error: 'workshopId es requerido' }, { status: 400 })
 
+    // Datos opcionales de dependiente (apoderado inscribiendo a hijo/a)
+    const dependentNombre: string | undefined =
+      typeof body.dependentNombre === 'string' && body.dependentNombre.trim()
+        ? body.dependentNombre.trim().slice(0, 100)
+        : undefined
+    const dependentFechaNacimiento: string | undefined =
+      typeof body.dependentFechaNacimiento === 'string' && body.dependentFechaNacimiento
+        ? body.dependentFechaNacimiento
+        : undefined
+
     // [RUTEO] Talleres recurrentes usan flujo de Subscription, no Enrollment
     const workshop = await WorkshopService.getById(workshopId)
     if (!workshop) return NextResponse.json({ error: 'Taller no encontrado' }, { status: 404 })
@@ -69,7 +79,10 @@ export async function POST(req: NextRequest) {
       const subResult = await SubscriptionService.createWithPayment(
         workshopId,
         recurrenteStudentId,
-        recurrenteStudentEmail
+        recurrenteStudentEmail,
+        undefined, // paqueteId
+        dependentNombre,
+        dependentFechaNacimiento,
       )
       if (subResult.free) {
         return NextResponse.json({
@@ -122,6 +135,8 @@ export async function POST(req: NextRequest) {
       usarCredito,
       montoVoluntario,
       esClasePrueba,
+      dependentNombre,
+      dependentFechaNacimiento,
     )
 
     return NextResponse.json(result)

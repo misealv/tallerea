@@ -48,6 +48,10 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
   // Datos del invitado (solo cuando no hay sesión)
   const [guestName, setGuestName] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
+  // ¿Para quién?
+  const [paraQuien, setParaQuien] = useState<'yo' | 'otro'>('yo')
+  const [dependentNombre, setDependentNombre] = useState('')
+  const [dependentFechaNacimiento, setDependentFechaNacimiento] = useState('')
 
   // Params desde PrecioCard
   const montoVoluntarioParam = typeof window !== 'undefined'
@@ -106,6 +110,12 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
       }
     }
 
+    // Validar dependiente
+    if (paraQuien === 'otro' && !dependentNombre.trim()) {
+      setError('Ingresa el nombre de quien tomará el taller')
+      return
+    }
+
     setSubmitting(true)
     setError('')
 
@@ -120,6 +130,12 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
           ...(esClasePrueba ? { esClasePrueba: true } : {}),
           ...(montoVoluntarioParam !== undefined ? { montoVoluntario: montoVoluntarioParam } : {}),
           ...(isGuest ? { name: guestName.trim(), email: guestEmail.trim() } : {}),
+          ...(paraQuien === 'otro' && dependentNombre.trim()
+            ? {
+                dependentNombre: dependentNombre.trim(),
+                ...(dependentFechaNacimiento ? { dependentFechaNacimiento } : {}),
+              }
+            : {}),
         }),
       })
       const data = await res.json()
@@ -231,6 +247,54 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
             </div>
             {esClasePrueba && (
               <p className="text-xs text-gray-400">1 sesión · sin compromiso de continuidad</p>
+            )}
+          </div>
+
+          {/* ¿Para quién? */}
+          <div className="space-y-3 border-t border-gray-100 pt-4">
+            <p className="text-sm font-semibold text-gray-800">¿Quién tomará el taller?</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => { setParaQuien('yo'); setDependentNombre('') }}
+                className={`px-3 py-2.5 rounded-xl text-sm border transition-colors ${
+                  paraQuien === 'yo'
+                    ? 'border-purple-500 bg-purple-50 text-purple-800 font-medium'
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                Yo mismo/a
+              </button>
+              <button
+                type="button"
+                onClick={() => setParaQuien('otro')}
+                className={`px-3 py-2.5 rounded-xl text-sm border transition-colors ${
+                  paraQuien === 'otro'
+                    ? 'border-purple-500 bg-purple-50 text-purple-800 font-medium'
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                Mi hijo/a u otra persona
+              </button>
+            </div>
+            {paraQuien === 'otro' && (
+              <div className="space-y-2 bg-purple-50 rounded-xl p-3">
+                <input
+                  type="text"
+                  placeholder="Nombre completo de quien asistirá *"
+                  value={dependentNombre}
+                  onChange={e => setDependentNombre(e.target.value)}
+                  maxLength={100}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                />
+                <input
+                  type="date"
+                  value={dependentFechaNacimiento}
+                  onChange={e => setDependentFechaNacimiento(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white text-gray-600"
+                />
+                <p className="text-xs text-purple-700">El tallerista verá este nombre en su lista de alumnos.</p>
+              </div>
             )}
           </div>
 
