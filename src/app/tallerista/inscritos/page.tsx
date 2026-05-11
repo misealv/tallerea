@@ -33,6 +33,7 @@ interface SubLean {
   fechaVencimiento: Date
   monto: number
   createdAt: Date
+  dependentNombreSnapshot?: string
 }
 
 const ESTADO_COLOR: Record<string, string> = {
@@ -220,6 +221,7 @@ export default async function InscritosGlobalPage() {
                             studentName={student.name}
                             workshopTitle={workshop.titulo}
                             sesionesDisponibles={s.sesionesDisponibles}
+                            dependentNombre={s.dependentNombreSnapshot}
                           />
                         )}
                       </td>

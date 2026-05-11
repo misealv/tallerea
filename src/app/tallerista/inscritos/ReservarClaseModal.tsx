@@ -13,6 +13,7 @@ interface Props {
   studentName: string
   workshopTitle: string
   sesionesDisponibles: number
+  dependentNombre?: string
   onSuccess?: () => void
 }
 
@@ -21,6 +22,7 @@ export default function ReservarClaseModal({
   studentName,
   workshopTitle,
   sesionesDisponibles,
+  dependentNombre,
   onSuccess,
 }: Props) {
   const [open, setOpen]           = useState(false)
@@ -96,7 +98,12 @@ export default function ReservarClaseModal({
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide">Reservar clase</p>
-                <h3 className="font-semibold text-gray-800 text-sm mt-0.5">{studentName}</h3>
+                <h3 className="font-semibold text-gray-800 text-sm mt-0.5">
+                  {dependentNombre ?? studentName}
+                  {dependentNombre && (
+                    <span className="ml-1.5 text-xs font-normal text-gray-400">(apoderado: {studentName})</span>
+                  )}
+                </h3>
                 <p className="text-xs text-gray-500">{workshopTitle} · {sesionesDisponibles} sesión{sesionesDisponibles !== 1 ? 'es' : ''} disponible{sesionesDisponibles !== 1 ? 's' : ''}</p>
               </div>
               <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
@@ -152,7 +159,7 @@ export default function ReservarClaseModal({
 
               {success && (
                 <div className="text-center py-6">
-                  <p className="text-green-600 font-medium text-sm">✓ Clase reservada</p>
+                  <p className="text-green-600 font-medium text-sm">✓ Clase reservada{dependentNombre ? ` para ${dependentNombre}` : ''}</p>
                   {slotSeleccionado && (
                     <p className="text-gray-500 text-xs mt-1">
                       {new Date(slotSeleccionado.fecha).toLocaleDateString('es-CL', {

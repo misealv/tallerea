@@ -554,6 +554,7 @@ export async function sendBookingPorTallerista({
   profesorNombre,
   fechaClase,
   horaClase,
+  dependentNombre,
 }: {
   studentEmail: string
   studentName: string
@@ -561,6 +562,7 @@ export async function sendBookingPorTallerista({
   profesorNombre: string
   fechaClase: string
   horaClase: string
+  dependentNombre?: string
 }) {
   if (!process.env.RESEND_API_KEY) {
     console.log('[booking-por-tallerista]', { studentEmail, workshopTitle, fechaClase })
@@ -571,12 +573,17 @@ export async function sendBookingPorTallerista({
   await resend.emails.send({
     from: FROM_EMAIL,
     to: studentEmail,
-    subject: `${profesorNombre} te reservó una clase en ${workshopTitle}`,
+    subject: dependentNombre
+      ? `${profesorNombre} le reservó una clase a ${dependentNombre} en ${workshopTitle}`
+      : `${profesorNombre} te reservó una clase en ${workshopTitle}`,
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #7c3aed;">Tu clase está reservada</h2>
+        <h2 style="color: #7c3aed;">Clase reservada${dependentNombre ? ` para ${dependentNombre}` : ''}</h2>
         <p>Hola ${studentName},</p>
-        <p>${profesorNombre} te reservó una clase en <strong>${workshopTitle}</strong>:</p>
+        ${dependentNombre
+          ? `<p>${profesorNombre} le reservó una clase a <strong>${dependentNombre}</strong> en <strong>${workshopTitle}</strong>:</p>`
+          : `<p>${profesorNombre} te reservó una clase en <strong>${workshopTitle}</strong>:</p>`
+        }
         <div style="background: #f5f3ff; border-radius: 8px; padding: 16px; margin: 16px 0;">
           <p style="margin: 4px 0;"><strong>Fecha:</strong> ${fechaClase}</p>
           <p style="margin: 4px 0;"><strong>Hora:</strong> ${horaClase}</p>

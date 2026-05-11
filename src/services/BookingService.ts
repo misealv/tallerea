@@ -379,12 +379,14 @@ export const BookingService = {
     // Cupo disponible
     if (slot.reservas >= workshop.cupoPorSesion) throw new Error('Sesión llena — no hay cupo disponible')
 
-    // Reserva duplicada
-    const existing = await Booking.findOne({
+    // Reserva duplicada (incluir dependentId si aplica)
+    const dupFilter: Record<string, unknown> = {
       workshopId: sub.workshopId, studentId: sub.studentId, slotIndex,
       estado: { $ne: 'cancelada' },
-      dependentId: { $exists: false },
-    })
+    }
+    if (sub.dependentId) dupFilter.dependentId = sub.dependentId
+    else dupFilter.dependentId = { $exists: false }
+    const existing = await Booking.findOne(dupFilter)
     if (existing) throw new Error('Este alumno ya tiene una reserva en esta sesión')
 
     // Consumir sesión (atómico)
@@ -414,6 +416,11 @@ export const BookingService = {
         fecha:          slot.fecha,
         estado:         'reservada',
         reservadoPor:   'tallerista',
+        // Propagar dependiente de la suscripción al booking
+        ...(sub.dependentId && {
+          dependentId:             sub.dependentId,
+          dependentNombreSnapshot: sub.dependentNombreSnapshot,
+        }),
       }).save()
     } catch (err) {
       await Promise.all([
@@ -433,12 +440,13 @@ export const BookingService = {
         const fechaClase = fechaDate.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Santiago' })
         const horaClase  = fechaDate.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Santiago' })
         await sendBookingPorTallerista({
-          studentEmail:  student.email,
-          studentName:   student.name,
-          workshopTitle: workshop.titulo,
+          studentEmail:   student.email,
+          studentName:    student.name,
+          workshopTitle:  workshop.titulo,
           profesorNombre: owner.name,
           fechaClase,
           horaClase,
+          dependentNombre: sub.dependentNombreSnapshot,
         })
       }
     } catch {
