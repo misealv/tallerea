@@ -643,3 +643,122 @@ export async function sendEmancipationConfirmation({
     `,
   })
 }
+
+// Notifica al alumno que su reserva fue confirmada (reserva propia)
+export async function sendBookingConfirmadoAlumno({
+  studentEmail, studentName, workshopTitle, fechaClase, horaClase, dependentNombre,
+}: {
+  studentEmail: string; studentName: string; workshopTitle: string
+  fechaClase: string; horaClase: string; dependentNombre?: string
+}) {
+  if (!process.env.RESEND_API_KEY) return
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+  const para = dependentNombre ?? studentName
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: studentEmail,
+    subject: `Clase confirmada${dependentNombre ? ` para ${dependentNombre}` : ''} en ${workshopTitle}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+        <h2 style="color:#7c3aed;">✅ Clase reservada${dependentNombre ? ` para ${dependentNombre}` : ''}</h2>
+        <p>Hola ${studentName},</p>
+        <p>Tu clase${dependentNombre ? ` para <strong>${para}</strong>` : ''} en <strong>${workshopTitle}</strong> quedó confirmada:</p>
+        <div style="background:#f5f3ff;border-radius:8px;padding:16px;margin:16px 0;">
+          <p style="margin:4px 0;"><strong>Fecha:</strong> ${fechaClase}</p>
+          <p style="margin:4px 0;"><strong>Hora:</strong> ${horaClase}</p>
+        </div>
+        <a href="${baseUrl}/alumno/mis-clases" style="display:inline-block;background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;margin:16px 0;">Ver mis clases</a>
+        <p style="color:#9ca3af;font-size:12px;margin-top:32px;">— Tallerea.cl</p>
+      </div>`,
+  })
+}
+
+// Notifica al tallerista que un alumno reservó una clase
+export async function sendNuevaReservaTallerista({
+  profesorEmail, profesorNombre, studentName, workshopTitle, fechaClase, horaClase, dependentNombre,
+}: {
+  profesorEmail: string; profesorNombre: string; studentName: string
+  workshopTitle: string; fechaClase: string; horaClase: string; dependentNombre?: string
+}) {
+  if (!process.env.RESEND_API_KEY) return
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+  const quien = dependentNombre ? `${dependentNombre} (apoderado: ${studentName})` : studentName
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: profesorEmail,
+    subject: `Nueva reserva: ${quien} en ${workshopTitle}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+        <h2 style="color:#7c3aed;">📅 Nueva reserva de clase</h2>
+        <p>Hola ${profesorNombre},</p>
+        <p><strong>${quien}</strong> reservó una clase en <strong>${workshopTitle}</strong>:</p>
+        <div style="background:#f5f3ff;border-radius:8px;padding:16px;margin:16px 0;">
+          <p style="margin:4px 0;"><strong>Fecha:</strong> ${fechaClase}</p>
+          <p style="margin:4px 0;"><strong>Hora:</strong> ${horaClase}</p>
+        </div>
+        <a href="${baseUrl}/tallerista/inscritos" style="display:inline-block;background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;margin:16px 0;">Ver inscritos</a>
+        <p style="color:#9ca3af;font-size:12px;margin-top:32px;">— Tallerea.cl</p>
+      </div>`,
+  })
+}
+
+// Notifica que una reserva fue cancelada (al alumno y al tallerista por separado)
+export async function sendReservaCancelada({
+  email, nombre, esAlumno, workshopTitle, fechaClase, horaClase, razon, dependentNombre,
+}: {
+  email: string; nombre: string; esAlumno: boolean
+  workshopTitle: string; fechaClase: string; horaClase: string
+  razon?: string; dependentNombre?: string
+}) {
+  if (!process.env.RESEND_API_KEY) return
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+  const quien = dependentNombre && esAlumno ? ` para ${dependentNombre}` : ''
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: email,
+    subject: `Clase cancelada${quien} en ${workshopTitle}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+        <h2 style="color:#dc2626;">❌ Clase cancelada${quien}</h2>
+        <p>Hola ${nombre},</p>
+        <p>La clase${quien} en <strong>${workshopTitle}</strong> fue cancelada:</p>
+        <div style="background:#fef2f2;border-radius:8px;padding:16px;margin:16px 0;">
+          <p style="margin:4px 0;"><strong>Fecha:</strong> ${fechaClase}</p>
+          <p style="margin:4px 0;"><strong>Hora:</strong> ${horaClase}</p>
+          ${razon ? `<p style="margin:4px 0;"><strong>Motivo:</strong> ${razon}</p>` : ''}
+        </div>
+        ${esAlumno ? `<p>La sesión fue devuelta a tu saldo disponible.</p><a href="${baseUrl}/alumno/mis-clases" style="display:inline-block;background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;margin:16px 0;">Ver mis clases</a>` : `<a href="${baseUrl}/tallerista/inscritos" style="display:inline-block;background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;margin:16px 0;">Ver inscritos</a>`}
+        <p style="color:#9ca3af;font-size:12px;margin-top:32px;">— Tallerea.cl</p>
+      </div>`,
+  })
+}
+
+// Notifica al tallerista que hay un nuevo inscrito o suscriptor
+export async function sendNuevoInscritoTallerista({
+  profesorEmail, profesorNombre, studentName, workshopTitle, tipo, dependentNombre,
+}: {
+  profesorEmail: string; profesorNombre: string; studentName: string
+  workshopTitle: string; tipo: 'inscripcion' | 'suscripcion'; dependentNombre?: string
+}) {
+  if (!process.env.RESEND_API_KEY) return
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+  const quien = dependentNombre ? `${dependentNombre} (apoderado: ${studentName})` : studentName
+  const label = tipo === 'suscripcion' ? 'nuevo suscriptor' : 'nueva inscripción'
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: profesorEmail,
+    subject: `${tipo === 'suscripcion' ? '🎉' : '✅'} ${label.charAt(0).toUpperCase() + label.slice(1)}: ${quien} en ${workshopTitle}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+        <h2 style="color:#7c3aed;">${tipo === 'suscripcion' ? '🎉' : '✅'} ${label.charAt(0).toUpperCase() + label.slice(1)}</h2>
+        <p>Hola ${profesorNombre},</p>
+        <p><strong>${quien}</strong> se inscribió en <strong>${workshopTitle}</strong>.</p>
+        <a href="${baseUrl}/tallerista/inscritos" style="display:inline-block;background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;margin:16px 0;">Ver inscritos</a>
+        <p style="color:#9ca3af;font-size:12px;margin-top:32px;">— Tallerea.cl</p>
+      </div>`,
+  })
+}

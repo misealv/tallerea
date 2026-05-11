@@ -5,6 +5,16 @@ import Subscription from '@/models/Subscription'
 import { SubscriptionService } from '@/services/SubscriptionService'
 import { UserService } from '@/services/UserService'
 import User, { IDependent, IUser } from '@/models/User'
+import { sendBookingConfirmadoAlumno, sendNuevaReservaTallerista, sendReservaCancelada } from '@/lib/resend'
+
+// Formatea fecha+hora del slot en zona Chile para emails
+function formatSlotForEmail(fecha: Date, horaInicio: string, horaFin: string): { fechaTexto: string; horaTexto: string } {
+  const fechaTexto = new Intl.DateTimeFormat('es-CL', {
+    weekday: 'long', day: 'numeric', month: 'long',
+    timeZone: 'America/Santiago',
+  }).format(new Date(fecha))
+  return { fechaTexto, horaTexto: `${horaInicio} - ${horaFin}` }
+}
 
 interface PaginatedResult<T> {
   data: T[]
@@ -120,8 +130,9 @@ export const BookingService = {
     }
 
     // Crear booking — si falla, revertir sesión y cupo
+    let booking: IBooking
     try {
-      const booking = await new Booking({
+      booking = await new Booking({
         subscriptionId,
         workshopId,
         studentId,
@@ -132,7 +143,6 @@ export const BookingService = {
           ? { dependentId, dependentNombreSnapshot }
           : {}),
       }).save()
-      return booking
     } catch (err) {
       // Compensar: devolver sesión y liberar cupo
       await Promise.all([
@@ -144,6 +154,45 @@ export const BookingService = {
       ])
       throw err
     }
+
+    // Notificaciones por email (fire-and-forget, no bloquean)
+    try {
+      const [student, workshopFull] = await Promise.all([
+        User.findById(studentId).select('name email').lean<{ name: string; email: string }>(),
+        Workshop.findById(workshopId)
+          .select('titulo slots')
+          .populate<{ ownerId: { name: string; email: string } }>('ownerId', 'name email')
+          .lean<{ titulo: string; slots: Array<{ horaInicio: string; horaFin: string }>; ownerId?: { name: string; email: string } }>(),
+      ])
+      if (student && workshopFull && slot.fecha) {
+        const { fechaTexto, horaTexto } = formatSlotForEmail(slot.fecha, slot.horaInicio, slot.horaFin)
+        await Promise.all([
+          sendBookingConfirmadoAlumno({
+            studentEmail: student.email,
+            studentName: student.name,
+            workshopTitle: workshopFull.titulo,
+            fechaClase: fechaTexto,
+            horaClase: horaTexto,
+            dependentNombre: dependentNombreSnapshot,
+          }).catch(() => null),
+          workshopFull.ownerId
+            ? sendNuevaReservaTallerista({
+                profesorEmail: workshopFull.ownerId.email,
+                profesorNombre: workshopFull.ownerId.name,
+                studentName: student.name,
+                workshopTitle: workshopFull.titulo,
+                fechaClase: fechaTexto,
+                horaClase: horaTexto,
+                dependentNombre: dependentNombreSnapshot,
+              }).catch(() => null)
+            : Promise.resolve(),
+        ])
+      }
+    } catch {
+      // No bloquear por fallo de email
+    }
+
+    return booking
   },
 
   // Cancelar reserva (dentro del plazo)
@@ -183,6 +232,48 @@ export const BookingService = {
         { _id: booking.workshopId },
         { $inc: { [`slots.${booking.slotIndex}.reservas`]: -1 } }
       )
+    }
+
+    // Notificar a alumno y tallerista (fire-and-forget)
+    try {
+      const [student, workshopFull] = await Promise.all([
+        User.findById(booking.studentId).select('name email').lean<{ name: string; email: string }>(),
+        Workshop.findById(booking.workshopId)
+          .select('titulo slots')
+          .populate<{ ownerId: { name: string; email: string } }>('ownerId', 'name email')
+          .lean<{ titulo: string; slots: Array<{ horaInicio: string; horaFin: string; fecha?: Date }>; ownerId?: { name: string; email: string } }>(),
+      ])
+      const slotForEmail = workshopFull?.slots?.[booking.slotIndex]
+      if (student && workshopFull && slotForEmail && booking.fecha) {
+        const { fechaTexto, horaTexto } = formatSlotForEmail(booking.fecha, slotForEmail.horaInicio, slotForEmail.horaFin)
+        const dependentNombre = (booking as unknown as { dependentNombreSnapshot?: string }).dependentNombreSnapshot
+        await Promise.all([
+          sendReservaCancelada({
+            email: student.email,
+            nombre: student.name,
+            esAlumno: true,
+            workshopTitle: workshopFull.titulo,
+            fechaClase: fechaTexto,
+            horaClase: horaTexto,
+            razon: 'Cancelaste tu reserva dentro del plazo',
+            dependentNombre,
+          }).catch(() => null),
+          workshopFull.ownerId
+            ? sendReservaCancelada({
+                email: workshopFull.ownerId.email,
+                nombre: workshopFull.ownerId.name,
+                esAlumno: false,
+                workshopTitle: workshopFull.titulo,
+                fechaClase: fechaTexto,
+                horaClase: horaTexto,
+                razon: `${student.name} canceló su reserva dentro del plazo`,
+                dependentNombre,
+              }).catch(() => null)
+            : Promise.resolve(),
+        ])
+      }
+    } catch {
+      // No bloquear por fallo de email
     }
 
     return booking
