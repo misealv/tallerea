@@ -93,10 +93,10 @@ export default function PaymentBreakdownTable({ ownerId, showOwner = false }: Pr
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading && (
-              <tr><td colSpan={9} className="px-4 py-6 text-center text-gray-400">Cargando...</td></tr>
+              <tr><td colSpan={showOwner ? 9 : 8} className="px-4 py-6 text-center text-gray-400">Cargando...</td></tr>
             )}
             {!loading && data.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-6 text-center text-gray-400">Sin transacciones</td></tr>
+              <tr><td colSpan={showOwner ? 9 : 8} className="px-4 py-6 text-center text-gray-400">Sin transacciones</td></tr>
             )}
             {!loading && data.map(b => (
               <tr key={b._id} className="hover:bg-gray-50">
