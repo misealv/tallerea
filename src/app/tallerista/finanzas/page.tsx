@@ -95,7 +95,7 @@ export default async function FinanzasPage() {
       </div>
 
       {/* Tarjetas resumen */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white border border-gray-200 rounded-xl px-5 py-4">
           <p className="text-xs text-gray-500 uppercase tracking-wide">Ingresos brutos (online)</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">${totalBruto.toLocaleString('es-CL')}</p>
@@ -124,28 +124,46 @@ export default async function FinanzasPage() {
           {breakdowns.length === 0 ? (
             <p className="text-sm text-gray-400">Sin pagos online registrados aún.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead><tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
-                  <th className="px-3 py-2">Taller</th>
-                  <th className="px-3 py-2">Bruto</th>
-                  <th className="px-3 py-2">Tu ganancia</th>
-                  <th className="px-3 py-2">Estado</th>
-                  <th className="px-3 py-2">Fecha</th>
-                </tr></thead>
-                <tbody>{breakdowns.map(b => (
-                  <tr key={String(b._id)} className="border-t border-gray-100">
-                    <td className="px-3 py-2 text-gray-800 max-w-[120px] truncate">{(b.workshopId as { titulo: string })?.titulo ?? '—'}</td>
-                    <td className="px-3 py-2">${b.montoBruto.toLocaleString('es-CL')}</td>
-                    <td className="px-3 py-2 font-medium text-indigo-700">${b.montoProfesor.toLocaleString('es-CL')}</td>
-                    <td className="px-3 py-2">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[b.estado] ?? ''}`}>{b.estado}</span>
-                    </td>
-                    <td className="px-3 py-2 text-gray-400">{new Date(b.createdAt).toLocaleDateString('es-CL')}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
+            <>
+              {/* Tabla — desktop */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead><tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
+                    <th className="px-3 py-2">Taller</th>
+                    <th className="px-3 py-2">Bruto</th>
+                    <th className="px-3 py-2">Tu ganancia</th>
+                    <th className="px-3 py-2">Estado</th>
+                    <th className="px-3 py-2">Fecha</th>
+                  </tr></thead>
+                  <tbody>{breakdowns.map(b => (
+                    <tr key={String(b._id)} className="border-t border-gray-100">
+                      <td className="px-3 py-2 text-gray-800 max-w-[120px] truncate">{(b.workshopId as { titulo: string })?.titulo ?? '—'}</td>
+                      <td className="px-3 py-2">${b.montoBruto.toLocaleString('es-CL')}</td>
+                      <td className="px-3 py-2 font-medium text-indigo-700">${b.montoProfesor.toLocaleString('es-CL')}</td>
+                      <td className="px-3 py-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[b.estado] ?? ''}`}>{b.estado}</span>
+                      </td>
+                      <td className="px-3 py-2 text-gray-400">{new Date(b.createdAt).toLocaleDateString('es-CL')}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              {/* Cards — móvil */}
+              <div className="md:hidden space-y-2">
+                {breakdowns.map(b => (
+                  <div key={String(b._id)} className="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{(b.workshopId as { titulo: string })?.titulo ?? '—'}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{new Date(b.createdAt).toLocaleDateString('es-CL')}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-bold text-indigo-700">${b.montoProfesor.toLocaleString('es-CL')}</p>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${ESTADO_COLOR[b.estado] ?? ''}`}>{b.estado}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </section>
 
@@ -157,43 +175,70 @@ export default async function FinanzasPage() {
           {manualRecords.length === 0 ? (
             <p className="text-sm text-gray-400 mb-4">Sin registros manuales aún.</p>
           ) : (
-            <div className="overflow-x-auto mb-6">
-              <table className="w-full text-sm border-collapse">
-                <thead><tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
-                  <th className="px-3 py-2">Taller</th>
-                  <th className="px-3 py-2">Alumno</th>
-                  <th className="px-3 py-2">Monto</th>
-                  <th className="px-3 py-2">Método</th>
-                  <th className="px-3 py-2">Fecha</th>
-                  <th className="px-3 py-2">Comp.</th>
-                  <th className="px-3 py-2"></th>
-                </tr></thead>
-                <tbody>{manualRecords.map(r => (
-                  <tr key={String(r._id)} className="border-t border-gray-100">
-                    <td className="px-3 py-2 text-gray-800 max-w-[100px] truncate">{(r.workshopId as { titulo: string })?.titulo ?? '—'}</td>
-                    <td className="px-3 py-2 text-gray-700 max-w-[100px] truncate">{(r.studentId as { name: string })?.name ?? '—'}</td>
-                    <td className="px-3 py-2 font-medium">${r.monto.toLocaleString('es-CL')}</td>
-                    <td className="px-3 py-2">
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+            <>
+              {/* Tabla — desktop */}
+              <div className="hidden md:block overflow-x-auto mb-6">
+                <table className="w-full text-sm border-collapse">
+                  <thead><tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
+                    <th className="px-3 py-2">Taller</th>
+                    <th className="px-3 py-2">Alumno</th>
+                    <th className="px-3 py-2">Monto</th>
+                    <th className="px-3 py-2">Método</th>
+                    <th className="px-3 py-2">Fecha</th>
+                    <th className="px-3 py-2">Comp.</th>
+                    <th className="px-3 py-2"></th>
+                  </tr></thead>
+                  <tbody>{manualRecords.map(r => (
+                    <tr key={String(r._id)} className="border-t border-gray-100">
+                      <td className="px-3 py-2 text-gray-800 max-w-[100px] truncate">{(r.workshopId as { titulo: string })?.titulo ?? '—'}</td>
+                      <td className="px-3 py-2 text-gray-700 max-w-[100px] truncate">{(r.studentId as { name: string })?.name ?? '—'}</td>
+                      <td className="px-3 py-2 font-medium">${r.monto.toLocaleString('es-CL')}</td>
+                      <td className="px-3 py-2">
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                          r.metodoPago === 'transferencia' ? 'bg-blue-100 text-blue-700'
+                          : r.metodoPago === 'efectivo' ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-600'
+                        }`}>{r.metodoPago}</span>
+                      </td>
+                      <td className="px-3 py-2 text-gray-400">{new Date(r.fecha).toLocaleDateString('es-CL')}</td>
+                      <td className="px-3 py-2">
+                        {r.comprobanteUrl
+                          ? <a href={r.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline text-xs">ver</a>
+                          : <span className="text-gray-300 text-xs">—</span>
+                        }
+                      </td>
+                      <td className="px-3 py-2"><BorrarManualPaymentButton id={String(r._id)} /></td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              {/* Cards — móvil */}
+              <div className="md:hidden space-y-2 mb-6">
+                {manualRecords.map(r => (
+                  <div key={String(r._id)} className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{(r.workshopId as { titulo: string })?.titulo ?? '—'}</p>
+                        <p className="text-xs text-gray-500 truncate">{(r.studentId as { name: string })?.name ?? '—'}</p>
+                      </div>
+                      <p className="text-sm font-bold text-gray-800 shrink-0">${r.monto.toLocaleString('es-CL')}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className={`px-1.5 py-0.5 rounded-full font-medium ${
                         r.metodoPago === 'transferencia' ? 'bg-blue-100 text-blue-700'
                         : r.metodoPago === 'efectivo' ? 'bg-green-100 text-green-700'
                         : 'bg-gray-100 text-gray-600'
                       }`}>{r.metodoPago}</span>
-                    </td>
-                    <td className="px-3 py-2 text-gray-400">{new Date(r.fecha).toLocaleDateString('es-CL')}</td>
-                    <td className="px-3 py-2">
-                      {r.comprobanteUrl
-                        ? <a href={r.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline text-xs">ver</a>
-                        : <span className="text-gray-300 text-xs">—</span>
-                      }
-                    </td>
-                    <td className="px-3 py-2">
+                      <span className="text-gray-400">{new Date(r.fecha).toLocaleDateString('es-CL')}</span>
+                      {r.comprobanteUrl && (
+                        <a href={r.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">Comprobante</a>
+                      )}
                       <BorrarManualPaymentButton id={String(r._id)} />
-                    </td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
 
           {workshops.length > 0 && (

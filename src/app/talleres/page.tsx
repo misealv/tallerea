@@ -53,7 +53,7 @@ async function WorkshopResults({ searchParams }: { searchParams: PageProps['sear
   if (result.data.length === 0) {
     return (
       <div className="text-center py-16">
-        <p className="text-5xl mb-4">🔍</p>
+        <p className="text-4xl sm:text-5xl mb-4">🔍</p>
         <h2 className="text-xl font-semibold text-gray-700 mb-2">No encontramos talleres</h2>
         <p className="text-gray-500">Prueba ajustando los filtros o busca en otra comuna.</p>
       </div>

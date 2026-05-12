@@ -34,8 +34,9 @@ export default function AdminUsuariosPage() {
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Usuarios ({users.length})</h1>
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[600px]">
+        {/* Tabla — desktop */}
+        <div className="hidden md:block overflow-x-auto">
+        <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-gray-600">
             <tr>
               <th className="px-4 py-3">Nombre</th>
@@ -59,6 +60,21 @@ export default function AdminUsuariosPage() {
             ))}
           </tbody>
         </table>
+        </div>
+        {/* Cards — móvil */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {users.map((u) => (
+            <div key={u._id} className="px-4 py-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-medium text-gray-900 text-sm truncate">{u.name}</p>
+                <p className="text-xs text-gray-500 truncate">{u.email}</p>
+              </div>
+              <div className="text-right shrink-0">
+                <span className={`text-xs px-2 py-0.5 rounded-full ${rolBadge[u.role] || 'bg-gray-100 text-gray-500'}`}>{u.role}</span>
+                <p className="text-xs text-gray-400 mt-0.5">{new Date(u.createdAt).toLocaleDateString('es-CL')}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

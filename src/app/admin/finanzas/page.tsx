@@ -98,7 +98,7 @@ export default function AdminFinanzasPage() {
       )}
 
       {/* Totales globales */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-5 text-center">
           <p className="text-2xl font-bold text-gray-900">${totals.bruto.toLocaleString('es-CL')}</p>
           <p className="text-xs text-gray-500">Total recaudado</p>
@@ -122,8 +122,9 @@ export default function AdminFinanzasPage() {
         <div className="p-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-900">Desglose por profesor</h2>
         </div>
-        <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[600px]">
+        {/* Tabla — desktop */}
+        <div className="hidden md:block overflow-x-auto">
+        <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-gray-600">
             <tr>
               <th className="px-4 py-3">Profesor</th>
@@ -145,6 +146,22 @@ export default function AdminFinanzasPage() {
             ))}
           </tbody>
         </table>
+        </div>
+        {/* Cards — móvil */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {data.map(row => (
+            <div key={row.ownerId} className="px-4 py-3 space-y-0.5">
+              <div className="flex items-center justify-between">
+                <p className="font-medium text-gray-900 text-sm">{row.ownerName}</p>
+                <span className="text-xs text-gray-500">{row.count} txs</span>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs">
+                <span className="text-gray-600">Bruto: ${row.totalBruto.toLocaleString('es-CL')}</span>
+                <span className="text-purple-600">Fee: ${row.totalFee.toLocaleString('es-CL')}</span>
+                <span className="text-green-700 font-semibold">Profesor: ${row.totalProfesor.toLocaleString('es-CL')}</span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

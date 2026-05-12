@@ -113,54 +113,84 @@ export default async function InscritosGlobalPage() {
         {enrollments.length === 0 ? (
           <p className="text-sm text-gray-400">Sin inscripciones aún.</p>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
-                  <th className="px-4 py-3">Alumno</th>
-                  <th className="px-4 py-3">Email</th>
-                  <th className="px-4 py-3">Taller</th>
-                  <th className="px-4 py-3">Monto</th>
-                  <th className="px-4 py-3">Estado</th>
-                  <th className="px-4 py-3">Fecha</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {enrollments.map(e => {
-                  const student = e.studentId as StudentRef
-                  const workshop = e.workshopId as WorkshopRef
-                  return (
-                    <tr key={String(e._id)} className="border-t border-gray-100 hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-800">{student.name}</td>
-                      <td className="px-4 py-3 text-gray-500">{student.email}</td>
-                      <td className="px-4 py-3 text-gray-700 max-w-[180px] truncate">
-                        {e.esClasePrueba && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded mr-1">Prueba</span>}
-                        {workshop.titulo}
-                      </td>
-                      <td className="px-4 py-3">${e.monto.toLocaleString('es-CL')}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[e.estado] ?? 'bg-gray-100 text-gray-500'}`}>
-                          {e.estado}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-400 whitespace-nowrap">
-                        {new Date(e.createdAt).toLocaleDateString('es-CL')}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/tallerista/talleres/${String(workshop._id)}/inscritos`}
-                          className="text-xs text-indigo-600 hover:underline"
-                        >
-                          Ver taller
-                        </Link>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <>
+            {/* Tabla — solo desktop */}
+            <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 bg-white">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
+                    <th className="px-4 py-3">Alumno</th>
+                    <th className="px-4 py-3">Email</th>
+                    <th className="px-4 py-3">Taller</th>
+                    <th className="px-4 py-3">Monto</th>
+                    <th className="px-4 py-3">Estado</th>
+                    <th className="px-4 py-3">Fecha</th>
+                    <th className="px-4 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {enrollments.map(e => {
+                    const student = e.studentId as StudentRef
+                    const workshop = e.workshopId as WorkshopRef
+                    return (
+                      <tr key={String(e._id)} className="border-t border-gray-100 hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-800">{student.name}</td>
+                        <td className="px-4 py-3 text-gray-500">{student.email}</td>
+                        <td className="px-4 py-3 text-gray-700 max-w-[180px] truncate">
+                          {e.esClasePrueba && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded mr-1">Prueba</span>}
+                          {workshop.titulo}
+                        </td>
+                        <td className="px-4 py-3">${e.monto.toLocaleString('es-CL')}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[e.estado] ?? 'bg-gray-100 text-gray-500'}`}>
+                            {e.estado}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-400 whitespace-nowrap">
+                          {new Date(e.createdAt).toLocaleDateString('es-CL')}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Ver taller</Link>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Cards — solo móvil */}
+            <div className="md:hidden space-y-3">
+              {enrollments.map(e => {
+                const student = e.studentId as StudentRef
+                const workshop = e.workshopId as WorkshopRef
+                return (
+                  <div key={String(e._id)} className="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium text-gray-800 text-sm">{student.name}</p>
+                        <p className="text-xs text-gray-500">{student.email}</p>
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${ESTADO_COLOR[e.estado] ?? 'bg-gray-100 text-gray-500'}`}>
+                        {e.estado}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-700 truncate">
+                      {e.esClasePrueba && <span className="bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded mr-1">Prueba</span>}
+                      {workshop.titulo}
+                    </p>
+                    <div className="flex items-center justify-between pt-1">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-gray-800">${e.monto.toLocaleString('es-CL')}</span>
+                        <span className="text-xs text-gray-400">{new Date(e.createdAt).toLocaleDateString('es-CL')}</span>
+                      </div>
+                      <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Ver taller</Link>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </>
         )}
       </section>
 
@@ -175,87 +205,140 @@ export default async function InscritosGlobalPage() {
         {subscriptions.length === 0 ? (
           <p className="text-sm text-gray-400">Sin suscripciones aún.</p>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
-                  <th className="px-4 py-3">Alumno</th>
-                  <th className="px-4 py-3">Email</th>
-                  <th className="px-4 py-3">Taller</th>
-                  <th className="px-4 py-3">Sesiones</th>
-                  <th className="px-4 py-3">Precio / próx.</th>
-                  <th className="px-4 py-3">Estado</th>
-                  <th className="px-4 py-3">Vence</th>
-                  <th className="px-4 py-3"></th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {subscriptions.map(s => {
-                  const student = s.studentId as StudentRef
-                  const workshop = s.workshopId as WorkshopRef
-                  return (
-                    <tr key={String(s._id)} className="border-t border-gray-100 hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-800">{student.name}</td>
-                      <td className="px-4 py-3 text-gray-500">{student.email}</td>
-                      <td className="px-4 py-3 text-gray-700 max-w-[180px] truncate">{workshop.titulo}</td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {s.sesionesUsadas}/{s.sesionesTotales}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span>${s.monto.toLocaleString('es-CL')}</span>
-                        {s.precioEspecial && s.precioSnapshot !== undefined && s.precioSnapshot !== s.monto && (
-                          <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded" title={s.notaPrecioEspecial ?? 'Precio especial'}>→ ${s.precioSnapshot.toLocaleString('es-CL')}</span>
-                        )}
-                        {s.precioEspecial && s.precioSnapshot === s.monto && (
-                          <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded" title={s.notaPrecioEspecial ?? 'Precio especial'}>★</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[s.estado] ?? 'bg-gray-100 text-gray-500'}`}>
-                          {s.estado === 'pendiente_pago' ? 'pendiente pago' : s.estado}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-400 whitespace-nowrap">
-                        {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/tallerista/talleres/${String(workshop._id)}/inscritos`}
-                          className="text-xs text-indigo-600 hover:underline"
-                        >
-                          Ver taller
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {(s.estado === 'activa' || s.estado === 'pendiente_pago') && (
-                          <EditarSuscripcionModal
-                            subscriptionId={String(s._id)}
-                            studentName={student.name}
-                            workshopTitle={workshop.titulo}
-                            precioActual={s.precioSnapshot ?? s.monto}
-                            fechaVencimientoActual={new Date(s.fechaVencimiento).toISOString()}
-                            notaActual={s.notaPrecioEspecial}
-                          />
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {s.estado === 'activa' && (
-                          <ReservarClaseModal
-                            subscriptionId={String(s._id)}
-                            studentName={student.name}
-                            workshopTitle={workshop.titulo}
-                            sesionesDisponibles={s.sesionesDisponibles}
-                            dependentNombre={s.dependentNombreSnapshot}
-                          />
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <>
+            {/* Tabla — solo desktop */}
+            <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 bg-white">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
+                    <th className="px-4 py-3">Alumno</th>
+                    <th className="px-4 py-3">Email</th>
+                    <th className="px-4 py-3">Taller</th>
+                    <th className="px-4 py-3">Sesiones</th>
+                    <th className="px-4 py-3">Precio / próx.</th>
+                    <th className="px-4 py-3">Estado</th>
+                    <th className="px-4 py-3">Vence</th>
+                    <th className="px-4 py-3"></th>
+                    <th className="px-4 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {subscriptions.map(s => {
+                    const student = s.studentId as StudentRef
+                    const workshop = s.workshopId as WorkshopRef
+                    return (
+                      <tr key={String(s._id)} className="border-t border-gray-100 hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-800">{student.name}</td>
+                        <td className="px-4 py-3 text-gray-500">{student.email}</td>
+                        <td className="px-4 py-3 text-gray-700 max-w-[180px] truncate">{workshop.titulo}</td>
+                        <td className="px-4 py-3 text-gray-600">{s.sesionesUsadas}/{s.sesionesTotales}</td>
+                        <td className="px-4 py-3">
+                          <span>${s.monto.toLocaleString('es-CL')}</span>
+                          {s.precioEspecial && s.precioSnapshot !== undefined && s.precioSnapshot !== s.monto && (
+                            <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded" title={s.notaPrecioEspecial ?? 'Precio especial'}>→ ${s.precioSnapshot.toLocaleString('es-CL')}</span>
+                          )}
+                          {s.precioEspecial && s.precioSnapshot === s.monto && (
+                            <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded" title={s.notaPrecioEspecial ?? 'Precio especial'}>★</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[s.estado] ?? 'bg-gray-100 text-gray-500'}`}>
+                            {s.estado === 'pendiente_pago' ? 'pendiente pago' : s.estado}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-400 whitespace-nowrap">{new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}</td>
+                        <td className="px-4 py-3">
+                          <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Ver taller</Link>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {(s.estado === 'activa' || s.estado === 'pendiente_pago') && (
+                            <EditarSuscripcionModal
+                              subscriptionId={String(s._id)}
+                              studentName={student.name}
+                              workshopTitle={workshop.titulo}
+                              precioActual={s.precioSnapshot ?? s.monto}
+                              fechaVencimientoActual={new Date(s.fechaVencimiento).toISOString()}
+                              notaActual={s.notaPrecioEspecial}
+                            />
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {s.estado === 'activa' && (
+                            <ReservarClaseModal
+                              subscriptionId={String(s._id)}
+                              studentName={student.name}
+                              workshopTitle={workshop.titulo}
+                              sesionesDisponibles={s.sesionesDisponibles}
+                              dependentNombre={s.dependentNombreSnapshot}
+                            />
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Cards — solo móvil */}
+            <div className="md:hidden space-y-3">
+              {subscriptions.map(s => {
+                const student = s.studentId as StudentRef
+                const workshop = s.workshopId as WorkshopRef
+                return (
+                  <div key={String(s._id)} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+                    {/* Fila 1: nombre + estado */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium text-gray-800 text-sm">{student.name}</p>
+                        <p className="text-xs text-gray-500">{student.email}</p>
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${ESTADO_COLOR[s.estado] ?? 'bg-gray-100 text-gray-500'}`}>
+                        {s.estado === 'pendiente_pago' ? 'pend. pago' : s.estado}
+                      </span>
+                    </div>
+                    {/* Fila 2: taller */}
+                    <p className="text-xs text-gray-600 truncate">{workshop.titulo}</p>
+                    {/* Fila 3: sesiones + precio + vencimiento */}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+                      <span className="bg-gray-100 px-2 py-0.5 rounded">{s.sesionesUsadas}/{s.sesionesTotales} ses.</span>
+                      <span className="font-semibold text-gray-800">${s.monto.toLocaleString('es-CL')}</span>
+                      {s.precioEspecial && s.precioSnapshot !== undefined && s.precioSnapshot !== s.monto && (
+                        <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded" title={s.notaPrecioEspecial}>→ ${s.precioSnapshot.toLocaleString('es-CL')}</span>
+                      )}
+                      {s.precioEspecial && s.precioSnapshot === s.monto && (
+                        <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">★ especial</span>
+                      )}
+                      <span>Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}</span>
+                    </div>
+                    {/* Fila 4: acciones */}
+                    <div className="flex items-center gap-2 pt-1 border-t border-gray-100 flex-wrap">
+                      <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Ver taller</Link>
+                      {(s.estado === 'activa' || s.estado === 'pendiente_pago') && (
+                        <EditarSuscripcionModal
+                          subscriptionId={String(s._id)}
+                          studentName={student.name}
+                          workshopTitle={workshop.titulo}
+                          precioActual={s.precioSnapshot ?? s.monto}
+                          fechaVencimientoActual={new Date(s.fechaVencimiento).toISOString()}
+                          notaActual={s.notaPrecioEspecial}
+                        />
+                      )}
+                      {s.estado === 'activa' && (
+                        <ReservarClaseModal
+                          subscriptionId={String(s._id)}
+                          studentName={student.name}
+                          workshopTitle={workshop.titulo}
+                          sesionesDisponibles={s.sesionesDisponibles}
+                          dependentNombre={s.dependentNombreSnapshot}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </>
         )}
       </section>
     </div>

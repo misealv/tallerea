@@ -42,8 +42,9 @@ export default function AdminEspaciosPage() {
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Espacios ({accounts.length})</h1>
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[600px]">
+        {/* Tabla — desktop */}
+        <div className="hidden md:block overflow-x-auto">
+        <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-gray-600">
             <tr>
               <th className="px-4 py-3">Nombre</th>
@@ -78,6 +79,31 @@ export default function AdminEspaciosPage() {
             ))}
           </tbody>
         </table>
+        </div>
+        {/* Cards — móvil */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {accounts.map((a) => (
+            <div key={a._id} className="px-4 py-3 space-y-1">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-medium text-gray-900 text-sm">{a.nombre}</p>
+                  <p className="text-xs text-gray-500">{a.ownerId?.email || '—'}</p>
+                </div>
+                {a.verificado
+                  ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full shrink-0">Verificado</span>
+                  : <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full shrink-0">Pendiente</span>}
+              </div>
+              <div className="flex items-center justify-between text-xs text-gray-400">
+                <span className="capitalize">{a.tipo} · {new Date(a.createdAt).toLocaleDateString('es-CL')}</span>
+                <button
+                  onClick={() => toggleVerificado(a._id, !a.verificado)}
+                  className={`px-3 py-1 rounded ${a.verificado ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}
+                >
+                  {a.verificado ? 'Quitar' : 'Verificar'}
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

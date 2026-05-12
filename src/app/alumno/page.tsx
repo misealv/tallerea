@@ -348,7 +348,7 @@ export default async function AlumnoDashboard() {
 
           {/* Horario */}
           {(heroEsRecurrente ? proximaSlot?.horaInicio : proximaPuntual!.horaInicio) && (
-            <p className="relative text-5xl font-black tabular-nums mt-4 mb-1 leading-none tracking-tight">
+            <p className="relative text-3xl sm:text-5xl font-black tabular-nums mt-4 mb-1 leading-none tracking-tight">
               {heroEsRecurrente ? proximaSlot!.horaInicio : proximaPuntual!.horaInicio}
               <span className="text-purple-300 font-light mx-2">–</span>
               {heroEsRecurrente ? proximaSlot!.horaFin : proximaPuntual!.horaFin}

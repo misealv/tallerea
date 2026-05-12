@@ -74,7 +74,9 @@ export default function PaymentBreakdownTable({ ownerId, showOwner = false }: Pr
         <span className="text-xs text-gray-400">{total} registros</span>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {/* Tabla — desktop */}
+        <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-gray-600">
             <tr>
@@ -127,6 +129,33 @@ export default function PaymentBreakdownTable({ ownerId, showOwner = false }: Pr
             ))}
           </tbody>
         </table>
+        </div>
+        {/* Cards — móvil */}
+        <div className="md:hidden">
+          {loading && <p className="px-4 py-6 text-center text-gray-400 text-sm">Cargando...</p>}
+          {!loading && data.length === 0 && <p className="px-4 py-6 text-center text-gray-400 text-sm">Sin transacciones</p>}
+          {!loading && (
+            <div className="divide-y divide-gray-100">
+              {data.map(b => (
+                <div key={b._id} className="px-4 py-3 space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{b.workshopId?.titulo || '—'}</p>
+                      <p className="text-xs text-gray-500 truncate">{b.studentId?.name || '—'}{showOwner && b.ownerId?.name ? ` · ${b.ownerId.name}` : ''}</p>
+                    </div>
+                    <p className="text-sm font-bold text-green-700 shrink-0">${b.montoProfesor.toLocaleString('es-CL')}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="text-gray-400">{new Date(b.createdAt).toLocaleDateString('es-CL')}</span>
+                    <span className="text-gray-500">Bruto ${b.montoBruto.toLocaleString('es-CL')} · Fee ${b.feeTallerea.toLocaleString('es-CL')}</span>
+                    <span className={`px-1.5 py-0.5 rounded-full ${TIPO_BADGE[b.tipo] || ''}`}>{b.tipo}</span>
+                    <span className={`px-1.5 py-0.5 rounded-full ${ESTADO_BADGE[b.estado] || ''}`}>{b.estado}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Paginación */}

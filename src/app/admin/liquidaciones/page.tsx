@@ -148,8 +148,9 @@ export default function AdminLiquidacionesPage() {
 
       {/* Lista de liquidaciones */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[600px]">
+        {/* Tabla — desktop */}
+        <div className="hidden md:block overflow-x-auto">
+        <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-gray-600">
             <tr>
               <th className="px-4 py-3">Espacio</th>
@@ -188,6 +189,28 @@ export default function AdminLiquidacionesPage() {
             ))}
           </tbody>
         </table>
+        </div>
+        {/* Cards — móvil */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {liquidations.map(l => (
+            <div key={l._id} className="px-4 py-3 space-y-1">
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-medium text-gray-900 text-sm">{l.accountId?.nombre || '—'}</p>
+                <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${estadoBadge[l.estado] || 'bg-gray-100'}`}>{l.estado}</span>
+              </div>
+              <p className="text-xs text-gray-500">
+                {new Date(l.periodo.desde).toLocaleDateString('es-CL')} — {new Date(l.periodo.hasta).toLocaleDateString('es-CL')}
+              </p>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-green-700 font-semibold">${l.totalProfesor.toLocaleString('es-CL')} · {l.cantidadPagos} pagos</span>
+                {l.estado === 'pendiente' && (
+                  <button onClick={() => handleMarkPaid(l._id)} className="text-green-600 hover:underline">
+                    Marcar pagada
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

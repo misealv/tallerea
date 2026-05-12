@@ -17,7 +17,7 @@ export default async function Home() {
       <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white">
         {/* Hero */}
         <main className="max-w-6xl mx-auto px-4 py-20 text-center">
-          <h1 className="text-5xl font-bold text-gray-900 mb-6">
+          <h1 className="text-3xl sm:text-5xl font-bold text-gray-900 mb-6">
             Encuentra tus talleres de<br className="hidden sm:block" />{' '}
             <span className="text-purple-600">cultura, artes y oficios</span>
           </h1>

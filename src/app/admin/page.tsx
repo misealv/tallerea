@@ -32,7 +32,7 @@ export default function AdminPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard Admin</h1>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
         {cards.map((c) => (
           <div key={c.label} className="bg-white rounded-xl border border-gray-200 p-5 text-center">
             <p className="text-2xl mb-1">{c.icon}</p>
