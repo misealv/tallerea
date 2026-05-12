@@ -8,6 +8,7 @@ import Enrollment from '@/models/Enrollment'
 import Subscription from '@/models/Subscription'
 import { Types } from 'mongoose'
 import ReservarClaseModal from './ReservarClaseModal'
+import EditarSuscripcionModal from './EditarSuscripcionModal'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +33,9 @@ interface SubLean {
   sesionesDisponibles: number
   fechaVencimiento: Date
   monto: number
+  precioSnapshot?: number
+  precioEspecial?: boolean
+  notaPrecioEspecial?: string
   createdAt: Date
   dependentNombreSnapshot?: string
 }
@@ -79,6 +83,7 @@ export default async function InscritosGlobalPage() {
     Subscription.find({ workshopId: { $in: workshopIds }, activo: true })
       .populate('studentId', 'name email')
       .populate('workshopId', '_id titulo')
+      .select('studentId workshopId estado sesionesUsadas sesionesTotales sesionesDisponibles fechaVencimiento monto precioSnapshot precioEspecial notaPrecioEspecial createdAt dependentNombreSnapshot')
       .sort({ createdAt: -1 })
       .lean<SubLean[]>(),
   ])
@@ -178,7 +183,7 @@ export default async function InscritosGlobalPage() {
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Taller</th>
                   <th className="px-4 py-3">Sesiones</th>
-                  <th className="px-4 py-3">Monto</th>
+                  <th className="px-4 py-3">Precio / próx.</th>
                   <th className="px-4 py-3">Estado</th>
                   <th className="px-4 py-3">Vence</th>
                   <th className="px-4 py-3"></th>
@@ -197,7 +202,15 @@ export default async function InscritosGlobalPage() {
                       <td className="px-4 py-3 text-gray-600">
                         {s.sesionesUsadas}/{s.sesionesTotales}
                       </td>
-                      <td className="px-4 py-3">${s.monto.toLocaleString('es-CL')}</td>
+                      <td className="px-4 py-3">
+                        <span>${s.monto.toLocaleString('es-CL')}</span>
+                        {s.precioEspecial && s.precioSnapshot !== undefined && s.precioSnapshot !== s.monto && (
+                          <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded" title={s.notaPrecioEspecial ?? 'Precio especial'}>→ ${s.precioSnapshot.toLocaleString('es-CL')}</span>
+                        )}
+                        {s.precioEspecial && s.precioSnapshot === s.monto && (
+                          <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded" title={s.notaPrecioEspecial ?? 'Precio especial'}>★</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[s.estado] ?? 'bg-gray-100 text-gray-500'}`}>
                           {s.estado === 'pendiente_pago' ? 'pendiente pago' : s.estado}
@@ -213,6 +226,18 @@ export default async function InscritosGlobalPage() {
                         >
                           Ver taller
                         </Link>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {(s.estado === 'activa' || s.estado === 'pendiente_pago') && (
+                          <EditarSuscripcionModal
+                            subscriptionId={String(s._id)}
+                            studentName={student.name}
+                            workshopTitle={workshop.titulo}
+                            precioActual={s.precioSnapshot ?? s.monto}
+                            fechaVencimientoActual={new Date(s.fechaVencimiento).toISOString()}
+                            notaActual={s.notaPrecioEspecial}
+                          />
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {s.estado === 'activa' && (

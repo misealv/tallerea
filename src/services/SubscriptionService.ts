@@ -87,6 +87,7 @@ export const SubscriptionService = {
     paqueteId?: string,
     dependentNombre?: string,
     dependentFechaNacimiento?: string,
+    precioEspecialOverride?: { monto: number; nota?: string },
   ): Promise<CreateSubscriptionResult> {
     await dbConnect()
 
@@ -204,6 +205,10 @@ export const SubscriptionService = {
     // [FINANCE] Crear suscripción en estado 'pendiente_pago'.
     // El PaymentBreakdown NO se crea acá — se difiere a handleApprovedSubscription
     // cuando MercadoPago confirme el pago (Principio #10: nunca registrar dinero antes de confirmación).
+    // [FINANCE RISK] Si hay precio especial override, usarlo en lugar del monto calculado
+    if (precioEspecialOverride && precioEspecialOverride.monto >= 0) {
+      monto = precioEspecialOverride.monto
+    }
     const estadoInicial = monto === 0 ? 'activa' : 'pendiente_pago'
     const subscription = await new Subscription({
       workshopId,
@@ -226,6 +231,12 @@ export const SubscriptionService = {
       ...(resolvedDependentId && {
         dependentId:             resolvedDependentId,
         dependentNombreSnapshot: resolvedDependentSnapshot,
+      }),
+      // Precio especial: marcar y guardar nota si viene del override
+      ...(precioEspecialOverride && {
+        precioEspecial:     true,
+        notaPrecioEspecial: precioEspecialOverride.nota,
+        precioSnapshot:     monto,
       }),
     }).save()
 
@@ -262,11 +273,19 @@ export const SubscriptionService = {
     // Preservar paqueteId del snapshot para renovar con el mismo paquete
     const paqueteIdPrev = prev.paqueteId ? String(prev.paqueteId) : undefined
 
+    // [FINANCE RISK] Si la sub anterior tenía precio especial, mantenerlo en la renovación
+    const precioEspecialOverride = prev.precioEspecial && typeof prev.precioSnapshot === 'number'
+      ? { monto: prev.precioSnapshot, nota: prev.notaPrecioEspecial }
+      : undefined
+
     return this.createWithPayment(
       String(prev.workshopId),
       String(prev.studentId),
       studentEmail,
       paqueteIdPrev,
+      undefined,
+      undefined,
+      precioEspecialOverride,
     )
   },
 
@@ -278,6 +297,41 @@ export const SubscriptionService = {
     sub.estado = 'cancelada'
     await sub.save()
     return sub
+  },
+
+  /**
+   * [FINANCE RISK] Actualización administrativa del precio especial y/o fecha de vencimiento.
+   * Solo modifica campos que afectan la PRÓXIMA renovación o el ciclo actual.
+   * NO crea PaymentBreakdown ni cobra/reembolsa de forma inmediata.
+   */
+  async adminUpdate(
+    subscriptionId: string,
+    data: {
+      precioSnapshot?: number
+      fechaVencimiento?: Date
+      notaPrecioEspecial?: string
+    }
+  ): Promise<ISubscription> {
+    await dbConnect()
+    const sub = await Subscription.findById(subscriptionId)
+    if (!sub) throw new Error('Suscripción no encontrada')
+
+    if (data.precioSnapshot !== undefined) {
+      if (!Number.isInteger(data.precioSnapshot) || data.precioSnapshot < 0) {
+        throw new Error('[FINANCE] precioSnapshot debe ser entero CLP >= 0')
+      }
+      sub.precioSnapshot = data.precioSnapshot
+      sub.precioEspecial = true
+    }
+    if (data.fechaVencimiento !== undefined) {
+      sub.fechaVencimiento = data.fechaVencimiento
+    }
+    if (data.notaPrecioEspecial !== undefined) {
+      sub.notaPrecioEspecial = data.notaPrecioEspecial
+    }
+
+    await sub.save()
+    return sub.toObject()
   },
 
   /**
