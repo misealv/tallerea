@@ -2,7 +2,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { Suspense } from 'react'
 import dbConnect from '@/lib/db'
+import CalendarioResumen from './CalendarioResumen'
 import Workshop from '@/models/Workshop'
 import Enrollment from '@/models/Enrollment'
 import Subscription from '@/models/Subscription'
@@ -118,6 +120,19 @@ export default async function TalleristaDashboardPage() {
           Editar mi perfil
         </Link>
       </div>
+
+      <Suspense fallback={
+        <div className="bg-white border border-gray-200 rounded-xl p-5 animate-pulse">
+          <div className="h-4 w-40 bg-gray-200 rounded mb-4" />
+          <div className="space-y-3">
+            <div className="h-14 bg-gray-100 rounded-lg" />
+            <div className="h-14 bg-gray-100 rounded-lg" />
+            <div className="h-14 bg-gray-100 rounded-lg" />
+          </div>
+        </div>
+      }>
+        <CalendarioResumen ownerId={ownerId} />
+      </Suspense>
     </div>
   )
 }
