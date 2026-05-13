@@ -9,12 +9,21 @@ import Workshop from '@/models/Workshop'
 import { Types } from 'mongoose'
 import ReservasCalendar from './ReservasCalendar'
 import type { CalendarSlot } from './ReservasCalendar'
+import { getSubViewInfo } from '@/lib/subscriptionView'
 
 export const dynamic = 'force-dynamic'
 
 interface SlotLean { horaInicio: string; horaFin: string; fecha?: Date; reservas: number; cancelado: boolean }
 interface WorkshopLean { _id: Types.ObjectId; titulo: string; slug: string; cupoPorSesion: number; slots: SlotLean[] }
-interface SubLean { _id: Types.ObjectId; estado: string; sesionesDisponibles: number; fechaVencimiento: Date }
+interface SubLean {
+  _id: Types.ObjectId
+  estado: string
+  sesionesUsadas: number
+  sesionesTotales: number
+  sesionesDisponibles: number
+  fechaVencimiento: Date
+  clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }
+}
 interface BookingLean { _id: Types.ObjectId; slotIndex: number; fecha: Date; estado: string }
 
 export default async function ReservasPage({ searchParams }: { searchParams: Promise<{ sub?: string; workshop?: string }> }) {
@@ -67,14 +76,19 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
         <h1 className="mt-3 text-2xl font-bold text-gray-900">{workshop.titulo}</h1>
       </div>
 
-      <ReservasCalendar
-        subscriptionId={subId}
-        workshopId={String(workshop._id)}
-        workshopSlug={workshop.slug}
-        sesionesDisponibles={sub.sesionesDisponibles}
-        fechaVencimiento={sub.fechaVencimiento.toISOString()}
-        allSlots={calendarSlots}
-      />
+      {(() => {
+        const vi = getSubViewInfo(sub)
+        return (
+          <ReservasCalendar
+            subscriptionId={subId}
+            workshopId={String(workshop._id)}
+            workshopSlug={workshop.slug}
+            sesionesDisponibles={vi.disponibles}
+            fechaVencimiento={vi.fechaVigenciaReal.toISOString()}
+            allSlots={calendarSlots}
+          />
+        )
+      })()}
     </div>
   )
 }

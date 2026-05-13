@@ -8,6 +8,7 @@ import Subscription from '@/models/Subscription'
 // Importar Workshop para registrar el schema antes de populate (evita MissingSchemaError en cold-start)
 import '@/models/Workshop'
 import { Types } from 'mongoose'
+import { getSubViewInfo } from '@/lib/subscriptionView'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,9 +29,11 @@ interface SubscriptionLean {
   estado: string
   sesionesUsadas: number
   sesionesTotales: number
+  sesionesDisponibles: number
   fechaVencimiento: Date
   monto: number
   createdAt: Date
+  clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }
 }
 
 const ESTADO_LABEL: Record<string, string> = {
@@ -87,6 +90,7 @@ export default async function HistorialPage() {
           <div className="space-y-3">
             {subscriptions.map(s => {
               const w = s.workshopId as WorkshopRef
+              const vi = getSubViewInfo(s)
               return (
               <div key={String(s._id)} className="bg-white border border-gray-200 rounded-xl px-5 py-4">
                 <div className="flex items-start justify-between">
@@ -95,10 +99,8 @@ export default async function HistorialPage() {
                       {w.titulo}
                     </Link>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {s.sesionesUsadas} / {s.sesionesTotales} sesiones usadas
-                      {s.fechaVencimiento && (
-                        <> · Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}</>
-                      )}
+                      {vi.usadas} / {vi.totales} sesiones usadas
+                      <> · Vigente hasta {vi.vigenciaDateStr}</>
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
                       ${(s.monto ?? 0).toLocaleString('es-CL')} / mes · Desde {new Date(s.createdAt).toLocaleDateString('es-CL')}

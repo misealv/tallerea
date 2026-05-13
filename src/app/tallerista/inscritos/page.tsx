@@ -9,6 +9,7 @@ import Subscription from '@/models/Subscription'
 import { Types } from 'mongoose'
 import ReservarClaseModal from './ReservarClaseModal'
 import EditarSuscripcionModal from './EditarSuscripcionModal'
+import { getSubViewInfo } from '@/lib/subscriptionView'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +39,7 @@ interface SubLean {
   notaPrecioEspecial?: string
   createdAt: Date
   dependentNombreSnapshot?: string
+  clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }
 }
 
 const ESTADO_COLOR: Record<string, string> = {
@@ -83,7 +85,7 @@ export default async function InscritosGlobalPage() {
     Subscription.find({ workshopId: { $in: workshopIds }, activo: true })
       .populate('studentId', '_id name email')
       .populate('workshopId', '_id titulo')
-      .select('studentId workshopId estado sesionesUsadas sesionesTotales sesionesDisponibles fechaVencimiento monto precioSnapshot precioEspecial notaPrecioEspecial createdAt dependentNombreSnapshot')
+      .select('studentId workshopId estado sesionesUsadas sesionesTotales sesionesDisponibles fechaVencimiento monto precioSnapshot precioEspecial notaPrecioEspecial createdAt dependentNombreSnapshot clasesPrepagadas')
       .sort({ createdAt: -1 })
       .lean<SubLean[]>(),
   ])
@@ -230,12 +232,13 @@ export default async function InscritosGlobalPage() {
                   {subscriptions.map(s => {
                     const student = s.studentId as StudentRef
                     const workshop = s.workshopId as WorkshopRef
+                    const vi = getSubViewInfo(s)
                     return (
                       <tr key={String(s._id)} className="border-t border-gray-100 hover:bg-gray-50">
                         <td className="px-4 py-3 font-medium text-gray-800">{student.name}</td>
                         <td className="px-4 py-3 text-gray-500">{student.email}</td>
                         <td className="px-4 py-3 text-gray-700 max-w-[180px] truncate">{workshop.titulo}</td>
-                        <td className="px-4 py-3 text-gray-600">{s.sesionesUsadas}/{s.sesionesTotales}</td>
+                        <td className="px-4 py-3 text-gray-600">{vi.etiquetaSesiones}</td>
                         <td className="px-4 py-3">
                           <span>${s.monto.toLocaleString('es-CL')}</span>
                           {s.precioEspecial && s.precioSnapshot !== undefined && s.precioSnapshot !== s.monto && (
@@ -250,7 +253,7 @@ export default async function InscritosGlobalPage() {
                             {s.estado === 'pendiente_pago' ? 'pendiente pago' : s.estado}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-gray-400 whitespace-nowrap">{new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}</td>
+                        <td className="px-4 py-3 text-gray-400 whitespace-nowrap">{vi.vigenciaDateStr}</td>
                         <td className="px-4 py-3 whitespace-nowrap space-x-2">
                           <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Ver taller</Link>
                           <Link href={`/tallerista/inscritos/${String(student._id)}/reservas`} className="text-xs text-gray-500 hover:underline">Ver reservas</Link>
@@ -290,6 +293,7 @@ export default async function InscritosGlobalPage() {
               {subscriptions.map(s => {
                 const student = s.studentId as StudentRef
                 const workshop = s.workshopId as WorkshopRef
+                const vi = getSubViewInfo(s)
                 return (
                   <div key={String(s._id)} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
                     {/* Fila 1: nombre + estado */}
@@ -306,7 +310,7 @@ export default async function InscritosGlobalPage() {
                     <p className="text-xs text-gray-600 truncate">{workshop.titulo}</p>
                     {/* Fila 3: sesiones + precio + vencimiento */}
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
-                      <span className="bg-gray-100 px-2 py-0.5 rounded">{s.sesionesUsadas}/{s.sesionesTotales} ses.</span>
+                      <span className="bg-gray-100 px-2 py-0.5 rounded">{vi.etiquetaSesiones}</span>
                       <span className="font-semibold text-gray-800">${s.monto.toLocaleString('es-CL')}</span>
                       {s.precioEspecial && s.precioSnapshot !== undefined && s.precioSnapshot !== s.monto && (
                         <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded" title={s.notaPrecioEspecial}>→ ${s.precioSnapshot.toLocaleString('es-CL')}</span>
@@ -314,7 +318,7 @@ export default async function InscritosGlobalPage() {
                       {s.precioEspecial && s.precioSnapshot === s.monto && (
                         <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">★ especial</span>
                       )}
-                      <span>Vence {new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}</span>
+                      <span>Vigente hasta {vi.vigenciaDateStr}</span>
                     </div>
                     {/* Fila 4: acciones */}
                     <div className="flex items-center gap-2 pt-1 border-t border-gray-100 flex-wrap">

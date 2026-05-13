@@ -10,6 +10,7 @@ interface SubscriptionCardProps {
     sesionesDisponibles: number
     fechaVencimiento: string
     monto: number
+    clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: string }
   }
   onCancel: (id: string) => void
   onRenew: (id: string) => void
@@ -26,7 +27,12 @@ export default function SubscriptionCard({ subscription: sub, onCancel, onRenew 
   const pct = sub.sesionesTotales > 0
     ? Math.round((sub.sesionesUsadas / sub.sesionesTotales) * 100)
     : 0
-  const vencimiento = new Date(sub.fechaVencimiento)
+  // Vigencia real: si hay prepago con saldo y caducaEn, esa fecha gana sobre fechaVencimiento
+  const prepaid = sub.clasesPrepagadas
+  const prepaidActivo = !!prepaid && prepaid.consumidas < prepaid.cantidad
+  const vencimiento = prepaidActivo && prepaid!.caducaEn
+    ? new Date(prepaid!.caducaEn)
+    : new Date(sub.fechaVencimiento)
   const diasRestantes = Math.ceil((vencimiento.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
 
   return (

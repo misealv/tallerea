@@ -12,6 +12,7 @@ import MarcaAsistenciaButton from '@/components/MarcaAsistenciaButton'
 import EditarPrecioButton from '@/components/EditarPrecioButton'
 import CancelarInscripcionButton from '@/components/CancelarInscripcionButton'
 import ReservarClaseModal from '@/app/tallerista/inscritos/ReservarClaseModal'
+import { getSubViewInfo } from '@/lib/subscriptionView'
 
 export const dynamic = 'force-dynamic'
 
@@ -170,6 +171,7 @@ export default async function InscritosPage({
                 const prepaid = s.clasesPrepagadas
                 const prepaidActivo = prepaid && prepaid.consumidas < prepaid.cantidad
                 const esBecado = s.precioEspecial && s.precioSnapshot === 0
+                const vi = getSubViewInfo(s)
                 return (
                   <tr key={String(s._id)} className="border-t border-gray-100">
                     <td className="px-4 py-2 font-medium text-gray-800">
@@ -209,7 +211,7 @@ export default async function InscritosPage({
                       )}
                     </td>
                     <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[s.estado] ?? ''}`}>{s.estado}</span></td>
-                    <td className="px-4 py-2 text-gray-400">{new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}</td>
+                    <td className="px-4 py-2 text-gray-400">{vi.vigenciaDateStr}</td>
                     <td className="px-4 py-2">
                       <EditarPrecioButton
                         subscriptionId={String(s._id)}
