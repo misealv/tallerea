@@ -23,6 +23,33 @@ interface PaginatedResult<T> {
   limit: number
 }
 
+export interface UpcomingBookingDetail {
+  bookingId: string
+  subscriptionId: string
+  workshopId: string
+  workshopTitulo: string
+  workshopSlug: string
+  workshopModalidad?: 'presencial' | 'online' | 'hibrido'
+  workshopTipo?: string
+  talleristaNombre: string
+  location: {
+    nombre: string
+    direccion: string
+    comuna: string
+    ciudad: string
+  } | null
+  slotIndex: number
+  fecha: Date
+  horaInicio: string
+  horaFin: string
+  cancelado: boolean
+  dependentNombre?: string
+  reagendamiento: {
+    estado: 'pendiente' | 'aprobado' | 'rechazado'
+    slotDestinoIndex?: number
+  } | null
+}
+
 export const BookingService = {
 
   async getAll(
@@ -434,6 +461,77 @@ export const BookingService = {
       .populate('workshopId', 'titulo slug')
       .sort({ fecha: 1 })
       .lean<IBooking[]>()
+  },
+
+  // Vista unificada de reservas próximas del alumno con datos enriquecidos.
+  // Incluye horario del slot, modalidad, tipo, nombre del tallerista y
+  // estado de reagendamiento para poder renderizar la lista completa sin
+  // queries adicionales en el componente.
+  async getDetailedUpcomingByStudent(studentId: string): Promise<UpcomingBookingDetail[]> {
+    await dbConnect()
+
+    interface RawBooking {
+      _id: import('mongoose').Types.ObjectId
+      subscriptionId: import('mongoose').Types.ObjectId
+      workshopId: {
+        _id: import('mongoose').Types.ObjectId
+        titulo: string
+        slug: string
+        modalidad?: 'presencial' | 'online' | 'hibrido'
+        tipo?: string
+        slots: Array<{ horaInicio: string; horaFin: string; cancelado?: boolean }>
+        ownerId?: { name?: string }
+        locationId?: { nombre: string; direccion: string; comuna: string; ciudad: string }
+      }
+      slotIndex: number
+      fecha: Date
+      estado: string
+      dependentNombreSnapshot?: string
+      reagendamiento?: {
+        estado: 'pendiente' | 'aprobado' | 'rechazado'
+        slotDestinoIndex?: number
+      }
+    }
+
+    const bookings = await Booking.find({
+      studentId,
+      estado: 'reservada',
+      fecha: { $gte: new Date() },
+      activo: true,
+    })
+      .populate({
+        path: 'workshopId',
+        select: 'titulo slug modalidad tipo slots ownerId locationId',
+        populate: [
+          { path: 'ownerId',    select: 'name' },
+          { path: 'locationId', select: 'nombre direccion comuna ciudad' },
+        ],
+      })
+      .sort({ fecha: 1 })
+      .lean<RawBooking[]>()
+
+    return bookings.map(b => {
+      const slot = b.workshopId?.slots?.[b.slotIndex]
+      const loc  = b.workshopId?.locationId
+      return {
+        bookingId:             String(b._id),
+        subscriptionId:        String(b.subscriptionId),
+        workshopId:            String(b.workshopId?._id),
+        workshopTitulo:        b.workshopId?.titulo ?? '',
+        workshopSlug:          b.workshopId?.slug ?? '',
+        workshopModalidad:     b.workshopId?.modalidad,
+        workshopTipo:          b.workshopId?.tipo,
+        talleristaNombre:      b.workshopId?.ownerId?.name ?? '',
+        location:              loc ? { nombre: loc.nombre, direccion: loc.direccion, comuna: loc.comuna, ciudad: loc.ciudad } : null,
+        slotIndex:             b.slotIndex,
+        fecha:                 b.fecha,
+        horaInicio:            slot?.horaInicio ?? '',
+        horaFin:               slot?.horaFin ?? '',
+        cancelado:             slot?.cancelado ?? false,
+        dependentNombre:       b.dependentNombreSnapshot,
+        reagendamiento:        b.reagendamiento ?? null,
+      }
+    })
   },
 
   // El tallerista reserva una clase a nombre de un alumno suscrito.
