@@ -766,11 +766,18 @@ export const SubscriptionService = {
     let sesionesDisponibles: number
 
     if (input.clasesPrepagadas) {
-      // Taller prepagado: el vencimiento es técnico (1 año); las sesiones vienen del paquete
+      // Taller prepagado: las sesiones vienen del paquete.
+      // [CICLO] Si hay caducaEn, ESA es la fecha real de vencimiento.
+      // Sin esto el cron vencer-suscripciones nunca dispara el email de
+      // vencida/renovar y la sub queda zombi en 'activa' durante 1 año.
       sesionesTotales = input.clasesPrepagadas.cantidad
       sesionesDisponibles = input.clasesPrepagadas.cantidad
-      fechaVencimiento = new Date(ahora)
-      fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1)
+      if (input.clasesPrepagadas.caducaEn) {
+        fechaVencimiento = input.clasesPrepagadas.caducaEn
+      } else {
+        fechaVencimiento = new Date(ahora)
+        fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1)
+      }
     } else if (workshop.plan) {
       sesionesTotales = workshop.plan.sesionesIncluidas
       sesionesDisponibles = workshop.plan.sesionesIncluidas
