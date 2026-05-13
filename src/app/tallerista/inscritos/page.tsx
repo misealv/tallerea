@@ -12,7 +12,7 @@ import EditarSuscripcionModal from './EditarSuscripcionModal'
 
 export const dynamic = 'force-dynamic'
 
-interface StudentRef { name: string; email: string }
+interface StudentRef { _id: Types.ObjectId; name: string; email: string }
 interface WorkshopRef { _id: Types.ObjectId; titulo: string }
 interface EnrollmentLean {
   _id: Types.ObjectId
@@ -76,12 +76,12 @@ export default async function InscritosGlobalPage() {
 
   const [enrollments, subscriptions] = await Promise.all([
     Enrollment.find({ workshopId: { $in: workshopIds }, activo: true })
-      .populate('studentId', 'name email')
+      .populate('studentId', '_id name email')
       .populate('workshopId', '_id titulo')
       .sort({ createdAt: -1 })
       .lean<EnrollmentLean[]>(),
     Subscription.find({ workshopId: { $in: workshopIds }, activo: true })
-      .populate('studentId', 'name email')
+      .populate('studentId', '_id name email')
       .populate('workshopId', '_id titulo')
       .select('studentId workshopId estado sesionesUsadas sesionesTotales sesionesDisponibles fechaVencimiento monto precioSnapshot precioEspecial notaPrecioEspecial createdAt dependentNombreSnapshot')
       .sort({ createdAt: -1 })
@@ -149,8 +149,9 @@ export default async function InscritosGlobalPage() {
                         <td className="px-4 py-3 text-gray-400 whitespace-nowrap">
                           {new Date(e.createdAt).toLocaleDateString('es-CL')}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap space-x-2">
                           <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Ver taller</Link>
+                          <Link href={`/tallerista/inscritos/${String(student._id)}/reservas`} className="text-xs text-gray-500 hover:underline">Ver reservas</Link>
                         </td>
                       </tr>
                     )
@@ -184,7 +185,10 @@ export default async function InscritosGlobalPage() {
                         <span className="text-sm font-semibold text-gray-800">${e.monto.toLocaleString('es-CL')}</span>
                         <span className="text-xs text-gray-400">{new Date(e.createdAt).toLocaleDateString('es-CL')}</span>
                       </div>
-                      <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Ver taller</Link>
+                      <div className="flex items-center gap-2">
+                        <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Ver taller</Link>
+                        <Link href={`/tallerista/inscritos/${String(student._id)}/reservas`} className="text-xs text-gray-500 hover:underline">Ver reservas</Link>
+                      </div>
                     </div>
                   </div>
                 )
@@ -247,8 +251,9 @@ export default async function InscritosGlobalPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-gray-400 whitespace-nowrap">{new Date(s.fechaVencimiento).toLocaleDateString('es-CL')}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap space-x-2">
                           <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Ver taller</Link>
+                          <Link href={`/tallerista/inscritos/${String(student._id)}/reservas`} className="text-xs text-gray-500 hover:underline">Ver reservas</Link>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           {(s.estado === 'activa' || s.estado === 'pendiente_pago') && (
@@ -314,6 +319,7 @@ export default async function InscritosGlobalPage() {
                     {/* Fila 4: acciones */}
                     <div className="flex items-center gap-2 pt-1 border-t border-gray-100 flex-wrap">
                       <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Ver taller</Link>
+                      <Link href={`/tallerista/inscritos/${String(student._id)}/reservas`} className="text-xs text-gray-500 hover:underline">Ver reservas</Link>
                       {(s.estado === 'activa' || s.estado === 'pendiente_pago') && (
                         <EditarSuscripcionModal
                           subscriptionId={String(s._id)}
