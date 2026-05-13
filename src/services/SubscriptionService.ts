@@ -663,6 +663,7 @@ export const SubscriptionService = {
     notaPrecioEspecial?: string
     clasesPrepagadas?: {
       cantidad: number
+      consumidasAlInscribir?: number  // clases ya consumidas fuera del sistema al momento de inscribir
       fechaPago: Date
       metodoPago: string
       montoDeclarado?: number
@@ -770,8 +771,9 @@ export const SubscriptionService = {
       // [CICLO] Si hay caducaEn, ESA es la fecha real de vencimiento.
       // Sin esto el cron vencer-suscripciones nunca dispara el email de
       // vencida/renovar y la sub queda zombi en 'activa' durante 1 año.
+      const yaConsumidas = input.clasesPrepagadas.consumidasAlInscribir ?? 0
       sesionesTotales = input.clasesPrepagadas.cantidad
-      sesionesDisponibles = input.clasesPrepagadas.cantidad
+      sesionesDisponibles = input.clasesPrepagadas.cantidad - yaConsumidas
       if (input.clasesPrepagadas.caducaEn) {
         fechaVencimiento = input.clasesPrepagadas.caducaEn
       } else {
@@ -797,7 +799,7 @@ export const SubscriptionService = {
     // Construir clasesPrepagadas doc
     const clasesPrepagadasDoc = input.clasesPrepagadas ? {
       cantidad: input.clasesPrepagadas.cantidad,
-      consumidas: 0,
+      consumidas: input.clasesPrepagadas.consumidasAlInscribir ?? 0,
       fechaPago: input.clasesPrepagadas.fechaPago,
       metodoPago: input.clasesPrepagadas.metodoPago,
       montoDeclarado: input.clasesPrepagadas.montoDeclarado,

@@ -43,6 +43,7 @@ export default function InscribirAlumnoPage() {
   const [notaPrecio, setNotaPrecio]         = useState('')
   const [tienePrepagado, setTienePrepagado] = useState(false)
   const [prepCantidad, setPrepCantidad]     = useState(1)
+  const [prepConsumidas, setPrepConsumidas] = useState(0)  // clases ya consumidas fuera del sistema
   const [prepFechaPago, setPrepFechaPago]   = useState(new Date().toISOString().slice(0, 10))
   const [prepMetodo, setPrepMetodo]         = useState('transferencia')
   const [prepMonto, setPrepMonto]           = useState('')
@@ -107,9 +108,10 @@ export default function InscribirAlumnoPage() {
       if (notaPrecio.trim()) body.notaPrecioEspecial = notaPrecio.trim()
       if (tienePrepagado) {
         body.clasesPrepagadas = {
-          cantidad:       prepCantidad,
-          fechaPago:      prepFechaPago,
-          metodoPago:     prepMetodo.trim(),
+          cantidad:              prepCantidad,
+          consumidasAlInscribir: prepConsumidas > 0 ? prepConsumidas : undefined,
+          fechaPago:             prepFechaPago,
+          metodoPago:            prepMetodo.trim(),
           montoDeclarado: prepMonto ? Number(prepMonto) : undefined,
           notaTallerista: prepNota.trim() || undefined,
           caducaEn:       prepCaducaEn ? new Date(prepCaducaEn).toISOString() : undefined,
@@ -269,10 +271,21 @@ export default function InscribirAlumnoPage() {
             {tienePrepagado && (
               <div className="pl-5 space-y-2">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Cantidad de clases *</label>
+                  <label className="block text-xs text-gray-500 mb-1">Cantidad de clases del paquete *</label>
                   <input type="number" min={1} step={1} required={tienePrepagado} value={prepCantidad}
-                    onChange={e => setPrepCantidad(Number(e.target.value))}
+                    onChange={e => { setPrepCantidad(Number(e.target.value)); if (prepConsumidas >= Number(e.target.value)) setPrepConsumidas(0) }}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Clases ya consumidas fuera del sistema (opcional)</label>
+                  <input type="number" min={0} max={prepCantidad - 1} step={1} value={prepConsumidas}
+                    onChange={e => setPrepConsumidas(Number(e.target.value))}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                  <p className="text-xs text-gray-400 mt-1">
+                    {prepConsumidas > 0
+                      ? `Saldo activo en sistema: ${prepCantidad - prepConsumidas} de ${prepCantidad} clases`
+                      : 'Indica cuántas clases del paquete ya se realizaron antes de registrar en Tallerea.'}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Fecha de pago *</label>
