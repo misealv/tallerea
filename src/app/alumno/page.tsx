@@ -536,7 +536,7 @@ export default async function AlumnoDashboard() {
       )}
 
       {/* Footer: accesos secundarios */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2 border-t border-gray-100 text-xs text-gray-400">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pt-2 border-t border-gray-100 text-xs text-gray-400">
         <Link href="/talleres" className="hover:text-purple-600 transition-colors">Explorar más talleres →</Link>
         <Link href="/alumno/mis-reservas" className="hover:text-purple-600 transition-colors">Mis reservas →</Link>
         <Link href="/alumno/historial" className="hover:text-purple-600 transition-colors">Ver historial completo →</Link>
