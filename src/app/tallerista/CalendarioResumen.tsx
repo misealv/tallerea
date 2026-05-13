@@ -90,8 +90,10 @@ function SlotCard({ slot }: { slot: UpcomingSlot }) {
 
 export default async function CalendarioResumen({ ownerId }: Props) {
   const todayYMD = getTodayCL()
-  // [TZ] Medianoche CL (UTC-3), igual que /api/tallerista/calendar
-  const from = new Date(`${todayYMD}T00:00:00-03:00`)
+  // [TZ-FIX] Mediodía UTC: siempre cae en el mismo día calendario en Santiago
+  // sin importar si CL está en UTC-3 (verano) o UTC-4 (invierno/DST).
+  // Hardcodear -03:00 falla en mayo (CLT = UTC-4) y desplaza el rango 1 día.
+  const from = new Date(`${todayYMD}T12:00:00Z`)
   const to   = new Date(from.getTime() + 7 * 24 * 60 * 60 * 1000)
 
   const slots = await CalendarService.getUpcomingSlots({ ownerId, from, to })

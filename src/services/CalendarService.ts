@@ -63,15 +63,26 @@ export interface UpcomingSlotsParams {
   to: Date
 }
 
-// Offset en días desde el lunes para slots con `dia` (sin fecha concreta)
-const DIA_OFFSET: Record<string, number> = {
-  lunes: 0,
-  martes: 1,
-  miercoles: 2,
-  jueves: 3,
-  viernes: 4,
-  sabado: 5,
-  domingo: 6,
+// Mapeo de nombre español → número de día ISO (0=dom, 1=lun, ..., 6=sáb)
+const DIA_TO_DOW: Record<string, number> = {
+  domingo:   0,
+  lunes:     1,
+  martes:    2,
+  miercoles: 3,
+  jueves:    4,
+  viernes:   5,
+  sabado:    6,
+}
+
+// Retorna el día de la semana (0=dom...6=sáb) de una Date en zona Santiago.
+function getDayOfWeekCL(d: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Santiago',
+    weekday: 'short',
+  }).formatToParts(d)
+  const dayStr = parts.find(p => p.type === 'weekday')?.value ?? 'Sun'
+  const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  return map[dayStr] ?? 0
 }
 
 // [TZ] Convierte una Date a YYYY-MM-DD en zona civil de Santiago.
@@ -119,8 +130,14 @@ export const CalendarService = {
         if (s.fecha) {
           const ymd = toYMDCL(s.fecha)
           if (inRangeYMD(ymd)) inRange.push({ slotIdx: i, slot: s, virtualFecha: ymd })
-        } else if (s.dia && DIA_OFFSET[s.dia] !== undefined) {
-          const projected = new Date(from.getTime() + DIA_OFFSET[s.dia] * 24 * 60 * 60 * 1000)
+        } else if (s.dia && DIA_TO_DOW[s.dia] !== undefined) {
+          // [TZ-FIX] Calcular la próxima ocurrencia del weekday dentro del rango.
+          // DIA_OFFSET (offset fijo desde from) era incorrecto: asumía que from
+          // siempre es lunes. Ahora: daysAhead=0 si hoy ES ese día, 1-6 si no.
+          const fromDow    = getDayOfWeekCL(from)
+          const targetDow  = DIA_TO_DOW[s.dia]
+          const daysAhead  = (targetDow - fromDow + 7) % 7
+          const projected  = new Date(from.getTime() + daysAhead * 24 * 60 * 60 * 1000)
           const ymd = toYMDCL(projected)
           if (inRangeYMD(ymd)) inRange.push({ slotIdx: i, slot: s, virtualFecha: ymd })
         }
