@@ -115,9 +115,11 @@ export const CalendarService = {
 
     if (workshops.length === 0) return []
 
-    // [TZ-FIX] Comparar por fecha civil YYYY-MM-DD en zona Santiago.
-    const fromYMD = toYMDCL(from)
-    const toYMD = toYMDCL(to)
+    // [TZ-FIX] Usar ISO UTC para el rango, igual que para s.fecha.
+    // Con from=T12:00:00Z el slice(0,10) da el mismo día que toYMDCL,
+    // pero es consistente con la comparación de slot.fecha.
+    const fromYMD = from.toISOString().slice(0, 10)
+    const toYMD   = to.toISOString().slice(0, 10)
     const inRangeYMD = (ymd: string) => ymd >= fromYMD && ymd < toYMD
 
     // Pre-filtro: slots dentro de rango por workshop
@@ -128,7 +130,10 @@ export const CalendarService = {
       const inRange: { slotIdx: number; slot: SlotLean; virtualFecha: string }[] = []
       w.slots.forEach((s, i) => {
         if (s.fecha) {
-          const ymd = toYMDCL(s.fecha)
+          // [TZ-FIX] Slots se almacenan como medianoche UTC (2026-05-18T00:00:00Z = lunes 18).
+          // toYMDCL() los convierte a zona Santiago (UTC-4) y los retrocede 1 día → domingo 17.
+          // Usar toISOString() igual que la API /api/tallerista/calendar para consistencia.
+          const ymd = new Date(s.fecha).toISOString().slice(0, 10)
           if (inRangeYMD(ymd)) inRange.push({ slotIdx: i, slot: s, virtualFecha: ymd })
         } else if (s.dia && DIA_TO_DOW[s.dia] !== undefined) {
           // [TZ-FIX] Calcular la próxima ocurrencia del weekday dentro del rango.
