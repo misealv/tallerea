@@ -325,6 +325,13 @@ export const SubscriptionService = {
     }
     if (data.fechaVencimiento !== undefined) {
       sub.fechaVencimiento = data.fechaVencimiento
+      // [PREPAGADO] Si la suscripción tiene paquete prepagado, caducaEn es la fuente de verdad
+      // para el cron y el display. Mantener ambos campos sincronizados al editar la fecha desde
+      // el modal "Editar suscripción" — evita que la edición quede inerte cuando hay prepago.
+      if (sub.clasesPrepagadas && sub.clasesPrepagadas.cantidad > 0) {
+        sub.clasesPrepagadas.caducaEn = data.fechaVencimiento
+        sub.markModified('clasesPrepagadas')
+      }
     }
     if (data.notaPrecioEspecial !== undefined) {
       sub.notaPrecioEspecial = data.notaPrecioEspecial
