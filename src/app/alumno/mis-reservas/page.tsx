@@ -135,10 +135,11 @@ export default async function MisReservasPage() {
 
   const reservas = await BookingService.getDetailedUpcomingByStudent(session.user.id)
 
-  // Agrupar por fecha civil Santiago
+  // Agrupar por fecha UTC (slots almacenados como medianoche UTC — igual que CalendarService)
+  // [TZ-FIX] toYMDCL usa Santiago (UTC-3/4) y desplaza midnight-UTC al día anterior.
   const byDay = new Map<string, UpcomingBookingDetail[]>()
   for (const b of reservas) {
-    const ymd = toYMDCL(new Date(b.fecha))
+    const ymd = new Date(b.fecha).toISOString().slice(0, 10)
     const arr = byDay.get(ymd) ?? []
     arr.push(b)
     byDay.set(ymd, arr)
