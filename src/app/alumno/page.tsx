@@ -393,9 +393,12 @@ export default async function AlumnoDashboard() {
               <>
                 <CancelBookingButton bookingId={String(proximaBooking!._id)} />
                 {otrasBookingsCount > 0 && (
-                  <p className="text-xs text-purple-200">
-                    + {otrasBookingsCount} {otrasBookingsCount === 1 ? 'clase reservada' : 'clases reservadas'} más
-                  </p>
+                  <Link
+                    href="/alumno/mis-reservas"
+                    className="text-xs text-purple-200 hover:text-white underline underline-offset-2 transition-colors"
+                  >
+                    + {otrasBookingsCount} {otrasBookingsCount === 1 ? 'clase reservada' : 'clases reservadas'} más →
+                  </Link>
                 )}
               </>
             ) : (
@@ -533,8 +536,9 @@ export default async function AlumnoDashboard() {
       )}
 
       {/* Footer: accesos secundarios */}
-      <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs text-gray-400">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2 border-t border-gray-100 text-xs text-gray-400">
         <Link href="/talleres" className="hover:text-purple-600 transition-colors">Explorar más talleres →</Link>
+        <Link href="/alumno/mis-reservas" className="hover:text-purple-600 transition-colors">Mis reservas →</Link>
         <Link href="/alumno/historial" className="hover:text-purple-600 transition-colors">Ver historial completo →</Link>
       </div>
     </div>

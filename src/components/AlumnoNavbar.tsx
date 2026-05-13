@@ -19,13 +19,14 @@ function getInitials(name: string): string {
 }
 
 const LINKS = [
-  { href: '/alumno',              label: 'Inicio' },
-  { href: '/alumno/mis-talleres', label: 'Mis talleres' },
-  { href: '/talleres',            label: 'Explorar' },
-  { href: '/alumno/historial',    label: 'Historial de compras' },
-  { href: '/alumno/credito',      label: 'Saldo' },
-  { href: '/alumno/reviews',      label: 'Reseñas' },
-  { href: '/alumno/dependientes', label: 'Dependientes' },
+  { href: '/alumno',                label: 'Inicio' },
+  { href: '/alumno/mis-talleres',   label: 'Mis talleres' },
+  { href: '/alumno/mis-reservas',   label: 'Mis reservas' },
+  { href: '/talleres',              label: 'Explorar' },
+  { href: '/alumno/historial',      label: 'Historial de compras' },
+  { href: '/alumno/credito',        label: 'Saldo' },
+  { href: '/alumno/reviews',        label: 'Reseñas' },
+  { href: '/alumno/dependientes',   label: 'Dependientes' },
 ]
 
 export default function AlumnoNavbar({ userName }: AlumnoNavbarProps) {
