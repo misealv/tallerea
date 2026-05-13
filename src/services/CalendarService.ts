@@ -74,6 +74,13 @@ const DIA_OFFSET: Record<string, number> = {
   domingo: 6,
 }
 
+// [TZ] Convierte una Date a YYYY-MM-DD en zona civil de Santiago.
+// Garantiza consistencia entre el rango y los slots almacenados (que
+// pueden venir como medianoche UTC, o con hora local, sin importar).
+function toYMDCL(d: Date): string {
+  return new Date(d).toLocaleDateString('en-CA', { timeZone: 'America/Santiago' })
+}
+
 export const CalendarService = {
   /**
    * Devuelve slots dentro del rango [from, to) pertenecientes a workshops
@@ -97,10 +104,9 @@ export const CalendarService = {
 
     if (workshops.length === 0) return []
 
-    // [TZ-FIX] Comparar por fecha civil YYYY-MM-DD para evitar drift por offset UTC.
-    const fromYMD = from.toISOString().slice(0, 10)
-    const toYMD = to.toISOString().slice(0, 10)
-    const fechaToYMD = (d: Date) => new Date(d).toISOString().slice(0, 10)
+    // [TZ-FIX] Comparar por fecha civil YYYY-MM-DD en zona Santiago.
+    const fromYMD = toYMDCL(from)
+    const toYMD = toYMDCL(to)
     const inRangeYMD = (ymd: string) => ymd >= fromYMD && ymd < toYMD
 
     // Pre-filtro: slots dentro de rango por workshop
@@ -111,11 +117,11 @@ export const CalendarService = {
       const inRange: { slotIdx: number; slot: SlotLean; virtualFecha: string }[] = []
       w.slots.forEach((s, i) => {
         if (s.fecha) {
-          const ymd = fechaToYMD(s.fecha)
+          const ymd = toYMDCL(s.fecha)
           if (inRangeYMD(ymd)) inRange.push({ slotIdx: i, slot: s, virtualFecha: ymd })
         } else if (s.dia && DIA_OFFSET[s.dia] !== undefined) {
           const projected = new Date(from.getTime() + DIA_OFFSET[s.dia] * 24 * 60 * 60 * 1000)
-          const ymd = projected.toISOString().slice(0, 10)
+          const ymd = toYMDCL(projected)
           if (inRangeYMD(ymd)) inRange.push({ slotIdx: i, slot: s, virtualFecha: ymd })
         }
       })
