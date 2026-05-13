@@ -11,8 +11,10 @@ function getTodayCL(): string {
 }
 
 function getDayLabel(ymd: string, todayYMD: string): string {
-  // [TZ] Parsear como medianoche CL (UTC-3) y formatear en zona de Santiago
-  const dateCL = new Date(`${ymd}T00:00:00-03:00`)
+  // [TZ-FIX] Parsear como mediodía UTC: garantiza que Intl formatee el día
+  // correcto en Santiago tanto en UTC-3 (verano) como en UTC-4 (invierno/mayo).
+  // T00:00:00-03:00 = T03:00:00Z = T23:00 del día anterior en UTC-4.
+  const dateCL = new Date(`${ymd}T12:00:00Z`)
   const formatted = new Intl.DateTimeFormat('es-CL', {
     weekday: 'long',
     day: 'numeric',

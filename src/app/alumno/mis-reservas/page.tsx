@@ -20,7 +20,8 @@ function getDayLabel(ymd: string): string {
   nextDay.setDate(nextDay.getDate() + 1)
   const tomorrowYMD = toYMDCL(nextDay)
 
-  const dateCL = new Date(`${ymd}T00:00:00-03:00`)
+  // [TZ-FIX] Mediodía UTC: mismo día en Santiago UTC-3 y UTC-4.
+  const dateCL = new Date(`${ymd}T12:00:00Z`)
   const formatted = new Intl.DateTimeFormat('es-CL', {
     weekday: 'long', day: 'numeric', month: 'long',
     timeZone: 'America/Santiago',
