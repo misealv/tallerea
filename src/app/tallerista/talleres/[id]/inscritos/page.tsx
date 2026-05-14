@@ -164,8 +164,8 @@ export default async function InscritosPage({
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead><tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
-                <th className="px-4 py-2">Alumno</th><th className="px-4 py-2">Precio</th><th className="px-4 py-2">Acceso</th>
-                <th className="px-4 py-2">Estado</th><th className="px-4 py-2">Vence</th><th className="px-4 py-2"></th><th className="px-4 py-2"></th><th className="px-4 py-2"></th>
+                <th className="px-4 py-2">Alumno</th><th className="px-4 py-2">Precio · Clases · Vigencia</th>
+                <th className="px-4 py-2">Estado</th><th className="px-4 py-2"></th><th className="px-4 py-2"></th><th className="px-4 py-2"></th>
               </tr></thead>
               <tbody>{subscriptionsFiltradas.map(s => {
                 const prepaid = s.clasesPrepagadas
@@ -176,42 +176,49 @@ export default async function InscritosPage({
                   <tr key={String(s._id)} className="border-t border-gray-100">
                     <td className="px-4 py-2 font-medium text-gray-800">
                       {(s.studentId as StudentRef).name}
+                      {s.dependentNombreSnapshot && (
+                        <span className="ml-1.5 text-xs text-gray-500">({s.dependentNombreSnapshot})</span>
+                      )}
                       {s.origenInscripcion === 'manual' && (
                         <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">manual</span>
                       )}
                     </td>
                     <td className="px-4 py-2">
-                      {s.precioEspecial ? (
-                        <span className="inline-flex items-center gap-1">
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                            esBecado ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
-                          }`} title={s.notaPrecioEspecial ?? ''}>
-                            {esBecado ? 'Becado' : 'Precio especial'}
-                          </span>
-                          <span className="text-gray-500">${(s.precioSnapshot ?? 0).toLocaleString('es-CL')}</span>
-                        </span>
-                      ) : (
-                        <span className="text-gray-500">${s.monto.toLocaleString('es-CL')}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2">
-                      {prepaidActivo ? (
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium w-fit">
-                            Prepagada — {prepaid!.cantidad - prepaid!.consumidas}/{prepaid!.cantidad}
-                          </span>
-                          {prepaid!.caducaEn && (
-                            <span className={`text-xs ${new Date(prepaid!.caducaEn) < new Date() ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                              {new Date(prepaid!.caducaEn) < new Date() ? 'Caducó' : 'Caduca'} {new Date(prepaid!.caducaEn).toLocaleDateString('es-CL')}
+                      <div className="flex flex-col gap-0.5">
+                        {/* Precio */}
+                        {s.precioEspecial ? (
+                          <span className="inline-flex items-center gap-1">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              esBecado ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
+                            }`} title={s.notaPrecioEspecial ?? ''}>
+                              {esBecado ? 'Becado' : 'Precio especial'}
                             </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-500">{s.sesionesTotales - s.sesionesUsadas}/{s.sesionesTotales} sesiones</span>
-                      )}
+                            <span className="text-gray-700 font-medium">${(s.precioSnapshot ?? 0).toLocaleString('es-CL')}</span>
+                          </span>
+                        ) : (
+                          <span className="text-gray-700 font-medium">${s.monto.toLocaleString('es-CL')}</span>
+                        )}
+                        {/* Clases */}
+                        {prepaidActivo ? (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium w-fit">
+                            {prepaid!.cantidad - prepaid!.consumidas}/{prepaid!.cantidad} clases
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">
+                            {vi.disponibles}/{vi.totales === 999 ? '∞' : vi.totales} sesiones
+                          </span>
+                        )}
+                        {/* Vigencia */}
+                        {prepaidActivo && prepaid!.caducaEn ? (
+                          <span className={`text-xs ${new Date(prepaid!.caducaEn) < new Date() ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+                            {new Date(prepaid!.caducaEn) < new Date() ? '⚠ Caducó' : 'Caduca'} {new Date(prepaid!.caducaEn).toLocaleDateString('es-CL')}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">Vence {vi.vigenciaDateStr}</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[s.estado] ?? ''}`}>{s.estado}</span></td>
-                    <td className="px-4 py-2 text-gray-400">{vi.vigenciaDateStr}</td>
                     <td className="px-4 py-2">
                       <EditarPrecioButton
                         subscriptionId={String(s._id)}
