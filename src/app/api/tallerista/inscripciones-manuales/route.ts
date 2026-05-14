@@ -9,11 +9,13 @@ import { SubscriptionService } from '@/services/SubscriptionService'
 
 export const dynamic = 'force-dynamic'
 
+const knownPrefixes = ['No tienes permiso', 'Taller no encontrado', 'Ya está inscrito', 'No hay cupo', 'createManual', '[FINANCE', '[PREPAGADO', 'precioSnapshot', 'Ya tiene una suscripción']
+function isBusinessError(msg: string) { return knownPrefixes.some(p => msg.includes(p)) }
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  // Solo talleristas aprobados o admin
   const role = session.user.role
   const tallerEstado = (session.user as { tallerEstado?: string }).tallerEstado
   if (role !== 'admin' && tallerEstado !== 'aprobado') {
@@ -27,7 +29,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
   }
 
-  // Discriminar por tipo para elegir schema
   const tipo = (body as Record<string, unknown>)?.tipo
   if (tipo !== 'puntual' && tipo !== 'recurrente') {
     return NextResponse.json({ error: '"tipo" debe ser "puntual" o "recurrente"' }, { status: 400 })
@@ -51,45 +52,89 @@ export async function POST(req: NextRequest) {
       const enrollment = await EnrollmentService.createManual({
         ownerId,
         isAdmin,
-        workshopId:              d.workshopId,
-        studentEmail:            d.studentEmail,
-        studentNombre:           d.studentNombre,
-        dependentNombre:         d.dependentNombre,
+        workshopId:               d.workshopId,
+        studentEmail:             d.studentEmail,
+        studentNombre:            d.studentNombre,
+        dependentNombre:          d.dependentNombre,
         dependentFechaNacimiento: d.dependentFechaNacimiento,
-        dependentNotas:          d.dependentNotas,
-        slotIndex:               d.slotIndex,
-        montoPagado:             d.montoPagado,
-        notaTallerista:          d.notaTallerista,
+        dependentNotas:           d.dependentNotas,
+        slotIndex:                d.slotIndex,
+        montoPagado:              d.montoPagado,
+        notaTallerista:           d.notaTallerista,
       })
-      // Revalidar p\u00e1ginas que muestran cupos / inscritos
       revalidatePath(`/tallerista/talleres/${d.workshopId}/inscritos`)
       revalidatePath('/talleres')
       return NextResponse.json({ tipo: 'puntual', enrollment }, { status: 201 })
-    } else {
-      const d = parsed.data
-      const subscription = await SubscriptionService.createManual({
-        ownerId,
-        isAdmin,
-        workshopId:         d.workshopId,
-        studentEmail:       d.studentEmail,
-        studentNombre:      d.studentNombre,
-        dependentNombre:    d.dependentNombre,
-        dependentFechaNacimiento: d.dependentFechaNacimiento,
-        dependentNotas:     d.dependentNotas,
-        precioEspecial:     d.precioEspecial,
-        precioSnapshot:     d.precioSnapshot,
-        notaPrecioEspecial: d.notaPrecioEspecial,
-        clasesPrepagadas:   d.clasesPrepagadas,
-        notaTallerista:     d.notaTallerista,
-      })
-      revalidatePath(`/tallerista/talleres/${d.workshopId}/inscritos`)
-      return NextResponse.json({ tipo: 'recurrente', subscription }, { status: 201 })
     }
+
+    // --- Recurrente ---
+    const d = parsed.data
+
+    // Modo B: inscripción múltiple con array de dependientes
+    if (d.dependientes && d.dependientes.length > 0) {
+      const resultados: Array<{ nombre: string; ok: boolean; error?: string }> = []
+
+      for (const dep of d.dependientes) {
+        try {
+          await SubscriptionService.createManual({
+            ownerId,
+            isAdmin,
+            workshopId:               d.workshopId,
+            studentEmail:             d.studentEmail,
+            studentNombre:            d.studentNombre,
+            dependentNombre:          dep.nombre,
+            dependentFechaNacimiento: dep.fechaNacimiento,
+            dependentNotas:           dep.notas,
+            precioEspecial:           dep.precioEspecial,
+            precioSnapshot:           dep.precioSnapshot,
+            notaPrecioEspecial:       dep.notaPrecioEspecial,
+            clasesPrepagadas:         dep.clasesPrepagadas,
+            notaTallerista:           d.notaTallerista,
+          })
+          resultados.push({ nombre: dep.nombre, ok: true })
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Error desconocido'
+          resultados.push({ nombre: dep.nombre, ok: false, error: msg })
+        }
+      }
+
+      revalidatePath(`/tallerista/talleres/${d.workshopId}/inscritos`)
+      revalidatePath('/talleres')
+
+      const fallidos = resultados.filter(r => !r.ok)
+      if (fallidos.length === resultados.length) {
+        // Todos fallaron → 400
+        return NextResponse.json({ tipo: 'recurrente', resultados, error: 'Ningún dependiente pudo inscribirse' }, { status: 400 })
+      }
+      // Al menos uno exitoso → 207 Multi-Status
+      const status = fallidos.length > 0 ? 207 : 201
+      return NextResponse.json({ tipo: 'recurrente', resultados }, { status })
+    }
+
+    // Modo A: inscripción individual (compatibilidad hacia atrás)
+    const subscription = await SubscriptionService.createManual({
+      ownerId,
+      isAdmin,
+      workshopId:               d.workshopId,
+      studentEmail:             d.studentEmail,
+      studentNombre:            d.studentNombre,
+      dependentNombre:          d.dependentNombre,
+      dependentFechaNacimiento: d.dependentFechaNacimiento,
+      dependentNotas:           d.dependentNotas,
+      precioEspecial:           d.precioEspecial ?? false,
+      precioSnapshot:           d.precioSnapshot,
+      notaPrecioEspecial:       d.notaPrecioEspecial,
+      clasesPrepagadas:         d.clasesPrepagadas,
+      notaTallerista:           d.notaTallerista,
+    })
+    revalidatePath(`/tallerista/talleres/${d.workshopId}/inscritos`)
+    revalidatePath('/talleres')
+    return NextResponse.json({ tipo: 'recurrente', subscription }, { status: 201 })
+
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error interno'
-    // Errores de negocio conocidos → 400
-    const knownPrefixes = ['No tienes permiso', 'Taller no encontrado', 'Ya está inscrito', 'No hay cupo', 'createManual', '[FINANCE', '[PREPAGADO', 'precioSnapshot', 'Ya tiene una suscripción']
-    const status = knownPrefixes.some(p => message.includes(p)) ? 400 : 500
+    const status = isBusinessError(message) ? 400 : 500
     return NextResponse.json({ error: message }, { status })
   }
 }
+
