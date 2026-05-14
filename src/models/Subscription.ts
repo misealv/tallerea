@@ -4,7 +4,7 @@ export interface IClasesPrepagadas {
   cantidad: number;
   consumidas: number;
   fechaPago: Date;
-  metodoPago: 'transferencia' | 'efectivo' | 'otro';
+  metodoPago: 'transferencia' | 'efectivo' | 'mercadopago' | 'otro';
   montoDeclarado?: number;
   notaTallerista?: string;
   creadoPor: Types.ObjectId;
@@ -73,7 +73,7 @@ const SubscriptionSchema = new Schema<ISubscription>({
     cantidad:        { type: Number, min: 1 },
     consumidas:      { type: Number, default: 0, min: 0 },
     fechaPago:       { type: Date },
-    metodoPago:      { type: String, enum: ['transferencia', 'efectivo', 'otro'] },
+    metodoPago:      { type: String, enum: ['transferencia', 'efectivo', 'mercadopago', 'otro'] },
     montoDeclarado:  { type: Number, min: 0 },
     notaTallerista:  { type: String, maxlength: 500 },
     creadoPor:       { type: Schema.Types.ObjectId, ref: 'User' },
@@ -103,16 +103,20 @@ SubscriptionSchema.pre('save', function (next) {
     if (typeof consumidas !== 'number' || consumidas < 0 || consumidas > cantidad) {
       return next(new Error('[PREPAGADO] consumidas debe estar entre 0 y cantidad'))
     }
-    if (!fechaPago) {
-      return next(new Error('[PREPAGADO] fechaPago es obligatorio'))
-    }
-    if (!metodoPago) {
-      return next(new Error('[PREPAGADO] metodoPago es obligatorio'))
+    // En estado 'pendiente_pago' aún no hubo pago, así que fechaPago/metodoPago
+    // pueden estar vacíos. Se completan al activar (handleApprovedSubscription).
+    if (this.estado !== 'pendiente_pago') {
+      if (!fechaPago) {
+        return next(new Error('[PREPAGADO] fechaPago es obligatorio'))
+      }
+      if (!metodoPago) {
+        return next(new Error('[PREPAGADO] metodoPago es obligatorio'))
+      }
     }
     if (!creadoPor) {
       return next(new Error('[PREPAGADO] creadoPor es obligatorio'))
     }
-    if (this.clasesPrepagadas.caducaEn && this.clasesPrepagadas.caducaEn <= fechaPago) {
+    if (this.clasesPrepagadas.caducaEn && fechaPago && this.clasesPrepagadas.caducaEn <= fechaPago) {
       return next(new Error('[PREPAGADO] caducaEn debe ser posterior a fechaPago'))
     }
   }

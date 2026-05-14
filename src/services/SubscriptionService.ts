@@ -566,40 +566,42 @@ export const SubscriptionService = {
         const nuevaCaducaEn = caducaEn
           ? (() => { const d = new Date(caducaEn); d.setMonth(d.getMonth() + 1); return d })()
           : undefined
+        // [PREPAGADO] Primero crear la sub pendiente_pago; si save falla no se
+        // crea preference fantasma en MP.
+        const nuevaSub = await new Subscription({
+          workshopId: sub.workshopId,
+          studentId: sub.studentId,
+          estado: 'pendiente_pago',
+          sesionesTotales: clasesCantidad,
+          sesionesUsadas: 0,
+          sesionesDisponibles: clasesCantidad,
+          fechaCompra: now,
+          fechaVencimiento: nuevaCaducaEn ?? (() => { const d = new Date(now); d.setFullYear(d.getFullYear() + 1); return d })(),
+          monto: sub.precioSnapshot,
+          autoRenovar: false,
+          precioEspecial: true,
+          precioSnapshot: sub.precioSnapshot,
+          notaPrecioEspecial: sub.notaPrecioEspecial,
+          origenInscripcion: 'manual',
+          inscritoPor: sub.inscritoPor,
+          renovadaDesdeId: sub._id,
+          ...(sub.dependentId ? { dependentId: sub.dependentId, dependentNombreSnapshot: sub.dependentNombreSnapshot } : {}),
+          clasesPrepagadas: {
+            cantidad: clasesCantidad,
+            consumidas: 0,
+            creadoPor: sub.inscritoPor ?? sub.studentId,
+            ...(nuevaCaducaEn ? { caducaEn: nuevaCaducaEn } : {}),
+          },
+          activo: true,
+        }).save()
         const pref = await createPaymentPreference({
-          externalRef: `sub-renewal:${String(sub._id)}:${Date.now()}`,
+          externalRef: `sub:${String(nuevaSub._id)}`,
           workshopTitle: `${workshop.titulo}${sub.dependentNombreSnapshot ? ` — ${sub.dependentNombreSnapshot}` : ''}`,
           amount: sub.precioSnapshot,
           payerEmail: student.email,
         })
         if (pref?.init_point) {
           renewalInitPoint = pref.init_point
-          // Crear sub pendiente_pago lista para activar cuando pague
-          await new Subscription({
-            workshopId: sub.workshopId,
-            studentId: sub.studentId,
-            estado: 'pendiente_pago',
-            sesionesTotales: clasesCantidad,
-            sesionesUsadas: 0,
-            sesionesDisponibles: clasesCantidad,
-            fechaCompra: now,
-            fechaVencimiento: nuevaCaducaEn ?? (() => { const d = new Date(now); d.setFullYear(d.getFullYear() + 1); return d })(),
-            monto: sub.precioSnapshot,
-            autoRenovar: false,
-            precioEspecial: true,
-            precioSnapshot: sub.precioSnapshot,
-            notaPrecioEspecial: sub.notaPrecioEspecial,
-            origenInscripcion: 'manual',
-            inscritoPor: sub.inscritoPor,
-            ...(sub.dependentId ? { dependentId: sub.dependentId, dependentNombreSnapshot: sub.dependentNombreSnapshot } : {}),
-            clasesPrepagadas: {
-              cantidad: clasesCantidad,
-              consumidas: 0,
-              creadoPor: sub.inscritoPor ?? sub.studentId,
-              ...(nuevaCaducaEn ? { caducaEn: nuevaCaducaEn } : {}),
-            },
-            activo: true,
-          }).save()
         }
       } catch {
         // No bloquear cerrarCiclo si falla la generación del link de renovación

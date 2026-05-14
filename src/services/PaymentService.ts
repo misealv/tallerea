@@ -380,6 +380,12 @@ export const PaymentService = {
     // Activar suscripción
     subscription.pagoRef = String(paymentId)
     subscription.estado = 'activa'
+    // [PREPAGADO] Si la sub se creó en pendiente_pago con clasesPrepagadas sin
+    // fechaPago/metodoPago (link MP), completarlos ahora que MP confirmó el pago.
+    if (subscription.clasesPrepagadas?.cantidad && !subscription.clasesPrepagadas.fechaPago) {
+      subscription.clasesPrepagadas.fechaPago = new Date()
+      subscription.clasesPrepagadas.metodoPago = 'mercadopago'
+    }
     await subscription.save()
 
     // Audit log
