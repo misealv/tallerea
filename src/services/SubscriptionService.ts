@@ -555,13 +555,66 @@ export const SubscriptionService = {
       }
     }
 
-    // 5. Enviar email según preferencia del alumno
+    // 5. Enviar email según preferencia del alumno.
+    // [PREPAGADO] Si tiene precioSnapshot (precio acordado permanente), generar link MP
+    // al mismo precio en lugar de enviar al precio público del taller.
+    let renewalInitPoint: string | undefined
+    if (sub.precioSnapshot && sub.precioSnapshot > 0) {
+      try {
+        const clasesCantidad = sub.clasesPrepagadas?.cantidad ?? sub.sesionesTotales
+        const caducaEn = sub.clasesPrepagadas?.caducaEn
+        const nuevaCaducaEn = caducaEn
+          ? (() => { const d = new Date(caducaEn); d.setMonth(d.getMonth() + 1); return d })()
+          : undefined
+        const pref = await createPaymentPreference({
+          externalRef: `sub-renewal:${String(sub._id)}:${Date.now()}`,
+          workshopTitle: `${workshop.titulo}${sub.dependentNombreSnapshot ? ` — ${sub.dependentNombreSnapshot}` : ''}`,
+          amount: sub.precioSnapshot,
+          payerEmail: student.email,
+        })
+        if (pref?.init_point) {
+          renewalInitPoint = pref.init_point
+          // Crear sub pendiente_pago lista para activar cuando pague
+          await new Subscription({
+            workshopId: sub.workshopId,
+            studentId: sub.studentId,
+            estado: 'pendiente_pago',
+            sesionesTotales: clasesCantidad,
+            sesionesUsadas: 0,
+            sesionesDisponibles: clasesCantidad,
+            fechaCompra: now,
+            fechaVencimiento: nuevaCaducaEn ?? (() => { const d = new Date(now); d.setFullYear(d.getFullYear() + 1); return d })(),
+            monto: sub.precioSnapshot,
+            autoRenovar: false,
+            precioEspecial: true,
+            precioSnapshot: sub.precioSnapshot,
+            notaPrecioEspecial: sub.notaPrecioEspecial,
+            origenInscripcion: 'manual',
+            inscritoPor: sub.inscritoPor,
+            ...(sub.dependentId ? { dependentId: sub.dependentId, dependentNombreSnapshot: sub.dependentNombreSnapshot } : {}),
+            clasesPrepagadas: {
+              cantidad: clasesCantidad,
+              consumidas: 0,
+              creadoPor: sub.inscritoPor ?? sub.studentId,
+              ...(nuevaCaducaEn ? { caducaEn: nuevaCaducaEn } : {}),
+            },
+            activo: true,
+          }).save()
+        }
+      } catch {
+        // No bloquear cerrarCiclo si falla la generación del link de renovación
+      }
+    }
+
     if (sub.autoRenovar) {
       await sendSubscriptionRenovar({
         email: student.email,
         name: student.name,
         workshopTitulo: workshop.titulo,
         workshopSlug: workshop.slug,
+        initPoint: renewalInitPoint,
+        precioAcordado: renewalInitPoint ? sub.precioSnapshot : undefined,
+        clasesCantidad: sub.clasesPrepagadas?.cantidad,
       }).catch(() => null)
     } else {
       await sendSubscriptionVencida({
@@ -569,6 +622,9 @@ export const SubscriptionService = {
         name: student.name,
         workshopTitulo: workshop.titulo,
         workshopSlug: workshop.slug,
+        initPoint: renewalInitPoint,
+        precioAcordado: renewalInitPoint ? sub.precioSnapshot : undefined,
+        clasesCantidad: sub.clasesPrepagadas?.cantidad,
       }).catch(() => null)
     }
   },

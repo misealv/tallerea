@@ -369,16 +369,27 @@ export async function sendSubscriptionVencida({
   name,
   workshopTitulo,
   workshopSlug,
+  initPoint,
+  precioAcordado,
+  clasesCantidad,
 }: {
   email: string
   name: string
   workshopTitulo: string
   workshopSlug: string
+  initPoint?: string        // si viene, usar link MP directo al precio acordado
+  precioAcordado?: number   // para mostrar en el email
+  clasesCantidad?: number
 }) {
   if (!process.env.RESEND_API_KEY) return
 
   const resend = getResend()
   const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+  const linkUrl = initPoint ?? `${baseUrl}/talleres/${workshopSlug}`
+  const linkLabel = initPoint ? 'Renovar mi paquete' : 'Ver el taller y renovar'
+  const precioText = precioAcordado
+    ? `<p style="color: #7c3aed; font-weight: 600;">Precio acordado: $${precioAcordado.toLocaleString('es-CL')} CLP${clasesCantidad ? ` · ${clasesCantidad} clases` : ''}</p>`
+    : ''
 
   await resend.emails.send({
     from: FROM_EMAIL,
@@ -389,9 +400,10 @@ export async function sendSubscriptionVencida({
         <h2 style="color: #7c3aed;">Tu suscripción venció</h2>
         <p>Hola <strong>${name}</strong>,</p>
         <p>Tu suscripción a <strong>${workshopTitulo}</strong> llegó a su fin. Las reservas que tenías programadas fueron canceladas automáticamente.</p>
-        <p>¿Quieres continuar? Puedes renovar tu suscripción cuando quieras.</p>
-        <a href="${baseUrl}/talleres/${workshopSlug}" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
-          Ver el taller y renovar
+        <p>¿Quieres continuar? Renueva con un clic al precio acordado.</p>
+        ${precioText}
+        <a href="${linkUrl}" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
+          ${linkLabel}
         </a>
         <p style="color: #6b7280; font-size: 14px;">Si ya no deseas recibir estos avisos, puedes ignorar este correo.</p>
         <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
@@ -514,16 +526,27 @@ export async function sendSubscriptionRenovar({
   name,
   workshopTitulo,
   workshopSlug,
+  initPoint,
+  precioAcordado,
+  clasesCantidad,
 }: {
   email: string
   name: string
   workshopTitulo: string
   workshopSlug: string
+  initPoint?: string        // si viene, usar link MP directo al precio acordado
+  precioAcordado?: number
+  clasesCantidad?: number
 }) {
   if (!process.env.RESEND_API_KEY) return
 
   const resend = getResend()
   const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+  const linkUrl = initPoint ?? `${baseUrl}/talleres/${workshopSlug}`
+  const linkLabel = initPoint ? 'Renovar mi paquete' : 'Renovar suscripción'
+  const precioText = precioAcordado
+    ? `<p style="color: #7c3aed; font-weight: 600;">Precio acordado: $${precioAcordado.toLocaleString('es-CL')} CLP${clasesCantidad ? ` · ${clasesCantidad} clases` : ''}</p>`
+    : ''
 
   await resend.emails.send({
     from: FROM_EMAIL,
@@ -534,8 +557,9 @@ export async function sendSubscriptionRenovar({
         <h2 style="color: #7c3aed;">¡Tu ciclo terminó!</h2>
         <p>Hola <strong>${name}</strong>,</p>
         <p>Tu período de suscripción a <strong>${workshopTitulo}</strong> terminó. Para seguir asistiendo, renueva con un clic.</p>
-        <a href="${baseUrl}/talleres/${workshopSlug}" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
-          Renovar suscripción
+        ${precioText}
+        <a href="${linkUrl}" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
+          ${linkLabel}
         </a>
         <p style="color: #6b7280; font-size: 14px;">Si ya no quieres renovar, simplemente ignora este correo.</p>
         <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
