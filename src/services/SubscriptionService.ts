@@ -848,4 +848,127 @@ export const SubscriptionService = {
 
     return subscription.toObject() as ISubscription
   },
+
+  /**
+   * [LINK PAGO] Crea una suscripción en estado 'pendiente_pago' con clasesPrepagadas
+   * y precio especial ya configurados, luego genera una preferencia MercadoPago.
+   * El webhook handleApprovedSubscription la activa sin cambios adicionales.
+   *
+   * Caso de uso: tallerista acuerda precio fuera del sistema, quiere que el alumno
+   * pague online por el monto exacto acordado y las clases se activen al confirmar.
+   */
+  async createManualPendingPayment(input: {
+    workshopId: string
+    ownerId: string
+    studentEmail: string
+    studentNombre: string
+    dependentNombre: string
+    dependentFechaNacimiento?: string
+    precioAcordado: number           // CLP enteros — precio que pagará el alumno
+    notaPrecio?: string
+    clasesCantidad: number           // clases que se activarán al pagar
+    caducaEn?: Date                  // opcional: fecha límite de validez
+  }): Promise<{ initPoint: string; subscriptionId: string }> {
+    await dbConnect()
+
+    if (!Number.isInteger(input.precioAcordado) || input.precioAcordado <= 0)
+      throw new Error('[FINANCE] precioAcordado debe ser entero CLP positivo')
+    if (!Number.isInteger(input.clasesCantidad) || input.clasesCantidad < 1)
+      throw new Error('[PREPAGADO] clasesCantidad debe ser entero >= 1')
+
+    const workshop = await Workshop.findOne({ _id: input.workshopId, activo: true })
+    if (!workshop) throw new Error('Taller no encontrado')
+
+    const ownerIdStr = String(workshop.ownerId ?? workshop.accountId ?? '')
+    if (ownerIdStr !== input.ownerId) throw new Error('Sin permiso sobre este taller')
+
+    // Upsert alumno
+    const emailNorm = input.studentEmail.trim().toLowerCase()
+    const { findOrCreateGuestUser } = await import('@/lib/guestUser')
+    const { userId: studentId } = await findOrCreateGuestUser(input.studentNombre.trim(), emailNorm)
+
+    // Upsert dependiente
+    const parentUser = await User.findById(studentId).select('dependents')
+    let dependentId: mongoose.Types.ObjectId | undefined
+    let dependentNombreSnapshot: string | undefined
+    if (parentUser) {
+      const nombre = input.dependentNombre.trim()
+      const existing = parentUser.dependents?.find(
+        (d: IDependent) => d.activo && d.nombre.toLowerCase() === nombre.toLowerCase()
+      )
+      if (existing) {
+        dependentId = existing._id
+        dependentNombreSnapshot = existing.nombre
+      } else {
+        parentUser.dependents = parentUser.dependents ?? []
+        parentUser.dependents.push({
+          nombre,
+          fechaNacimiento: input.dependentFechaNacimiento ? new Date(input.dependentFechaNacimiento) : undefined,
+          activo: true,
+        })
+        await parentUser.save()
+        const added = parentUser.dependents[parentUser.dependents.length - 1]
+        dependentId = added._id
+        dependentNombreSnapshot = added.nombre
+      }
+    }
+
+    // Verificar que no haya sub activa o pendiente para este dependiente en este taller
+    const dupFilter: Record<string, unknown> = {
+      workshopId: input.workshopId,
+      studentId,
+      estado: { $in: ['activa', 'pendiente_pago'] },
+    }
+    if (dependentId) dupFilter.dependentId = dependentId
+    const dup = await Subscription.findOne(dupFilter)
+    if (dup) throw new Error(
+      dup.estado === 'pendiente_pago'
+        ? 'Ya existe un link de pago pendiente para este menor'
+        : 'El menor ya tiene una suscripción activa'
+    )
+
+    const ahora = new Date()
+    const fechaVencimiento = input.caducaEn
+      ? new Date(input.caducaEn)
+      : (() => { const d = new Date(ahora); d.setFullYear(d.getFullYear() + 1); return d })()
+
+    const subscription = await new Subscription({
+      workshopId: input.workshopId,
+      studentId,
+      estado: 'pendiente_pago',
+      sesionesTotales: input.clasesCantidad,
+      sesionesUsadas: 0,
+      sesionesDisponibles: input.clasesCantidad,
+      fechaCompra: ahora,
+      fechaVencimiento,
+      monto: input.precioAcordado,
+      autoRenovar: false,
+      precioEspecial: true,
+      precioSnapshot: input.precioAcordado,
+      notaPrecioEspecial: input.notaPrecio?.trim(),
+      origenInscripcion: 'manual',
+      inscritoPor: new mongoose.Types.ObjectId(input.ownerId),
+      ...(dependentId ? { dependentId, dependentNombreSnapshot } : {}),
+      clasesPrepagadas: {
+        cantidad: input.clasesCantidad,
+        consumidas: 0,
+        // fechaPago y metodoPago se completarán al confirmar el webhook
+        creadoPor: new mongoose.Types.ObjectId(input.ownerId),
+        ...(input.caducaEn ? { caducaEn: new Date(input.caducaEn) } : {}),
+      },
+      activo: true,
+    }).save()
+
+    const preference = await createPaymentPreference({
+      externalRef: `sub:${String(subscription._id)}`,
+      workshopTitle: `${workshop.titulo} — ${dependentNombreSnapshot ?? input.dependentNombre.trim()}`,
+      amount: input.precioAcordado,
+      payerEmail: emailNorm,
+    })
+
+    return {
+      initPoint: preference.init_point ?? '',
+      subscriptionId: String(subscription._id),
+    }
+  },
 }

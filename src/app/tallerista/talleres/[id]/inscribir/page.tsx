@@ -65,6 +65,13 @@ export default function InscribirAlumnoPage() {
   // Recurrente: lista de dependientes (al menos 1)
   const [deps, setDeps] = useState<DepForm[]>([emptyDep()])
 
+  // --- Estado para el modo "Generar link de pago" ---
+  const [showLinkForm, setShowLinkForm]     = useState(false)
+  const [linkDeps, setLinkDeps]             = useState([{ nombre: '', precio: '60000', clases: '4', caducaEn: '' }])
+  const [linkGenerando, setLinkGenerando]   = useState(false)
+  const [linkError, setLinkError]           = useState('')
+  const [linkResultados, setLinkResultados] = useState<{ nombre: string; url: string }[]>([])
+
   useEffect(() => {
     fetch(`/api/tallerista/inscripciones-manuales/workshop-info?id=${workshopId}`)
       .then(r => r.json())
@@ -313,6 +320,133 @@ export default function InscribirAlumnoPage() {
               : 'Inscribir alumno'}
         </button>
       </form>
+
+      {/* ---- Sección "Generar link de pago por MercadoPago" ---- */}
+      {isRecurrente && (
+        <div className="mt-8">
+          <button type="button" onClick={() => { setShowLinkForm(v => !v); setLinkError(''); setLinkResultados([]) }}
+            className="w-full rounded-lg border border-emerald-400 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100 transition-colors">
+            {showLinkForm ? '▲ Cerrar' : '🔗 Generar link de pago por MercadoPago (precio acordado)'}
+          </button>
+
+          {showLinkForm && (
+            <div className="mt-4 bg-white rounded-xl border border-emerald-200 p-5 shadow-sm space-y-4">
+              <p className="text-xs text-gray-500">
+                Genera un link de MP por cada menor. Cuando el apoderado pague, las clases se activan automáticamente.
+              </p>
+
+              {/* Fila por menor */}
+              {linkDeps.map((ld, idx) => (
+                <div key={idx} className="grid grid-cols-2 gap-2 items-end">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Nombre del menor *</label>
+                    <input type="text" value={ld.nombre} required
+                      onChange={e => setLinkDeps(prev => prev.map((d, i) => i === idx ? { ...d, nombre: e.target.value } : d))}
+                      placeholder="Ej: Sofía"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Precio acordado (CLP) *</label>
+                    <input type="number" min={1} step={1} value={ld.precio}
+                      onChange={e => setLinkDeps(prev => prev.map((d, i) => i === idx ? { ...d, precio: e.target.value } : d))}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">N° de clases del paquete *</label>
+                    <input type="number" min={1} step={1} value={ld.clases}
+                      onChange={e => setLinkDeps(prev => prev.map((d, i) => i === idx ? { ...d, clases: e.target.value } : d))}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Caduca el (opcional)</label>
+                    <div className="flex gap-1">
+                      <input type="date" value={ld.caducaEn}
+                        onChange={e => setLinkDeps(prev => prev.map((d, i) => i === idx ? { ...d, caducaEn: e.target.value } : d))}
+                        className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                      {linkDeps.length > 1 && (
+                        <button type="button" onClick={() => setLinkDeps(prev => prev.filter((_, i) => i !== idx))}
+                          className="px-2 text-red-400 hover:text-red-600 text-lg leading-none">×</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {linkDeps.length < 10 && (
+                <button type="button"
+                  onClick={() => setLinkDeps(prev => [...prev, { nombre: '', precio: '60000', clases: '4', caducaEn: '' }])}
+                  className="text-sm text-emerald-600 hover:underline">
+                  + Agregar otro menor
+                </button>
+              )}
+
+              {linkError && <p className="text-sm text-red-600">{linkError}</p>}
+
+              {/* Links generados */}
+              {linkResultados.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-gray-600">Links listos — cópialos y envíalos por WhatsApp:</p>
+                  {linkResultados.map((r, i) => (
+                    <div key={i} className="flex items-center gap-2 bg-emerald-50 rounded-lg px-3 py-2">
+                      <span className="text-sm font-medium text-gray-700 shrink-0">{r.nombre}:</span>
+                      <input readOnly value={r.url}
+                        className="flex-1 text-xs bg-transparent outline-none text-emerald-700 min-w-0 truncate"
+                        onFocus={e => e.target.select()} />
+                      <button type="button"
+                        onClick={() => { navigator.clipboard.writeText(r.url) }}
+                        className="shrink-0 text-xs bg-emerald-600 text-white px-2 py-1 rounded hover:bg-emerald-700">
+                        Copiar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button type="button" disabled={linkGenerando || !email.trim() || !nombre.trim()}
+                onClick={async () => {
+                  setLinkError('')
+                  setLinkResultados([])
+                  if (!email.trim() || !nombre.trim()) { setLinkError('Completa email y nombre del apoderado arriba primero'); return }
+                  for (const ld of linkDeps) {
+                    if (!ld.nombre.trim()) { setLinkError('Todos los menores necesitan nombre'); return }
+                    if (!ld.precio || Number(ld.precio) <= 0) { setLinkError('Precio debe ser mayor a 0'); return }
+                    if (!ld.clases || Number(ld.clases) < 1) { setLinkError('Clases debe ser >= 1'); return }
+                  }
+                  setLinkGenerando(true)
+                  const resultados: { nombre: string; url: string }[] = []
+                  for (const ld of linkDeps) {
+                    try {
+                      const res = await fetch('/api/tallerista/generar-link-pago', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          workshopId,
+                          studentEmail:   email.trim().toLowerCase(),
+                          studentNombre:  nombre.trim(),
+                          dependentNombre: ld.nombre.trim(),
+                          precioAcordado:  Number(ld.precio),
+                          clasesCantidad:  Number(ld.clases),
+                          caducaEn:        ld.caducaEn || undefined,
+                          notaPrecio:      nota.trim() || undefined,
+                        }),
+                      })
+                      const data = await res.json()
+                      if (!res.ok) { setLinkError(data.error ?? 'Error desconocido'); setLinkGenerando(false); return }
+                      resultados.push({ nombre: ld.nombre.trim(), url: data.initPoint })
+                    } catch {
+                      setLinkError('Error de red al generar el link'); setLinkGenerando(false); return
+                    }
+                  }
+                  setLinkResultados(resultados)
+                  setLinkGenerando(false)
+                }}
+                className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                {linkGenerando ? 'Generando links…' : `Generar ${linkDeps.length === 1 ? 'link' : `${linkDeps.length} links`} de MercadoPago`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
