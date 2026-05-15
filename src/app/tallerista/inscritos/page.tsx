@@ -97,7 +97,7 @@ export default async function InscritosGlobalPage() {
     + subscriptions.filter(s => s.estado === 'pendiente_pago').length
 
   return (
-    <div className="space-y-8 max-w-4xl">
+    <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Inscritos</h1>
         <p className="text-sm text-gray-500 mt-1">
@@ -123,12 +123,10 @@ export default async function InscritosGlobalPage() {
                 <thead>
                   <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
                     <th className="px-4 py-3">Alumno</th>
-                    <th className="px-4 py-3">Email</th>
                     <th className="px-4 py-3">Taller</th>
                     <th className="px-4 py-3">Monto</th>
-                    <th className="px-4 py-3">Estado</th>
-                    <th className="px-4 py-3">Fecha</th>
-                    <th className="px-4 py-3"></th>
+                    <th className="px-4 py-3">Estado · Fecha</th>
+                    <th className="px-4 py-3">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -137,24 +135,26 @@ export default async function InscritosGlobalPage() {
                     const workshop = e.workshopId as WorkshopRef
                     return (
                       <tr key={String(e._id)} className="border-t border-gray-100 hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-800">{student.name}</td>
-                        <td className="px-4 py-3 text-gray-500">{student.email}</td>
-                        <td className="px-4 py-3 text-gray-700 max-w-[180px] truncate">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-gray-800 text-sm">{student.name}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{student.email}</p>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 max-w-[220px] truncate">
                           {e.esClasePrueba && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded mr-1">Prueba</span>}
                           {workshop.titulo}
                         </td>
-                        <td className="px-4 py-3">${e.monto.toLocaleString('es-CL')}</td>
+                        <td className="px-4 py-3 font-medium text-gray-800">${e.monto.toLocaleString('es-CL')}</td>
                         <td className="px-4 py-3">
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[e.estado] ?? 'bg-gray-100 text-gray-500'}`}>
                             {e.estado}
                           </span>
+                          <p className="text-xs text-gray-400 mt-1">{new Date(e.createdAt).toLocaleDateString('es-CL')}</p>
                         </td>
-                        <td className="px-4 py-3 text-gray-400 whitespace-nowrap">
-                          {new Date(e.createdAt).toLocaleDateString('es-CL')}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap space-x-2">
-                          <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Ver taller</Link>
-                          <Link href={`/tallerista/inscritos/${String(student._id)}/reservas`} className="text-xs text-gray-500 hover:underline">Ver reservas</Link>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Ver taller</Link>
+                            <Link href={`/tallerista/inscritos/${String(student._id)}/reservas`} className="text-xs text-gray-500 hover:underline">Reservas</Link>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -219,14 +219,10 @@ export default async function InscritosGlobalPage() {
                 <thead>
                   <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
                     <th className="px-4 py-3">Alumno</th>
-                    <th className="px-4 py-3">Email</th>
                     <th className="px-4 py-3">Taller</th>
-                    <th className="px-4 py-3">Sesiones</th>
-                    <th className="px-4 py-3">Precio / próx.</th>
-                    <th className="px-4 py-3">Estado</th>
-                    <th className="px-4 py-3">Vence</th>
-                    <th className="px-4 py-3"></th>
-                    <th className="px-4 py-3"></th>
+                    <th className="px-4 py-3">Sesiones · Precio</th>
+                    <th className="px-4 py-3">Estado · Vence</th>
+                    <th className="px-4 py-3">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -236,54 +232,59 @@ export default async function InscritosGlobalPage() {
                     const vi = getSubViewInfo(s)
                     return (
                       <tr key={String(s._id)} className="border-t border-gray-100 hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-800">{student.name}</td>
-                        <td className="px-4 py-3 text-gray-500">{student.email}</td>
-                        <td className="px-4 py-3 text-gray-700 max-w-[180px] truncate">{workshop.titulo}</td>
-                        <td className="px-4 py-3 text-gray-600">{vi.etiquetaSesiones}</td>
                         <td className="px-4 py-3">
-                          <span>${s.monto.toLocaleString('es-CL')}</span>
-                          {s.precioEspecial && s.precioSnapshot !== undefined && s.precioSnapshot !== s.monto && (
-                            <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded" title={s.notaPrecioEspecial ?? 'Precio especial'}>→ ${s.precioSnapshot.toLocaleString('es-CL')}</span>
+                          <p className="font-medium text-gray-800 text-sm">{student.name}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{student.email}</p>
+                          {s.dependentNombreSnapshot && (
+                            <p className="text-xs text-indigo-500 mt-0.5">↳ {s.dependentNombreSnapshot}</p>
                           )}
-                          {s.precioEspecial && s.precioSnapshot === s.monto && (
-                            <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded" title={s.notaPrecioEspecial ?? 'Precio especial'}>★</span>
-                          )}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 max-w-[200px] truncate text-sm">{workshop.titulo}</td>
+                        <td className="px-4 py-3">
+                          <p className="text-xs text-gray-500">{vi.etiquetaSesiones}</p>
+                          <p className="text-sm font-medium text-gray-800 mt-0.5">
+                            ${s.monto.toLocaleString('es-CL')}
+                            {s.precioEspecial && s.precioSnapshot !== undefined && s.precioSnapshot !== s.monto && (
+                              <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded" title={s.notaPrecioEspecial ?? 'Precio especial'}>→ ${s.precioSnapshot.toLocaleString('es-CL')}</span>
+                            )}
+                            {s.precioEspecial && s.precioSnapshot === s.monto && (
+                              <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">★</span>
+                            )}
+                          </p>
                         </td>
                         <td className="px-4 py-3">
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[s.estado] ?? 'bg-gray-100 text-gray-500'}`}>
-                            {s.estado === 'pendiente_pago' ? 'pendiente pago' : s.estado}
+                            {s.estado === 'pendiente_pago' ? 'pend. pago' : s.estado}
                           </span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-400 whitespace-nowrap">{vi.vigenciaDateStr}</td>
-                        <td className="px-4 py-3 whitespace-nowrap space-x-2">
-                          <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Ver taller</Link>
-                          <Link href={`/tallerista/inscritos/${String(student._id)}/reservas`} className="text-xs text-gray-500 hover:underline">Ver reservas</Link>
+                          <p className="text-xs text-gray-400 mt-1">{vi.vigenciaDateStr}</p>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          {(s.estado === 'activa' || s.estado === 'pendiente_pago') && (
-                            <EditarSuscripcionModal
-                              subscriptionId={String(s._id)}
-                              studentName={student.name}
-                              workshopTitle={workshop.titulo}
-                              precioActual={s.precioSnapshot ?? s.monto}
-                              fechaVencimientoActual={new Date(s.fechaVencimiento).toISOString()}
-                              notaActual={s.notaPrecioEspecial}
-                              clasesCantidadActual={s.sesionesTotales}
-                              sesionesUsadas={s.sesionesUsadas ?? 0}
-                              autoRenovarActual={s.autoRenovar ?? false}
-                            />
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {s.estado === 'activa' && (
-                            <ReservarClaseModal
-                              subscriptionId={String(s._id)}
-                              studentName={student.name}
-                              workshopTitle={workshop.titulo}
-                              sesionesDisponibles={s.sesionesDisponibles}
-                              dependentNombre={s.dependentNombreSnapshot}
-                            />
-                          )}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Taller</Link>
+                            <Link href={`/tallerista/inscritos/${String(student._id)}/reservas`} className="text-xs text-gray-500 hover:underline">Reservas</Link>
+                            {(s.estado === 'activa' || s.estado === 'pendiente_pago') && (
+                              <EditarSuscripcionModal
+                                subscriptionId={String(s._id)}
+                                studentName={student.name}
+                                workshopTitle={workshop.titulo}
+                                precioActual={s.precioSnapshot ?? s.monto}
+                                fechaVencimientoActual={new Date(s.fechaVencimiento).toISOString()}
+                                notaActual={s.notaPrecioEspecial}
+                                clasesCantidadActual={s.sesionesTotales}
+                                sesionesUsadas={s.sesionesUsadas ?? 0}
+                                autoRenovarActual={s.autoRenovar ?? false}
+                              />
+                            )}
+                            {s.estado === 'activa' && (
+                              <ReservarClaseModal
+                                subscriptionId={String(s._id)}
+                                studentName={student.name}
+                                workshopTitle={workshop.titulo}
+                                sesionesDisponibles={s.sesionesDisponibles}
+                                dependentNombre={s.dependentNombreSnapshot}
+                              />
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )
