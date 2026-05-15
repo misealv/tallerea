@@ -224,23 +224,24 @@ export default async function MisTalleresPage() {
               const proxBooking = bookingBySub.get(String(s._id))
               const proxSlot = proxBooking ? (proxBooking.workshopId as WorkshopWithSlots).slots?.[proxBooking.slotIndex] : undefined
               return (
-                <TallerCard
-                  key={String(s._id)}
-                  titulo={wMedia.titulo}
-                  slug={wMedia.slug}
-                  imageUrl={wMedia.imagenes?.[0]}
-                  profesorNombre={profesorNombre}
-                  clasesRestantes={disponibles}
-                  sesionesTotales={s.sesionesTotales}
-                  fechaVencimiento={s.fechaVencimiento}
-                  caducaEn={prepaid?.caducaEn}
-                  subscriptionId={String(s._id)}
-                  proximaBooking={proxBooking && proxSlot ? { horaInicio: proxSlot.horaInicio, horaFin: proxSlot.horaFin, fecha: proxBooking.fecha } : null}
-                />
-                <Link href={`/alumno/mis-talleres/${String(wMedia._id)}/materiales`}
-                  className="text-xs text-orange-600 hover:text-orange-800 font-medium ml-1 mt-0.5 inline-block">
-                  📂 Ver material del taller
-                </Link>
+                <div key={String(s._id)}>
+                  <TallerCard
+                    titulo={wMedia.titulo}
+                    slug={wMedia.slug}
+                    imageUrl={wMedia.imagenes?.[0]}
+                    profesorNombre={profesorNombre}
+                    clasesRestantes={disponibles}
+                    sesionesTotales={s.sesionesTotales}
+                    fechaVencimiento={s.fechaVencimiento}
+                    caducaEn={prepaid?.caducaEn}
+                    subscriptionId={String(s._id)}
+                    proximaBooking={proxBooking && proxSlot ? { horaInicio: proxSlot.horaInicio, horaFin: proxSlot.horaFin, fecha: proxBooking.fecha } : null}
+                  />
+                  <Link href={`/alumno/mis-talleres/${String(wMedia._id)}/materiales`}
+                    className="text-xs text-orange-600 hover:text-orange-800 font-medium ml-1 mt-0.5 inline-block">
+                    📂 Ver material del taller
+                  </Link>
+                </div>
               )
             })}
           </div>
