@@ -31,20 +31,19 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const tallerEstado = (session.user as { tallerEstado?: string }).tallerEstado
   const esTallerista = role === 'admin' || tallerEstado === 'aprobado'
 
-  // Tallerista → puede ver todo. Alumno → solo 'alumnos'
+  // Verificar acceso al taller y determinar visibilidad permitida
+  const w = await WorkshopService.getByIdIncludingInactive(params.id)
+  if (!w) return NextResponse.json({ error: 'Taller no encontrado' }, { status: 404 })
+
+  const esOwner = role === 'admin' || String(w.ownerId) === session.user.id
+
   let visibilidad: ('tallerista' | 'alumnos')[]
-  if (esTallerista) {
-    // Solo el owner ve todo; otros talleristas ven solo 'alumnos'
-    const w = await WorkshopService.getByIdIncludingInactive(params.id)
-    if (!w) return NextResponse.json({ error: 'Taller no encontrado' }, { status: 404 })
-    visibilidad = (role === 'admin' || String(w.ownerId) === session.user.id)
-      ? ['tallerista', 'alumnos']
-      : ['alumnos']
+  if (esOwner) {
+    visibilidad = ['tallerista', 'alumnos']
   } else {
-    // Alumno: verificar acceso (suscripción activa o enrollment)
+    // Tallerista no-owner o alumno: requiere suscripción activa o enrollment
     const { default: Subscription } = await import('@/models/Subscription')
     const { default: Enrollment } = await import('@/models/Enrollment')
-    const { Types } = await import('mongoose')
     const [sub, enr] = await Promise.all([
       Subscription.findOne({ workshopId: params.id, studentId: session.user.id, estado: 'activa', activo: true }).select('_id').lean(),
       Enrollment.findOne({ workshopId: params.id, studentId: session.user.id, estado: { $in: ['pagado', 'activo'] }, activo: true }).select('_id').lean(),
@@ -56,8 +55,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   try {
     const [items, breadcrumb, cuota] = await Promise.all([
       WorkshopFileService.listar(params.id, parent, visibilidad),
-      WorkshopFileService.breadcrumb(parent),
-      esTallerista ? WorkshopFileService.cuotaUsada(session.user.id) : null,
+      WorkshopFileService.breadcrumb(parent, params.id),
+      esOwner ? WorkshopFileService.cuotaUsada(session.user.id) : null,
     ])
     return NextResponse.json({ data: items, breadcrumb, cuota })
   } catch (error: unknown) {
@@ -111,18 +110,27 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         visibilidad: data.visibilidad,
       })
     } else {
-      result = await WorkshopFileService.registrarArchivo({
-        workshopId: params.id,
-        ownerId: String(w.ownerId),
-        uploadedBy: session.user.id,
-        parentFolderId: data.parentFolderId,
-        nombre: data.nombre,
-        visibilidad: data.visibilidad,
-        cloudinaryPublicId: data.cloudinaryPublicId,
-        cloudinaryUrl: data.cloudinaryUrl,
-        mimeType: data.mimeType,
-        size: data.size,
-      })
+      try {
+        result = await WorkshopFileService.registrarArchivo({
+          workshopId: params.id,
+          ownerId: String(w.ownerId),
+          uploadedBy: session.user.id,
+          parentFolderId: data.parentFolderId,
+          nombre: data.nombre,
+          visibilidad: data.visibilidad,
+          cloudinaryPublicId: data.cloudinaryPublicId,
+          cloudinaryUrl: data.cloudinaryUrl,
+          mimeType: data.mimeType,
+          size: data.size,
+        })
+      } catch (err) {
+        // Si falla el registro en Mongo, borrar el asset huérfano en Cloudinary
+        const { default: cloudinary } = await import('@/lib/cloudinary')
+        const { getResourceType } = await import('@/services/WorkshopFileService')
+        const rt = getResourceType(data.mimeType) ?? 'raw'
+        cloudinary.uploader.destroy(data.cloudinaryPublicId, { resource_type: rt, invalidate: true }).catch(() => null)
+        throw err
+      }
     }
     return NextResponse.json(result, { status: 201 })
   } catch (error: unknown) {

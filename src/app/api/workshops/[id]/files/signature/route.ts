@@ -32,10 +32,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const parsed = SignatureSchema.safeParse(await req.json())
   if (!parsed.success) return NextResponse.json({ error: 'Falta mimeType' }, { status: 400 })
 
-  const { getResourceType } = await import('@/services/WorkshopFileService')
+  const { getResourceType, WorkshopFileService: WFS } = await import('@/services/WorkshopFileService')
   const resourceType = getResourceType(parsed.data.mimeType)
   if (!resourceType) {
     return NextResponse.json({ error: `Tipo de archivo no permitido: ${parsed.data.mimeType}` }, { status: 400 })
+  }
+
+  // Validar cuota antes de firmar — evita uploads huérfanos en Cloudinary
+  const cuota = await WFS.cuotaUsada(String(w.ownerId))
+  if (cuota.usadoBytes >= cuota.maximoBytes) {
+    return NextResponse.json({ error: 'Cuota de almacenamiento llena', cuota }, { status: 413 })
   }
 
   const firma = WorkshopFileService.generarFirma(params.id, resourceType)

@@ -71,6 +71,15 @@ export const WorkshopFileService = {
     visibilidadPermitida: FileVisibilidad[],
   ): Promise<IWorkshopFileDoc[]> {
     await dbConnect()
+    // Si hay parent, validar que pertenezca al taller
+    if (parentFolderId) {
+      const padre = await WorkshopFile.findOne({
+        _id: new Types.ObjectId(parentFolderId),
+        workshopId: new Types.ObjectId(workshopId),
+        activo: true,
+      }).select('_id').lean()
+      if (!padre) return []
+    }
     return WorkshopFile.find({
       workshopId: new Types.ObjectId(workshopId),
       parentFolderId: parentFolderId ? new Types.ObjectId(parentFolderId) : null,
@@ -82,11 +91,13 @@ export const WorkshopFileService = {
   },
 
   // Breadcrumb: array de ancestros desde raíz hasta parentFolderId
-  async breadcrumb(folderId: string | null): Promise<{ _id: string; nombre: string }[]> {
+  async breadcrumb(folderId: string | null, workshopId?: string): Promise<{ _id: string; nombre: string }[]> {
     if (!folderId) return []
     await dbConnect()
     const crumbs: { _id: string; nombre: string }[] = []
     let current: IWorkshopFileDoc | null = await WorkshopFile.findById(folderId).lean<IWorkshopFileDoc>()
+    // Validar workshopId si se proporcionó (defense in depth)
+    if (current && workshopId && String(current.workshopId) !== workshopId) return []
     while (current) {
       crumbs.unshift({ _id: String(current._id), nombre: current.nombre })
       if (!current.parentFolderId) break
