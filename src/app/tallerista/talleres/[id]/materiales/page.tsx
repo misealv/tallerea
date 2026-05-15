@@ -4,8 +4,33 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 
-const MAX_FILE_SIZE = 500 * 1024 * 1024  // 500 MB por archivo
+const MAX_FILE_SIZE = 500 * 1024 * 1024  // 500 MB por archivo (reducido por tipo abajo)
 
+// Límites por resource_type según plan Cloudinary
+// Free: raw/image = 10 MB, video = 100 MB
+const MAX_SIZE_BY_MIME: Record<string, number> = {
+  'image/jpeg': 10 * 1024 * 1024,
+  'image/png': 10 * 1024 * 1024,
+  'image/webp': 10 * 1024 * 1024,
+  'image/gif': 10 * 1024 * 1024,
+  'video/mp4': 100 * 1024 * 1024,
+  'video/quicktime': 100 * 1024 * 1024,
+  'video/webm': 100 * 1024 * 1024,
+  'application/pdf': 10 * 1024 * 1024,
+  'application/msword': 10 * 1024 * 1024,
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 10 * 1024 * 1024,
+  'application/vnd.ms-powerpoint': 10 * 1024 * 1024,
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 10 * 1024 * 1024,
+  'application/zip': 10 * 1024 * 1024,
+  'text/plain': 10 * 1024 * 1024,
+}
+
+function maxSizeLabel(mime: string): string {
+  const bytes = MAX_SIZE_BY_MIME[mime] ?? MAX_FILE_SIZE
+  return bytes >= 1024 * 1024 * 1024
+    ? `${bytes / 1024 / 1024 / 1024} GB`
+    : `${bytes / 1024 / 1024} MB`
+}
 interface FileNode {
   _id: string
   tipo: 'file' | 'folder'
@@ -173,7 +198,8 @@ export default function MaterialesPage() {
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       if (!ALLOWED_MIME.includes(file.type)) { alert(`Tipo no permitido: ${file.name}`); continue }
-      if (file.size > MAX_FILE_SIZE) { alert(`${file.name} excede 500 MB`); continue }
+      const maxSize = MAX_SIZE_BY_MIME[file.type] ?? MAX_FILE_SIZE
+      if (file.size > maxSize) { alert(`${file.name} excede el límite de ${maxSizeLabel(file.type)} para este tipo de archivo`); continue }
       setUploadProgress(`Subiendo ${i + 1}/${files.length}: ${file.name}`)
       setUploadPct(0)
       try {
