@@ -5,8 +5,10 @@ import Link from 'next/link'
 import dbConnect from '@/lib/db'
 import Booking from '@/models/Booking'
 import Workshop from '@/models/Workshop'
+import Subscription from '@/models/Subscription'
 import User from '@/models/User'
 import { Types } from 'mongoose'
+import PaqueteCard from '@/components/PaqueteCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,6 +60,30 @@ export default async function ReservasPorAlumnoPage({
 
   // Solo workshops del tallerista autenticado — garantía multi-tenant
   const workshopIds = await Workshop.distinct('_id', { ownerId, activo: true })
+
+  // Subs activas del alumno en talleres del tallerista — para mostrar paquete editable
+  const subsActivas = await Subscription.find({
+    studentId: studentObjId,
+    workshopId: { $in: workshopIds },
+    estado: 'activa',
+    activo: true,
+  })
+    .populate<{ workshopId: { _id: Types.ObjectId; titulo: string } }>('workshopId', '_id titulo')
+    .sort({ createdAt: -1 })
+    .lean<Array<{
+      _id: Types.ObjectId
+      workshopId: { _id: Types.ObjectId; titulo: string }
+      sesionesTotales: number
+      sesionesUsadas: number
+      sesionesDisponibles: number
+      precioSnapshot?: number
+      monto: number
+      autoRenovar: boolean
+      notaPrecioEspecial?: string
+      dependentNombreSnapshot?: string
+      clasesPrepagadas?: { cantidad?: number; caducaEn?: Date }
+      fechaVencimiento: Date
+    }>>()
 
   const bookings = await Booking.find({
     studentId: studentObjId,
@@ -111,6 +137,31 @@ export default async function ReservasPorAlumnoPage({
           </div>
         ))}
       </div>
+
+      {/* Paquetes activos por taller — editables */}
+      {subsActivas.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-gray-700">Paquetes activos</h2>
+          {subsActivas.map(s => {
+            const caduca = s.clasesPrepagadas?.caducaEn ?? s.fechaVencimiento
+            return (
+              <PaqueteCard
+                key={String(s._id)}
+                subscriptionId={String(s._id)}
+                workshopTitulo={s.workshopId.titulo}
+                dependentNombre={s.dependentNombreSnapshot ?? null}
+                cantidad={s.clasesPrepagadas?.cantidad ?? s.sesionesTotales}
+                sesionesUsadas={s.sesionesUsadas}
+                sesionesDisponibles={s.sesionesDisponibles}
+                precio={s.precioSnapshot ?? s.monto ?? 0}
+                caducaEn={caduca ? new Date(caduca).toISOString() : null}
+                autoRenovar={s.autoRenovar}
+                notaPrecio={s.notaPrecioEspecial ?? null}
+              />
+            )
+          })}
+        </div>
+      )}
 
       {/* Sin reservas */}
       {total === 0 && (

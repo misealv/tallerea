@@ -1061,4 +1061,107 @@ export const SubscriptionService = {
       subscriptionId: String(subscription._id),
     }
   },
+
+  /**
+   * Tallerista edita el paquete de una sub (cantidad de clases, precio, caducidad).
+   * Usado para que el cron de renovación sepa cuánto cobrar y por cuántas clases.
+   *
+   * Reglas:
+   * - Ownership: workshop.ownerId === ownerId
+   * - No permite reducir `cantidad` por debajo de `sesionesUsadas`
+   * - Sincroniza sesionesTotales / sesionesDisponibles cuando cambia cantidad
+   * - Si cambia precio: invalida cache de mpInitPoint (link MP viejo apunta al precio anterior)
+   */
+  async updatePaquete(input: {
+    subscriptionId: string
+    ownerId: string
+    cantidad?: number
+    precio?: number              // CLP enteros — actualiza precioSnapshot y monto
+    caducaEn?: Date | null
+    notaPrecio?: string | null
+    autoRenovar?: boolean
+  }): Promise<ISubscription> {
+    await dbConnect()
+
+    const sub = await Subscription.findById(input.subscriptionId)
+    if (!sub) throw new Error('Suscripción no encontrada')
+
+    const workshop = await Workshop.findById(sub.workshopId)
+    if (!workshop) throw new Error('Taller no encontrado')
+    const ownerIdStr = String(workshop.ownerId ?? workshop.accountId ?? '')
+    if (ownerIdStr !== input.ownerId) throw new Error('Sin permiso sobre esta suscripción')
+
+    let precioChanged = false
+
+    // Cantidad de clases del paquete
+    if (input.cantidad !== undefined) {
+      if (!Number.isInteger(input.cantidad) || input.cantidad < 1)
+        throw new Error('Cantidad debe ser entero >= 1')
+      if (input.cantidad < sub.sesionesUsadas)
+        throw new Error(`No puedes reducir el paquete a ${input.cantidad}: el alumno ya consumió ${sub.sesionesUsadas} clases`)
+
+      const delta = input.cantidad - sub.sesionesTotales
+      sub.sesionesTotales = input.cantidad
+      sub.sesionesDisponibles = Math.max(0, sub.sesionesDisponibles + delta)
+      if (!sub.clasesPrepagadas) {
+        sub.clasesPrepagadas = {
+          cantidad: input.cantidad,
+          consumidas: sub.sesionesUsadas,
+          creadoPor: sub.inscritoPor ?? sub.studentId,
+        } as ISubscription['clasesPrepagadas']
+      } else {
+        sub.clasesPrepagadas.cantidad = input.cantidad
+      }
+    }
+
+    // Precio (afecta tanto al cobro mensual como al snapshot que usa cerrarCiclo)
+    if (input.precio !== undefined) {
+      if (!Number.isInteger(input.precio) || input.precio <= 0)
+        throw new Error('[FINANCE] precio debe ser entero CLP positivo')
+      if (sub.monto !== input.precio || sub.precioSnapshot !== input.precio) {
+        sub.monto = input.precio
+        sub.precioSnapshot = input.precio
+        sub.precioEspecial = true
+        precioChanged = true
+      }
+    }
+
+    // Caducidad del ciclo (cuándo cobrar de nuevo)
+    if (input.caducaEn !== undefined) {
+      if (input.caducaEn === null) {
+        if (sub.clasesPrepagadas) sub.clasesPrepagadas.caducaEn = undefined
+      } else {
+        const d = new Date(input.caducaEn)
+        if (isNaN(d.getTime())) throw new Error('Fecha de caducidad inválida')
+        if (!sub.clasesPrepagadas) {
+          sub.clasesPrepagadas = {
+            cantidad: sub.sesionesTotales,
+            consumidas: sub.sesionesUsadas,
+            creadoPor: sub.inscritoPor ?? sub.studentId,
+            caducaEn: d,
+          } as ISubscription['clasesPrepagadas']
+        } else {
+          sub.clasesPrepagadas.caducaEn = d
+        }
+        sub.fechaVencimiento = d
+      }
+    }
+
+    if (input.notaPrecio !== undefined) {
+      sub.notaPrecioEspecial = input.notaPrecio?.trim() || undefined
+    }
+
+    if (input.autoRenovar !== undefined) {
+      sub.autoRenovar = input.autoRenovar
+    }
+
+    // [PAGO PENDIENTE] Si cambió el precio, el initPoint cacheado apunta al monto viejo
+    if (precioChanged) {
+      sub.mpInitPoint = undefined
+      sub.mpInitPointCreatedAt = undefined
+    }
+
+    await sub.save()
+    return sub.toObject() as ISubscription
+  },
 }
