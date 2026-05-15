@@ -186,7 +186,12 @@ export default function CalendarGridAlumno({
                 const left = `calc(48px + ${colIdx} * ${colW})`
                 const isMio = !!slot.miReservaId
                 const lleno = slot.reservas >= slot.cupoMax
-                const pasado = new Date(slot.fecha) < today
+                // Comparar fecha+horaFin (no solo medianoche UTC) para que los slots
+                // de hoy que aún no terminaron sean reservables
+                const [hf, mf] = (slot.horaFin ?? '23:59').split(':').map(Number)
+                const slotEndDate = new Date(slot.fecha)
+                slotEndDate.setUTCHours(hf, mf, 0, 0)
+                const pasado = slotEndDate < today
                 const cancelado = slot.cancelado
 
                 let colorClass = 'bg-green-500 hover:bg-green-600 cursor-pointer'

@@ -54,7 +54,13 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
   const calendarSlots: CalendarSlot[] = workshop.slots
     .map((s, i) => ({ s, i }))
     .filter(({ s, i }) => {
-      const esFuturo = s.fecha && new Date(s.fecha) > now
+      if (!s.fecha) return false
+      // Comparar fecha+horaFin en vez de solo la fecha (medianoche UTC).
+      // Así los slots de HOY que aún no terminaron aparecen como disponibles.
+      const [hf, mf] = (s.horaFin ?? '23:59').split(':').map(Number)
+      const slotEnd = new Date(s.fecha)
+      slotEnd.setUTCHours(hf, mf, 0, 0)
+      const esFuturo = slotEnd > now
       const esMio = reservedMap.has(i)
       return esFuturo || esMio
     })
