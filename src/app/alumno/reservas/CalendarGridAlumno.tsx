@@ -30,7 +30,7 @@ export interface CalendarSlot {
   reservas: number
   cancelado: boolean
   cupoMax: number
-  miReservaId?: string  // si ya reservé este slot
+  misReservas: { bookingId: string; dependentNombre?: string }[]
 }
 
 interface Props {
@@ -40,13 +40,18 @@ interface Props {
   subscriptionId: string
   workshopId: string
   onWeekChange: (delta: number) => void
+  subDependentId?: string    // si la sub tiene dependiente asignado, fijar para reservas
+  subDependentNombre?: string
 }
 
 export default function CalendarGridAlumno({
   weekStart, slots, sesionesDisponibles, subscriptionId, workshopId, onWeekChange,
+  subDependentId, subDependentNombre,
 }: Props) {
   const [confirming, setConfirming] = useState<CalendarSlot | null>(null)
   const [cancelling, setCancelling] = useState<string | null>(null)
+  // Slot abierto en modo "administrar reservas" (sub sin dependentId con ≥ 1 reserva en el slot)
+  const [managing, setManaging] = useState<CalendarSlot | null>(null)
   const [isPending, startTransition] = useTransition()
   const [actionError, setActionError] = useState('')
   const router = useRouter()
@@ -58,15 +63,17 @@ export default function CalendarGridAlumno({
   // Cargar dependientes al abrir el modal
   function openConfirm(slot: CalendarSlot) {
     setActionError('')
-    setSelectedDependent('')
+    // Si la sub tiene dependiente asignado, preseleccionarlo siempre; no cargar lista
+    setSelectedDependent(subDependentId ?? '')
     setConfirming(slot)
-    // Cargar dependientes del usuario en segundo plano
-    fetch('/api/users/me/dependents')
-      .then(r => r.json())
-      .then((data: { _id: string; nombre: string }[]) => {
-        if (Array.isArray(data)) setDependents(data)
-      })
-      .catch(() => null)
+    if (!subDependentId) {
+      fetch('/api/users/me/dependents')
+        .then(r => r.json())
+        .then((data: { _id: string; nombre: string }[]) => {
+          if (Array.isArray(data)) setDependents(data)
+        })
+        .catch(() => null)
+    }
   }
 
   // Construir los 7 días de la semana visible (aritmética en ms para mantener UTC)
@@ -184,7 +191,8 @@ export default function CalendarGridAlumno({
                 const height = durationToHeight(slot.horaInicio, slot.horaFin)
                 const colW = `calc((100% - 48px) / 7)`
                 const left = `calc(48px + ${colIdx} * ${colW})`
-                const isMio = !!slot.miReservaId
+                const reservasMias = slot.misReservas?.length ?? 0
+                const tieneReservaMia = reservasMias > 0
                 const lleno = slot.reservas >= slot.cupoMax
                 // Comparar fecha+horaFin (no solo medianoche UTC) para que los slots
                 // de hoy que aún no terminaron sean reservables
@@ -195,10 +203,23 @@ export default function CalendarGridAlumno({
                 const cancelado = slot.cancelado
 
                 let colorClass = 'bg-green-500 hover:bg-green-600 cursor-pointer'
-                if (isMio)     colorClass = 'bg-blue-500 hover:bg-blue-600 cursor-pointer'
-                if (lleno)     colorClass = 'bg-gray-300 dark:bg-gray-600 cursor-default'
+                if (tieneReservaMia) colorClass = 'bg-blue-500 hover:bg-blue-600 cursor-pointer'
+                if (lleno && !tieneReservaMia) colorClass = 'bg-gray-300 dark:bg-gray-600 cursor-default'
                 if (cancelado) colorClass = 'bg-red-200 dark:bg-red-900/60 cursor-default'
                 if (pasado)    colorClass = 'bg-gray-200 dark:bg-gray-700 cursor-default'
+
+                // Etiqueta interna del bloque
+                let label: string
+                if (tieneReservaMia) {
+                  if (reservasMias === 1) {
+                    const n = slot.misReservas[0].dependentNombre
+                    label = n ? `✓ ${n.split(' ')[0]}` : '✓ Reservado'
+                  } else {
+                    label = `✓ ${reservasMias} reservas`
+                  }
+                } else if (lleno) label = 'Lleno'
+                else if (cancelado) label = 'Cancelado'
+                else label = `${slot.cupoMax - slot.reservas} libre${slot.cupoMax - slot.reservas !== 1 ? 's' : ''}`
 
                 return (
                   <div key={slot.index}
@@ -206,15 +227,21 @@ export default function CalendarGridAlumno({
                     style={{ top: top + 1, height: height - 2, left, width: `calc(${colW} - 2px)` }}
                     onClick={() => {
                       if (pasado || cancelado) return
-                      if (isMio) { setActionError(''); setCancelling(slot.miReservaId!); return }
-                      if (!lleno && sesionesDisponibles > 0) { setActionError(''); openConfirm(slot) }
+                      setActionError('')
+                      // Si la sub tiene dependiente fijo: clásico (cancelar si ya hay reserva, reservar si no)
+                      if (subDependentId) {
+                        if (tieneReservaMia) { setCancelling(slot.misReservas[0].bookingId); return }
+                        if (!lleno && sesionesDisponibles > 0) openConfirm(slot)
+                        return
+                      }
+                      // Sub sin dependentId: si ya hay reservas en el slot, abrir gestor
+                      if (tieneReservaMia) { setManaging(slot); return }
+                      if (!lleno && sesionesDisponibles > 0) openConfirm(slot)
                     }}
                   >
                     <div className="font-semibold truncate">{slot.horaInicio}</div>
                     {height > CELL_H && (
-                      <div className="opacity-90 truncate">
-                        {isMio ? '✓ Reservado' : lleno ? 'Lleno' : cancelado ? 'Cancelado' : `${slot.cupoMax - slot.reservas} libre${slot.cupoMax - slot.reservas !== 1 ? 's' : ''}`}
-                      </div>
+                      <div className="opacity-90 truncate">{label}</div>
                     )}
                   </div>
                 )
@@ -241,8 +268,13 @@ export default function CalendarGridAlumno({
               {new Date(confirming.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })}<br />
               {confirming.horaInicio} – {confirming.horaFin}
             </p>
-            {/* Selector de dependiente */}
-            {dependents.length > 0 && (
+            {/* Selector de dependiente — fijo si la suscripción tiene uno asignado */}
+            {subDependentId ? (
+              <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg px-3 py-2">
+                <p className="text-xs text-purple-600 dark:text-purple-400 mb-0.5">Esta clase es para:</p>
+                <p className="text-sm font-semibold text-purple-900 dark:text-purple-200">{subDependentNombre}</p>
+              </div>
+            ) : dependents.length > 0 && (
               <div>
                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">¿Quién toma esta clase?</label>
                 <select
@@ -290,6 +322,43 @@ export default function CalendarGridAlumno({
                 No, volver
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal gestionar reservas (sub sin dependentId con varias reservas posibles en el slot) */}
+      {managing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50" onClick={() => setManaging(null)}>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 w-80 space-y-4 border border-transparent dark:border-gray-700" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900 dark:text-white">Reservas en esta sesión</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {new Date(managing.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })} · {managing.horaInicio}–{managing.horaFin}
+            </p>
+            <div className="space-y-2">
+              {managing.misReservas.map(r => (
+                <div key={r.bookingId} className="flex items-center justify-between gap-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg px-3 py-2">
+                  <span className="text-sm text-gray-800 dark:text-gray-200">{r.dependentNombre ?? 'Titular'}</span>
+                  <button
+                    onClick={() => { setManaging(null); setCancelling(r.bookingId) }}
+                    className="text-xs text-red-600 hover:text-red-700 font-medium"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              ))}
+            </div>
+            {managing.reservas < managing.cupoMax && sesionesDisponibles > 0 && (
+              <button
+                onClick={() => { const slot = managing; setManaging(null); openConfirm(slot) }}
+                className="w-full bg-purple-600 text-white py-2 rounded-lg font-medium hover:bg-purple-700"
+              >
+                + Reservar otra
+              </button>
+            )}
+            <button onClick={() => setManaging(null)}
+              className="w-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
+              Cerrar
+            </button>
           </div>
         </div>
       )}

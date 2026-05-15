@@ -22,8 +22,8 @@ interface DepForm {
   precioEspecial: boolean
   precioSnapshot: string
   notaPrecioEspecial: string
-  tienePrepagado: boolean
   prepCantidad: number
+  yaPago: boolean
   prepConsumidas: number
   prepFechaPago: string
   prepMetodo: string
@@ -36,8 +36,8 @@ function emptyDep(): DepForm {
   return {
     nombre: '', fechaNacimiento: '', notas: '',
     precioEspecial: false, precioSnapshot: '', notaPrecioEspecial: '',
-    tienePrepagado: false,
     prepCantidad: 4, prepConsumidas: 0,
+    yaPago: false,
     prepFechaPago: new Date().toISOString().slice(0, 10),
     prepMetodo: 'transferencia', prepMonto: '', prepNota: '', prepCaducaEn: '',
   }
@@ -150,15 +150,17 @@ export default function InscribirAlumnoPage() {
           precioEspecial: dep.precioEspecial,
           precioSnapshot: dep.precioEspecial ? Number(dep.precioSnapshot) : undefined,
           notaPrecioEspecial: dep.notaPrecioEspecial.trim() || undefined,
-          clasesPrepagadas: dep.tienePrepagado ? {
+          clasesPrepagadas: {
             cantidad:              dep.prepCantidad,
             consumidasAlInscribir: dep.prepConsumidas > 0 ? dep.prepConsumidas : undefined,
-            fechaPago:             dep.prepFechaPago,
-            metodoPago:            dep.prepMetodo,
-            montoDeclarado: dep.prepMonto ? Number(dep.prepMonto) : undefined,
-            notaTallerista: dep.prepNota.trim() || undefined,
-            caducaEn:       dep.prepCaducaEn ? new Date(dep.prepCaducaEn).toISOString() : undefined,
-          } : undefined,
+            ...(dep.yaPago ? {
+              fechaPago:      dep.prepFechaPago,
+              metodoPago:     dep.prepMetodo,
+              montoDeclarado: dep.prepMonto ? Number(dep.prepMonto) : undefined,
+              notaTallerista: dep.prepNota.trim() || undefined,
+            } : {}),
+            caducaEn: dep.prepCaducaEn ? new Date(dep.prepCaducaEn).toISOString() : undefined,
+          },
         })),
       }
       await submit(body)
@@ -526,32 +528,34 @@ function DepCard({
         </div>
       )}
 
-      {/* Clases prepagadas */}
-      <div className="flex items-center gap-2">
-        <input type="checkbox" id={`prepagado-${idx}`} checked={dep.tienePrepagado}
-          onChange={e => onChange('tienePrepagado', e.target.checked)}
-          className="rounded border-gray-300 text-indigo-600" />
-        <label htmlFor={`prepagado-${idx}`} className="text-sm text-gray-700">Registrar clases prepagadas</label>
+      {/* N° de clases — siempre visible y obligatorio */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">N° de clases del paquete *</label>
+          <input type="number" min={1} step={1} required value={dep.prepCantidad}
+            onChange={e => { onChange('prepCantidad', Number(e.target.value)); if (dep.prepConsumidas >= Number(e.target.value)) onChange('prepConsumidas', 0) }}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Ya consumidas fuera</label>
+          <input type="number" min={0} max={dep.prepCantidad - 1} step={1} value={dep.prepConsumidas}
+            onChange={e => onChange('prepConsumidas', Number(e.target.value))}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        </div>
       </div>
-      {dep.tienePrepagado && (
+      {dep.prepConsumidas > 0 && (
+        <p className="text-xs text-indigo-600 pl-1">Saldo activo: {dep.prepCantidad - dep.prepConsumidas} de {dep.prepCantidad} clases</p>
+      )}
+
+      {/* Registro de pago — opcional */}
+      <div className="flex items-center gap-2">
+        <input type="checkbox" id={`yaPago-${idx}`} checked={dep.yaPago}
+          onChange={e => onChange('yaPago', e.target.checked)}
+          className="rounded border-gray-300 text-indigo-600" />
+        <label htmlFor={`yaPago-${idx}`} className="text-sm text-gray-700">El alumno ya pagó este paquete</label>
+      </div>
+      {dep.yaPago && (
         <div className="pl-5 space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Clases del paquete *</label>
-              <input type="number" min={1} step={1} required value={dep.prepCantidad}
-                onChange={e => { onChange('prepCantidad', Number(e.target.value)); if (dep.prepConsumidas >= Number(e.target.value)) onChange('prepConsumidas', 0) }}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Ya consumidas fuera</label>
-              <input type="number" min={0} max={dep.prepCantidad - 1} step={1} value={dep.prepConsumidas}
-                onChange={e => onChange('prepConsumidas', Number(e.target.value))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-            </div>
-          </div>
-          {dep.prepConsumidas > 0 && (
-            <p className="text-xs text-indigo-600">Saldo activo: {dep.prepCantidad - dep.prepConsumidas} de {dep.prepCantidad} clases</p>
-          )}
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Fecha de pago *</label>

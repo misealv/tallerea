@@ -54,6 +54,7 @@ interface SubscriptionLean {
   sesionesTotales: number
   fechaVencimiento: Date
   clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }
+  dependentNombreSnapshot?: string
 }
 
 interface SubPendientePago {
@@ -595,6 +596,7 @@ export default async function AlumnoDashboard() {
                   proximaBooking={proxBooking && proxSlot ? { horaInicio: proxSlot.horaInicio, horaFin: proxSlot.horaFin, fecha: proxBooking.fecha } : null}
                   hideProximaBooking={isHeroBooking}
                   devueltas={devueltas}
+                  dependentNombre={s.dependentNombreSnapshot}
                 />
               )
             })}

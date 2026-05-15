@@ -31,6 +31,8 @@ export interface TallerCardProps {
   fechaSlotStr?: string | null
   diaSemana?: string | null
   montoPagado?: number
+  // Dependiente asignado a la suscripción
+  dependentNombre?: string
 }
 
 export default function TallerCard({
@@ -52,6 +54,7 @@ export default function TallerCard({
   fechaSlotStr,
   diaSemana,
   montoPagado,
+  dependentNombre,
 }: TallerCardProps) {
   const thumbUrl = getCloudinaryUrl(imageUrl, TRANSFORM.dashboardCard)
   const hasCaducado = caducaEn ? new Date(caducaEn) < new Date() : false
@@ -91,6 +94,9 @@ export default function TallerCard({
             </span>
           )}
           <p className="font-semibold text-gray-900 text-sm leading-tight">{titulo}</p>
+          {dependentNombre && (
+            <p className="text-xs font-medium text-purple-600 mt-0.5">Para: {dependentNombre}</p>
+          )}
           <p className="text-xs text-gray-500 mt-0.5">con {profesorNombre}</p>
         </div>
       </div>

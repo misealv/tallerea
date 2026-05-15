@@ -23,8 +23,10 @@ interface SubLean {
   sesionesDisponibles: number
   fechaVencimiento: Date
   clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }
+  dependentId?: Types.ObjectId
+  dependentNombreSnapshot?: string
 }
-interface BookingLean { _id: Types.ObjectId; slotIndex: number; fecha: Date; estado: string }
+interface BookingLean { _id: Types.ObjectId; slotIndex: number; fecha: Date; estado: string; dependentNombreSnapshot?: string }
 
 export default async function ReservasPage({ searchParams }: { searchParams: Promise<{ sub?: string; workshop?: string }> }) {
   const session = await getServerSession(authOptions)
@@ -46,7 +48,12 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
   const bookings = await Booking.find({ subscriptionId: subId, estado: { $ne: 'cancelada' }, activo: true })
     .lean<BookingLean[]>()
 
-  const reservedMap = new Map(bookings.map(b => [b.slotIndex, String(b._id)]))
+  const reservedMap = new Map<number, { bookingId: string; dependentNombre?: string }[]>()
+  for (const b of bookings) {
+    const arr = reservedMap.get(b.slotIndex) ?? []
+    arr.push({ bookingId: String(b._id), dependentNombre: b.dependentNombreSnapshot })
+    reservedMap.set(b.slotIndex, arr)
+  }
   const cupo = workshop.cupoPorSesion
 
   // Construir CalendarSlot[] para todos los slots futuros + los ya reservados por el alumno
@@ -72,7 +79,7 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
       reservas: s.reservas,
       cancelado: s.cancelado,
       cupoMax: cupo,
-      miReservaId: reservedMap.get(i),
+      misReservas: reservedMap.get(i) ?? [],
     }))
 
   return (
@@ -92,6 +99,8 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
             sesionesDisponibles={vi.disponibles}
             fechaVencimiento={vi.fechaVigenciaReal.toISOString()}
             allSlots={calendarSlots}
+            subDependentId={sub.dependentId ? String(sub.dependentId) : undefined}
+            subDependentNombre={sub.dependentNombreSnapshot}
           />
         )
       })()}

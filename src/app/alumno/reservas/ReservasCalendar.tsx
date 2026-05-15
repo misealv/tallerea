@@ -12,6 +12,8 @@ interface Props {
   sesionesDisponibles: number
   fechaVencimiento: string
   allSlots: CalendarSlot[]
+  subDependentId?: string
+  subDependentNombre?: string
 }
 
 function getMonday(d: Date): Date {
@@ -30,6 +32,7 @@ function slotsBetween(slots: CalendarSlot[], from: Date, to: Date): CalendarSlot
 
 export default function ReservasCalendar({
   subscriptionId, workshopId, workshopSlug, sesionesDisponibles, fechaVencimiento, allSlots,
+  subDependentId, subDependentNombre,
 }: Props) {
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()))
 
@@ -77,6 +80,8 @@ export default function ReservasCalendar({
         subscriptionId={subscriptionId}
         workshopId={workshopId}
         onWeekChange={handleWeekChange}
+        subDependentId={subDependentId}
+        subDependentNombre={subDependentNombre}
       />
 
       {visibleSlots.length === 0 && (

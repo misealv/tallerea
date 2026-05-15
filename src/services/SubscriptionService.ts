@@ -777,8 +777,8 @@ export const SubscriptionService = {
     clasesPrepagadas?: {
       cantidad: number
       consumidasAlInscribir?: number  // clases ya consumidas fuera del sistema al momento de inscribir
-      fechaPago: Date
-      metodoPago: string
+      fechaPago?: Date                // opcional: omitir si el pago aún no ocurrió → crea pendiente_pago
+      metodoPago?: string
       montoDeclarado?: number
       notaTallerista?: string
       caducaEn?: Date  // opcional: fecha límite de validez de las clases prepagadas
@@ -921,10 +921,16 @@ export const SubscriptionService = {
       ...(input.clasesPrepagadas.caducaEn ? { caducaEn: input.clasesPrepagadas.caducaEn } : {}),
     } : undefined
 
+    // Si hay clasesPrepagadas pero sin fechaPago → el pago aún no ocurrió → pendiente_pago.
+    // El modelo ya permite pendiente_pago sin fechaPago/metodoPago (validación en pre-save).
+    const estadoInicial = (input.clasesPrepagadas && !input.clasesPrepagadas.fechaPago)
+      ? 'pendiente_pago'
+      : 'activa'
+
     const subscription = await new Subscription({
       workshopId: input.workshopId,
       studentId,
-      estado: 'activa',
+      estado: estadoInicial,
       sesionesTotales,
       sesionesUsadas: 0,
       sesionesDisponibles,
