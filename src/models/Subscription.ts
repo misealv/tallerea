@@ -38,6 +38,9 @@ export interface ISubscription extends Document {
   inscritoPor?: Types.ObjectId;
   precioEspecial: boolean;
   notaPrecioEspecial?: string;
+  // [PAGO PENDIENTE] Cache del link MP para evitar regenerar preferences en cada page load
+  mpInitPoint?: string;
+  mpInitPointCreatedAt?: Date;
   clasesPrepagadas?: IClasesPrepagadas;
   createdAt: Date;
 }
@@ -69,6 +72,10 @@ const SubscriptionSchema = new Schema<ISubscription>({
   inscritoPor:              { type: Schema.Types.ObjectId, ref: 'User' },
   precioEspecial:           { type: Boolean, default: false },
   notaPrecioEspecial:       { type: String, maxlength: 500 },
+  // [PAGO PENDIENTE] Cache del link MP — se reusa hasta 7 días antes de regenerar.
+  // Evita pollution en MP y bug de doble cobro por preferences obsoletas.
+  mpInitPoint:              { type: String },
+  mpInitPointCreatedAt:     { type: Date },
   clasesPrepagadas: {
     cantidad:        { type: Number, min: 1 },
     consumidas:      { type: Number, default: 0, min: 0 },
@@ -133,6 +140,13 @@ SubscriptionSchema.index({ fechaVencimiento: 1 });
 SubscriptionSchema.index(
   { workshopId: 1, studentId: 1, dependentId: 1 },
   { unique: true, partialFilterExpression: { estado: 'activa' } }
+);
+
+// [RACE] Solo 1 sub pendiente_pago por (alumno, dependiente, taller).
+// Evita que un doble click genere 2 links MP simultáneos para el mismo menor.
+SubscriptionSchema.index(
+  { workshopId: 1, studentId: 1, dependentId: 1, estado: 1 },
+  { unique: true, partialFilterExpression: { estado: 'pendiente_pago' } }
 );
 
 // [IDEMPOTENCIA] pagoRef único cuando está presente — evita duplicar Subscription por retries del webhook MP

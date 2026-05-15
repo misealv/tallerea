@@ -62,6 +62,8 @@ interface SubPendientePago {
   monto: number
   dependentNombreSnapshot?: string
   sesionesTotales: number
+  mpInitPoint?: string
+  mpInitPointCreatedAt?: Date
 }
 
 interface BookingLean {
@@ -201,18 +203,37 @@ export default async function AlumnoDashboard() {
       .lean<{ workshopId: { slug: string } | null }[]>(),
     // Subs pendientes de pago — para mostrar banner con links MP
     Subscription.find({ studentId, estado: 'pendiente_pago', activo: true })
+      .select('workshopId monto dependentNombreSnapshot sesionesTotales mpInitPoint mpInitPointCreatedAt')
       .populate('workshopId', 'titulo slug')
       .sort({ createdAt: 1 })
       .lean<SubPendientePago[]>(),
   ])
 
-  // Generar initPoints frescos para cada sub pendiente de pago
+  // [PAGO PENDIENTE] Reusar mpInitPoint cacheado si tiene < 7 días. Solo regenerar si falta o expiró.
   const pagosPendientes: { nombre: string; monto: number; clases: number; initPoint: string }[] = []
   if (subsPendientes.length > 0) {
     const studentEmail = (session.user as { email?: string }).email ?? ''
+    const SIETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000
+    const ahora = Date.now()
     await Promise.all(subsPendientes.map(async (s) => {
+      const w = s.workshopId as WorkshopRef
+      const cacheVigente = s.mpInitPoint
+        && s.mpInitPointCreatedAt
+        && (ahora - new Date(s.mpInitPointCreatedAt).getTime()) < SIETE_DIAS_MS
+
+      if (cacheVigente && s.mpInitPoint) {
+        pagosPendientes.push({
+          nombre: s.dependentNombreSnapshot ?? w.titulo,
+          monto: s.monto,
+          clases: s.sesionesTotales,
+          initPoint: s.mpInitPoint,
+        })
+        return
+      }
+
+      // Regenerar y persistir en la sub para reusos futuros
+      if (!studentEmail) return
       try {
-        const w = s.workshopId as WorkshopRef
         const pref = await createPaymentPreference({
           externalRef: `sub:${String(s._id)}`,
           workshopTitle: `${w.titulo}${s.dependentNombreSnapshot ? ` — ${s.dependentNombreSnapshot}` : ''}`,
@@ -220,6 +241,10 @@ export default async function AlumnoDashboard() {
           payerEmail: studentEmail,
         })
         if (pref.init_point) {
+          await Subscription.updateOne(
+            { _id: s._id },
+            { $set: { mpInitPoint: pref.init_point, mpInitPointCreatedAt: new Date() } }
+          )
           pagosPendientes.push({
             nombre: s.dependentNombreSnapshot ?? w.titulo,
             monto: s.monto,

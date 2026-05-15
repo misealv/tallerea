@@ -561,6 +561,16 @@ export const SubscriptionService = {
     let renewalInitPoint: string | undefined
     if (sub.precioSnapshot && sub.precioSnapshot > 0) {
       try {
+        // [IDEMPOTENCIA] Si ya existe una sub de renovación para este ciclo, reusarla.
+        // Evita duplicación si cerrarCiclo se invoca 2× (cron retry o ejecución concurrente).
+        const existente = await Subscription.findOne({
+          renovadaDesdeId: sub._id,
+          estado: { $in: ['pendiente_pago', 'activa'] },
+          activo: true,
+        })
+        if (existente) {
+          renewalInitPoint = existente.mpInitPoint
+        } else {
         const clasesCantidad = sub.clasesPrepagadas?.cantidad ?? sub.sesionesTotales
         const caducaEn = sub.clasesPrepagadas?.caducaEn
         const nuevaCaducaEn = caducaEn
@@ -602,6 +612,12 @@ export const SubscriptionService = {
         })
         if (pref?.init_point) {
           renewalInitPoint = pref.init_point
+          // [PAGO PENDIENTE] Cachear initPoint en la nueva sub
+          await Subscription.updateOne(
+            { _id: nuevaSub._id },
+            { $set: { mpInitPoint: pref.init_point, mpInitPointCreatedAt: new Date() } }
+          )
+        }
         }
       } catch {
         // No bloquear cerrarCiclo si falla la generación del link de renovación
@@ -937,11 +953,19 @@ export const SubscriptionService = {
     const workshop = await Workshop.findOne({ _id: input.workshopId, activo: true })
     if (!workshop) throw new Error('Taller no encontrado')
 
+    // [PAGO PENDIENTE] Solo talleres recurrentes pueden generar suscripciones
+    if (workshop.modeloAcceso !== 'recurrente')
+      throw new Error('Solo talleres recurrentes admiten link de pago de suscripción')
+
     const ownerIdStr = String(workshop.ownerId ?? workshop.accountId ?? '')
     if (ownerIdStr !== input.ownerId) throw new Error('Sin permiso sobre este taller')
 
-    // Upsert alumno
+    // [PAGO PENDIENTE] Validar email del alumno (MP rechaza preferencia sin payer email)
     const emailNorm = input.studentEmail.trim().toLowerCase()
+    if (!emailNorm || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm))
+      throw new Error('Email del alumno inválido')
+
+    // Upsert alumno
     const { findOrCreateGuestUser } = await import('@/lib/guestUser')
     const { userId: studentId } = await findOrCreateGuestUser(input.studentNombre.trim(), emailNorm)
 
@@ -1024,8 +1048,16 @@ export const SubscriptionService = {
       payerEmail: emailNorm,
     })
 
+    const initPoint = preference.init_point ?? ''
+    // [PAGO PENDIENTE] Cachear initPoint en la sub para que el banner alumno lo reuse
+    if (initPoint) {
+      subscription.mpInitPoint = initPoint
+      subscription.mpInitPointCreatedAt = new Date()
+      await subscription.save()
+    }
+
     return {
-      initPoint: preference.init_point ?? '',
+      initPoint,
       subscriptionId: String(subscription._id),
     }
   },

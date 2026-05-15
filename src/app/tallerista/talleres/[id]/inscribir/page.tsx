@@ -414,6 +414,7 @@ export default function InscribirAlumnoPage() {
                   }
                   setLinkGenerando(true)
                   const resultados: { nombre: string; url: string }[] = []
+                  const errores: string[] = []
                   for (const ld of linkDeps) {
                     try {
                       const res = await fetch('/api/tallerista/generar-link-pago', {
@@ -431,13 +432,17 @@ export default function InscribirAlumnoPage() {
                         }),
                       })
                       const data = await res.json()
-                      if (!res.ok) { setLinkError(data.error ?? 'Error desconocido'); setLinkGenerando(false); return }
+                      if (!res.ok) {
+                        errores.push(`${ld.nombre.trim()}: ${data.error ?? 'Error desconocido'}`)
+                        continue
+                      }
                       resultados.push({ nombre: ld.nombre.trim(), url: data.initPoint })
                     } catch {
-                      setLinkError('Error de red al generar el link'); setLinkGenerando(false); return
+                      errores.push(`${ld.nombre.trim()}: Error de red`)
                     }
                   }
                   setLinkResultados(resultados)
+                  if (errores.length > 0) setLinkError(errores.join(' · '))
                   setLinkGenerando(false)
                 }}
                 className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors">
