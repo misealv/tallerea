@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose'
 export interface ISiteConfig extends Document {
   comisionPct: number
   liquidacionMinimaDefault: number
+  cuotaPorTalleristaMB: number      // cuota de almacenamiento de materiales por tallerista
   // Singleton: solo 1 documento
   singleton: boolean
 }
@@ -10,6 +11,7 @@ export interface ISiteConfig extends Document {
 const SiteConfigSchema = new Schema<ISiteConfig>({
   comisionPct: { type: Number, required: true, default: 15, min: 0, max: 100 },
   liquidacionMinimaDefault: { type: Number, required: true, default: 5000, min: 0 },
+  cuotaPorTalleristaMB: { type: Number, required: true, default: 1024, min: 0 },
   singleton: { type: Boolean, default: true, unique: true },
 }, { timestamps: true })
 

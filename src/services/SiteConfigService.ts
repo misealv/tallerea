@@ -5,6 +5,7 @@ import SiteConfig, { ISiteConfig } from '@/models/SiteConfig'
 const DEFAULTS = {
   comisionPct: 15,
   liquidacionMinimaDefault: 5000,
+  cuotaPorTalleristaMB: 1024,
 }
 
 export const SiteConfigService = {
@@ -19,7 +20,7 @@ export const SiteConfigService = {
     return config
   },
 
-  async update(data: Partial<Pick<ISiteConfig, 'comisionPct' | 'liquidacionMinimaDefault'>>): Promise<ISiteConfig> {
+  async update(data: Partial<Pick<ISiteConfig, 'comisionPct' | 'liquidacionMinimaDefault' | 'cuotaPorTalleristaMB'>>): Promise<ISiteConfig> {
     await connectDB()
     const config = await SiteConfig.findOneAndUpdate(
       { singleton: true },
@@ -33,5 +34,10 @@ export const SiteConfigService = {
   async getComisionPct(): Promise<number> {
     const config = await this.get()
     return config.comisionPct
+  },
+
+  async getCuotaPorTalleristaMB(): Promise<number> {
+    const config = await this.get()
+    return config.cuotaPorTalleristaMB ?? 1024
   },
 }
