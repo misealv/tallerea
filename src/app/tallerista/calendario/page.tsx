@@ -37,6 +37,7 @@ interface SlotItem {
   fecha: string; cancelado: boolean; reservas: number; cupo: number
 }
 interface Inscrito { bookingId: string; name: string; email: string; estado: string; dependentNombre?: string }
+interface Candidato { subscriptionId: string; studentId: string; name: string; email: string; sesionesDisponibles: number; esDependent: boolean }
 
 export default function CalendarioTallerista() {
   const searchParams = useSearchParams()
@@ -50,6 +51,13 @@ export default function CalendarioTallerista() {
   const [inscritos, setInscritos] = useState<Inscrito[]>([])
   const [loadingInscritos, setLoadingInscritos] = useState(false)
   const [cancelingBookingId, setCancelingBookingId] = useState<string | null>(null)
+  // Reservar alumno desde el modal
+  const [showReservar, setShowReservar] = useState(false)
+  const [candidatos, setCandidatos] = useState<Candidato[]>([])
+  const [loadingCandidatos, setLoadingCandidatos] = useState(false)
+  const [selectedSub, setSelectedSub] = useState('')
+  const [reservando, setReservando] = useState(false)
+  const [reservaError, setReservaError] = useState('')
 
   const fetchSlots = useCallback(async (from: Date) => {
     setLoading(true)
@@ -75,6 +83,10 @@ export default function CalendarioTallerista() {
   async function openDetail(slot: SlotItem) {
     setDetail(slot)
     setInscritos([])
+    setShowReservar(false)
+    setCandidatos([])
+    setSelectedSub('')
+    setReservaError('')
     // Siempre cargar alumnos: no depender del contador reservas que puede estar desactualizado
     // (enrollments puntuales/prueba no incrementan slot.reservas en el schema)
     setLoadingInscritos(true)
@@ -107,6 +119,47 @@ export default function CalendarioTallerista() {
       setDetail(prev => prev ? { ...prev, reservas: Math.max(0, prev.reservas - 1) } : null)
     } catch { alert('No se pudo anular la reserva.') }
     finally { setCancelingBookingId(null) }
+  }
+
+  async function abrirReservar(slot: SlotItem) {
+    setShowReservar(true)
+    setSelectedSub('')
+    setReservaError('')
+    setLoadingCandidatos(true)
+    try {
+      const res = await fetch(`/api/tallerista/calendar/bookings?workshopId=${slot.workshopId}&slotIndex=${slot.slotIndex}`)
+      const data = await res.json()
+      setCandidatos(data.data ?? [])
+    } catch { setCandidatos([]) }
+    finally { setLoadingCandidatos(false) }
+  }
+
+  async function confirmarReserva() {
+    if (!detail || !selectedSub) return
+    setReservando(true)
+    setReservaError('')
+    try {
+      const res = await fetch('/api/tallerista/calendar/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscriptionId: selectedSub, slotIndex: detail.slotIndex }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error al reservar')
+      // Actualizar contadores locales
+      setSlots(prev => prev.map(s =>
+        s.workshopId === detail.workshopId && s.slotIndex === detail.slotIndex
+          ? { ...s, reservas: s.reservas + 1 }
+          : s
+      ))
+      setDetail(prev => prev ? { ...prev, reservas: prev.reservas + 1 } : null)
+      // Refrescar lista de inscritos y ocultar el formulario
+      setShowReservar(false)
+      setCandidatos(prev => prev.filter(c => c.subscriptionId !== selectedSub))
+      await openDetail(detail)
+    } catch (e: unknown) {
+      setReservaError(e instanceof Error ? e.message : 'Error al reservar')
+    } finally { setReservando(false) }
   }
 
   async function toggleCancelar(slot: SlotItem) {
@@ -365,6 +418,62 @@ export default function CalendarioTallerista() {
                       </li>
                     ))}
                   </ul>
+                )}
+              </div>
+            )}
+
+            {/* Sección: reservar alumno */}
+            {!detail.cancelado && (
+              <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+                {!showReservar ? (
+                  <button
+                    onClick={() => abrirReservar(detail)}
+                    className="w-full text-sm py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 font-medium transition"
+                  >
+                    + Reservar alumno
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                      Reservar para…
+                    </p>
+                    {loadingCandidatos ? (
+                      <p className="text-xs text-gray-400 text-center py-2">Cargando alumnos…</p>
+                    ) : candidatos.length === 0 ? (
+                      <p className="text-xs text-gray-400 text-center py-2">Sin alumnos disponibles con suscripción activa.</p>
+                    ) : (
+                      <select
+                        value={selectedSub}
+                        onChange={e => setSelectedSub(e.target.value)}
+                        className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      >
+                        <option value="">Seleccionar alumno…</option>
+                        {candidatos.map(c => (
+                          <option key={c.subscriptionId} value={c.subscriptionId}>
+                            {c.name}{c.esDependent ? ' (apoderado)' : ''} — {c.sesionesDisponibles} sesión{c.sesionesDisponibles !== 1 ? 'es' : ''} disp.
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {reservaError && (
+                      <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded-lg">{reservaError}</p>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setShowReservar(false); setReservaError('') }}
+                        className="flex-1 text-sm py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={confirmarReserva}
+                        disabled={!selectedSub || reservando}
+                        className="flex-1 text-sm py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 transition"
+                      >
+                        {reservando ? 'Reservando…' : 'Confirmar'}
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
