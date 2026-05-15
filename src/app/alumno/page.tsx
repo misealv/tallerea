@@ -13,6 +13,7 @@ import CancelBookingButton from '@/components/CancelBookingButton'
 import TallerCard from '@/components/TallerCard'
 import SaldoTooltipButton from '@/components/SaldoTooltipButton'
 import { shouldHideTrial } from '@/lib/trialFilters'
+import { createPaymentPreference } from '@/lib/mercadopago'
 import { Types } from 'mongoose'
 
 export const dynamic = 'force-dynamic'
@@ -53,6 +54,14 @@ interface SubscriptionLean {
   sesionesTotales: number
   fechaVencimiento: Date
   clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }
+}
+
+interface SubPendientePago {
+  _id: Types.ObjectId
+  workshopId: WorkshopRef
+  monto: number
+  dependentNombreSnapshot?: string
+  sesionesTotales: number
 }
 
 interface BookingLean {
@@ -162,7 +171,7 @@ export default async function AlumnoDashboard() {
   await dbConnect()
   const studentId = session.user.id
 
-  const [user, enrollments, subscriptions, upcomingBookings, cancelledByProf, allSubsHistorical] = await Promise.all([
+  const [user, enrollments, subscriptions, upcomingBookings, cancelledByProf, allSubsHistorical, subsPendientes] = await Promise.all([
     User.findById(studentId).select('name creditoDisponible').lean<{ name: string; creditoDisponible: number }>(),
     Enrollment.find({ studentId, estado: 'pagado', activo: true })
       .populate('workshopId', 'titulo slug')
@@ -190,7 +199,37 @@ export default async function AlumnoDashboard() {
       .select('workshopId')
       .populate('workshopId', 'slug')
       .lean<{ workshopId: { slug: string } | null }[]>(),
+    // Subs pendientes de pago — para mostrar banner con links MP
+    Subscription.find({ studentId, estado: 'pendiente_pago', activo: true })
+      .populate('workshopId', 'titulo slug')
+      .sort({ createdAt: 1 })
+      .lean<SubPendientePago[]>(),
   ])
+
+  // Generar initPoints frescos para cada sub pendiente de pago
+  const pagosPendientes: { nombre: string; monto: number; clases: number; initPoint: string }[] = []
+  if (subsPendientes.length > 0) {
+    const studentEmail = (session.user as { email?: string }).email ?? ''
+    await Promise.all(subsPendientes.map(async (s) => {
+      try {
+        const w = s.workshopId as WorkshopRef
+        const pref = await createPaymentPreference({
+          externalRef: `sub:${String(s._id)}`,
+          workshopTitle: `${w.titulo}${s.dependentNombreSnapshot ? ` — ${s.dependentNombreSnapshot}` : ''}`,
+          amount: s.monto,
+          payerEmail: studentEmail,
+        })
+        if (pref.init_point) {
+          pagosPendientes.push({
+            nombre: s.dependentNombreSnapshot ?? w.titulo,
+            monto: s.monto,
+            clases: s.sesionesTotales,
+            initPoint: pref.init_point,
+          })
+        }
+      } catch { /* No bloquear si falla 1 */ }
+    }))
+  }
 
   const slugsConSubHistorica = new Set(
     allSubsHistorical
@@ -282,6 +321,37 @@ export default async function AlumnoDashboard() {
         </h1>
         <p className="text-gray-500 mt-1 text-sm">Tu espacio de aprendizaje en Tallerea.</p>
       </div>
+
+      {/* Banner pagos pendientes */}
+      {pagosPendientes.length > 0 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl px-5 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xl">⏳</span>
+            <p className="text-sm font-semibold text-amber-800 uppercase tracking-wide">Pago pendiente</p>
+          </div>
+          <p className="text-sm text-amber-700 mb-4">
+            {pagosPendientes.length === 1
+              ? 'Tienes 1 inscripción esperando tu pago. Hasta que se confirme no podrás reservar clases.'
+              : `Tienes ${pagosPendientes.length} inscripciones esperando tu pago. Hasta que se confirmen no podrás reservar clases.`}
+          </p>
+          <div className="flex flex-col gap-3">
+            {pagosPendientes.map((p, i) => (
+              <div key={i} className="flex items-center justify-between gap-3 bg-white rounded-lg border border-amber-200 px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">{p.nombre}</p>
+                  <p className="text-xs text-gray-500">{p.clases} clases · ${p.monto.toLocaleString('es-CL')} CLP</p>
+                </div>
+                <a
+                  href={p.initPoint}
+                  className="shrink-0 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 px-4 py-2 rounded-lg transition-colors"
+                >
+                  Pagar ahora
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tarjeta saldo a favor */}
       {(user?.creditoDisponible ?? 0) > 0 && (
