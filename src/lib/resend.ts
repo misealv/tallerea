@@ -613,8 +613,8 @@ export async function sendBookingPorTallerista({
           <p style="margin: 4px 0;"><strong>Hora:</strong> ${horaClase}</p>
         </div>
         <p>Puedes ver todas tus clases en tu panel de alumno:</p>
-        <a href="${baseUrl}/alumno/mis-clases" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
-          Ver mis clases
+        <a href="${baseUrl}/alumno/reservas" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
+          Ver mis reservas
         </a>
         <p style="color: #6b7280; font-size: 13px;">Si necesitas cancelar o reagendar, hazlo con al menos 6 horas de anticipación desde tu panel.</p>
         <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
@@ -692,7 +692,7 @@ export async function sendBookingConfirmadoAlumno({
           <p style="margin:4px 0;"><strong>Fecha:</strong> ${fechaClase}</p>
           <p style="margin:4px 0;"><strong>Hora:</strong> ${horaClase}</p>
         </div>
-        <a href="${baseUrl}/alumno/mis-clases" style="display:inline-block;background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;margin:16px 0;">Ver mis clases</a>
+        <a href="${baseUrl}/alumno/reservas" style="display:inline-block;background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;margin:16px 0;">Ver mis reservas</a>
         <p style="color:#9ca3af;font-size:12px;margin-top:32px;">— Tallerea.cl</p>
       </div>`,
   })
@@ -754,7 +754,7 @@ export async function sendReservaCancelada({
           <p style="margin:4px 0;"><strong>Hora:</strong> ${horaClase}</p>
           ${razon ? `<p style="margin:4px 0;"><strong>Motivo:</strong> ${razon}</p>` : ''}
         </div>
-        ${esAlumno ? `<p>La sesión fue devuelta a tu saldo disponible.</p><a href="${baseUrl}/alumno/mis-clases" style="display:inline-block;background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;margin:16px 0;">Ver mis clases</a>` : `<a href="${baseUrl}/tallerista/inscritos" style="display:inline-block;background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;margin:16px 0;">Ver inscritos</a>`}
+        ${esAlumno ? `<p>La sesión fue devuelta a tu saldo disponible.</p><a href="${baseUrl}/alumno/reservas" style="display:inline-block;background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;margin:16px 0;">Ver mis reservas</a>` : `<a href="${baseUrl}/tallerista/inscritos" style="display:inline-block;background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;margin:16px 0;">Ver inscritos</a>`}
         <p style="color:#9ca3af;font-size:12px;margin-top:32px;">— Tallerea.cl</p>
       </div>`,
   })
@@ -804,7 +804,7 @@ export async function sendRecordatorioReservar({
   const resend = getResend()
   const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
   const destino = dependentNombre ? ` para ${dependentNombre}` : ''
-  const ctaUrl = magicUrl ?? `${baseUrl}/alumno/mis-clases`
+  const ctaUrl = magicUrl ?? `${baseUrl}/alumno/reservas`
 
   const slotsHtml = slotsDisponibles.length > 0
     ? slotsDisponibles.map(s =>
