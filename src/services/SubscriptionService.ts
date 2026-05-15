@@ -345,23 +345,30 @@ export const SubscriptionService = {
     if (data.clasesCantidad !== undefined) {
       if (!Number.isInteger(data.clasesCantidad) || data.clasesCantidad < 1)
         throw new Error('clasesCantidad debe ser entero >= 1')
-      // [PREPAGADO] El piso es el máximo entre sesionesUsadas y consumidas para evitar
-      // que el pre-save hook rechace con 'consumidas debe estar entre 0 y cantidad'
+      // [PREPAGADO] El piso es solo consumidas del CICLO ACTUAL (no sesionesUsadas,
+      // que es historial total acumulado de todos los ciclos).
+      // Si la nueva cantidad queda por debajo de consumidas, se interpreta como un
+      // nuevo ciclo: consumidas se resetea a 0 y sesionesDisponibles = clasesCantidad.
       const consumidasActual = sub.clasesPrepagadas?.consumidas ?? 0
-      const pisoClases = Math.max(sub.sesionesUsadas ?? 0, consumidasActual)
-      if (data.clasesCantidad < pisoClases)
-        throw new Error(`No puedes reducir el paquete: el alumno ya consumió ${pisoClases} clases`)
-      const delta = data.clasesCantidad - sub.sesionesTotales
+      const cantidadAnterior = sub.clasesPrepagadas?.cantidad ?? sub.sesionesTotales
+      const esNuevoCiclo = data.clasesCantidad < consumidasActual
       sub.sesionesTotales = data.clasesCantidad
-      sub.sesionesDisponibles = Math.max(0, (sub.sesionesDisponibles ?? 0) + delta)
+      if (esNuevoCiclo) {
+        // Nuevo ciclo: consumidas se resetea, disponibles = toda la cantidad
+        sub.sesionesDisponibles = data.clasesCantidad
+      } else {
+        // Mismo ciclo: ajustar disponibles por la diferencia con la cantidad anterior
+        sub.sesionesDisponibles = Math.max(0, (sub.sesionesDisponibles ?? 0) + (data.clasesCantidad - cantidadAnterior))
+      }
       if (!sub.clasesPrepagadas) {
         sub.clasesPrepagadas = {
           cantidad: data.clasesCantidad,
-          consumidas: sub.sesionesUsadas ?? 0,
+          consumidas: 0,
           creadoPor: sub.inscritoPor ?? sub.studentId,
         } as ISubscription['clasesPrepagadas']
       } else {
         sub.clasesPrepagadas.cantidad = data.clasesCantidad
+        if (esNuevoCiclo) sub.clasesPrepagadas.consumidas = 0
       }
       sub.markModified('clasesPrepagadas')
     }
@@ -1129,24 +1136,26 @@ export const SubscriptionService = {
     if (input.cantidad !== undefined) {
       if (!Number.isInteger(input.cantidad) || input.cantidad < 1)
         throw new Error('Cantidad debe ser entero >= 1')
-      // [PREPAGADO] El piso es el máximo entre sesionesUsadas y consumidas para evitar
-      // que el pre-save hook rechace con 'consumidas debe estar entre 0 y cantidad'
+      // [PREPAGADO] El piso es solo consumidas del CICLO ACTUAL (no sesionesUsadas,
+      // que es historial total acumulado). Si la nueva cantidad < consumidas,
+      // es un nuevo ciclo: consumidas se resetea a 0.
       const consumidasActual = sub.clasesPrepagadas?.consumidas ?? 0
-      const pisoClases = Math.max(sub.sesionesUsadas, consumidasActual)
-      if (input.cantidad < pisoClases)
-        throw new Error(`No puedes reducir el paquete a ${input.cantidad}: el alumno ya consumió ${pisoClases} clases`)
-
-      const delta = input.cantidad - sub.sesionesTotales
+      const esNuevoCiclo = input.cantidad < consumidasActual
       sub.sesionesTotales = input.cantidad
-      sub.sesionesDisponibles = Math.max(0, sub.sesionesDisponibles + delta)
+      if (esNuevoCiclo) {
+        sub.sesionesDisponibles = input.cantidad
+      } else {
+        sub.sesionesDisponibles = Math.max(0, sub.sesionesDisponibles + (input.cantidad - (sub.clasesPrepagadas?.cantidad ?? sub.sesionesTotales)))
+      }
       if (!sub.clasesPrepagadas) {
         sub.clasesPrepagadas = {
           cantidad: input.cantidad,
-          consumidas: sub.sesionesUsadas,
+          consumidas: 0,
           creadoPor: sub.inscritoPor ?? sub.studentId,
         } as ISubscription['clasesPrepagadas']
       } else {
         sub.clasesPrepagadas.cantidad = input.cantidad
+        if (esNuevoCiclo) sub.clasesPrepagadas.consumidas = 0
       }
     }
 
