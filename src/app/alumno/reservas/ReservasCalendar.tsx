@@ -5,6 +5,14 @@ import CalendarGridAlumno, { type CalendarSlot } from './CalendarGridAlumno'
 
 export type { CalendarSlot }
 
+export interface SiblingSubscription {
+  subscriptionId: string
+  dependentId?: string
+  dependentNombre: string
+  sesionesDisponibles: number
+  bookedSlotIndices: number[]
+}
+
 interface Props {
   subscriptionId: string
   workshopId: string
@@ -14,6 +22,7 @@ interface Props {
   allSlots: CalendarSlot[]
   subDependentId?: string
   subDependentNombre?: string
+  siblingSubscriptions?: SiblingSubscription[]
 }
 
 function getMonday(d: Date): Date {
@@ -32,7 +41,7 @@ function slotsBetween(slots: CalendarSlot[], from: Date, to: Date): CalendarSlot
 
 export default function ReservasCalendar({
   subscriptionId, workshopId, workshopSlug, sesionesDisponibles, fechaVencimiento, allSlots,
-  subDependentId, subDependentNombre,
+  subDependentId, subDependentNombre, siblingSubscriptions,
 }: Props) {
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()))
 
@@ -82,6 +91,7 @@ export default function ReservasCalendar({
         onWeekChange={handleWeekChange}
         subDependentId={subDependentId}
         subDependentNombre={subDependentNombre}
+        siblingSubscriptions={siblingSubscriptions}
       />
 
       {visibleSlots.length === 0 && (

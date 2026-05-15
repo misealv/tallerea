@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import type { SiblingSubscription } from './ReservasCalendar'
 
 const HORA_INI = 7
 const HORA_FIN = 22
@@ -42,16 +43,19 @@ interface Props {
   onWeekChange: (delta: number) => void
   subDependentId?: string    // si la sub tiene dependiente asignado, fijar para reservas
   subDependentNombre?: string
+  siblingSubscriptions?: SiblingSubscription[]  // otras subs del mismo taller (apoderado con varios alumnos)
 }
 
 export default function CalendarGridAlumno({
   weekStart, slots, sesionesDisponibles, subscriptionId, workshopId, onWeekChange,
-  subDependentId, subDependentNombre,
+  subDependentId, subDependentNombre, siblingSubscriptions,
 }: Props) {
   const [confirming, setConfirming] = useState<CalendarSlot | null>(null)
   const [cancelling, setCancelling] = useState<string | null>(null)
   // Slot abierto en modo "administrar reservas" (sub sin dependentId con ≥ 1 reserva en el slot)
   const [managing, setManaging] = useState<CalendarSlot | null>(null)
+  // Override de suscripción cuando se reserva para una sub hermana desde el modal de gestión
+  const [confirmOverride, setConfirmOverride] = useState<{ subscriptionId: string; dependentId?: string; dependentNombre: string } | null>(null)
   const [isPending, startTransition] = useTransition()
   const [actionError, setActionError] = useState('')
   const router = useRouter()
@@ -98,8 +102,19 @@ export default function CalendarGridAlumno({
   async function handleReserve() {
     if (!confirming) return
     setActionError('')
-    const body: Record<string, unknown> = { subscriptionId, workshopId, slotIndex: confirming.index }
-    if (selectedDependent) body.dependentId = selectedDependent
+    // Si se está reservando para una sub hermana, usar ese subscriptionId y su dependentId
+    const useSub = confirmOverride?.subscriptionId ?? subscriptionId
+    const body: Record<string, unknown> = { subscriptionId: useSub, workshopId, slotIndex: confirming.index }
+    if (confirmOverride) {
+      // Sub hermana: usar dependentId fijo de esa sub si existe
+      if (confirmOverride.dependentId) body.dependentId = confirmOverride.dependentId
+    } else if (subDependentId) {
+      // Sub actual con dependiente fijo
+      body.dependentId = subDependentId
+    } else if (selectedDependent) {
+      // Sub sin dependiente fijo: selector manual
+      body.dependentId = selectedDependent
+    }
     const res = await fetch('/api/bookings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -108,6 +123,7 @@ export default function CalendarGridAlumno({
     const data = await res.json()
     if (!res.ok) { setActionError(data.error || 'Error al reservar'); return }
     setConfirming(null)
+    setConfirmOverride(null)
     startTransition(() => router.refresh())
   }
 
@@ -228,9 +244,13 @@ export default function CalendarGridAlumno({
                     onClick={() => {
                       if (pasado || cancelado) return
                       setActionError('')
-                      // Si la sub tiene dependiente fijo: clásico (cancelar si ya hay reserva, reservar si no)
                       if (subDependentId) {
-                        if (tieneReservaMia) { setCancelling(slot.misReservas[0].bookingId); return }
+                        // Hermanas que aún no reservaron este slot y tienen sesiones disponibles
+                        const siblingsNeedSlot = (siblingSubscriptions ?? []).filter(
+                          ss => !ss.bookedSlotIndices.includes(slot.index) && ss.sesionesDisponibles > 0
+                        )
+                        // Abrir modal de gestión si hay reserva propia O hermanas pendientes → multi-alumno
+                        if (tieneReservaMia || siblingsNeedSlot.length > 0) { setManaging(slot); return }
                         if (!lleno && sesionesDisponibles > 0) openConfirm(slot)
                         return
                       }
@@ -261,15 +281,20 @@ export default function CalendarGridAlumno({
 
       {/* Modal confirmar reserva */}
       {confirming && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50" onClick={() => setConfirming(null)}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50" onClick={() => { setConfirming(null); setConfirmOverride(null) }}>
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 w-80 space-y-4 border border-transparent dark:border-gray-700" onClick={e => e.stopPropagation()}>
             <h3 className="font-bold text-gray-900 dark:text-white">Confirmar reserva</h3>
             <p className="text-sm text-gray-700 dark:text-gray-300">
               {new Date(confirming.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })}<br />
               {confirming.horaInicio} – {confirming.horaFin}
             </p>
-            {/* Selector de dependiente — fijo si la suscripción tiene uno asignado */}
-            {subDependentId ? (
+            {/* Selector de dependiente — fijo si la suscripción tiene uno asignado o es override de hermana */}
+            {confirmOverride ? (
+              <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg px-3 py-2">
+                <p className="text-xs text-purple-600 dark:text-purple-400 mb-0.5">Esta clase es para:</p>
+                <p className="text-sm font-semibold text-purple-900 dark:text-purple-200">{confirmOverride.dependentNombre}</p>
+              </div>
+            ) : subDependentId ? (
               <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg px-3 py-2">
                 <p className="text-xs text-purple-600 dark:text-purple-400 mb-0.5">Esta clase es para:</p>
                 <p className="text-sm font-semibold text-purple-900 dark:text-purple-200">{subDependentNombre}</p>
@@ -296,7 +321,7 @@ export default function CalendarGridAlumno({
                 className="flex-1 bg-purple-600 text-white py-2 rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50">
                 {isPending ? 'Reservando…' : 'Confirmar'}
               </button>
-              <button onClick={() => setConfirming(null)}
+              <button onClick={() => { setConfirming(null); setConfirmOverride(null) }}
                 className="flex-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
                 Cancelar
               </button>
@@ -326,7 +351,7 @@ export default function CalendarGridAlumno({
         </div>
       )}
 
-      {/* Modal gestionar reservas (sub sin dependentId con varias reservas posibles en el slot) */}
+      {/* Modal gestionar reservas */}
       {managing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50" onClick={() => setManaging(null)}>
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 w-80 space-y-4 border border-transparent dark:border-gray-700" onClick={e => e.stopPropagation()}>
@@ -335,26 +360,55 @@ export default function CalendarGridAlumno({
               {new Date(managing.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })} · {managing.horaInicio}–{managing.horaFin}
             </p>
             <div className="space-y-2">
+              {/* Sub actual: si no tiene reserva y hay sesiones, mostrar opción de reservar */}
+              {subDependentId && managing.misReservas.length === 0 && sesionesDisponibles > 0 && managing.reservas < managing.cupoMax && (
+                <div className="flex items-center justify-between gap-2 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">{subDependentNombre ?? 'Titular'}</span>
+                  <button
+                    onClick={() => { const slot = managing; setManaging(null); openConfirm(slot) }}
+                    className="text-xs text-purple-600 hover:text-purple-700 font-medium"
+                  >+ Reservar</button>
+                </div>
+              )}
+              {/* Reservas ya existentes de la sub actual */}
               {managing.misReservas.map(r => (
                 <div key={r.bookingId} className="flex items-center justify-between gap-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg px-3 py-2">
-                  <span className="text-sm text-gray-800 dark:text-gray-200">{r.dependentNombre ?? 'Titular'}</span>
+                  <span className="text-sm text-gray-800 dark:text-gray-200">
+                    {r.dependentNombre ?? subDependentNombre ?? 'Titular'} <span className="text-green-600">✓</span>
+                  </span>
                   <button
                     onClick={() => { setManaging(null); setCancelling(r.bookingId) }}
                     className="text-xs text-red-600 hover:text-red-700 font-medium"
-                  >
-                    Cancelar
-                  </button>
+                  >Cancelar</button>
                 </div>
               ))}
+              {/* Subs hermanas — mostrar botón de reserva si aún no han reservado este slot */}
+              {(siblingSubscriptions ?? [])
+                .filter(ss => !ss.bookedSlotIndices.includes(managing.index) && ss.sesionesDisponibles > 0 && managing.reservas < managing.cupoMax)
+                .map(ss => (
+                  <div key={ss.subscriptionId} className="flex items-center justify-between gap-2 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">{ss.dependentNombre}</span>
+                    <button
+                      onClick={() => {
+                        const slot = managing
+                        setManaging(null)
+                        setConfirmOverride({ subscriptionId: ss.subscriptionId, dependentId: ss.dependentId, dependentNombre: ss.dependentNombre })
+                        setConfirming(slot)
+                      }}
+                      className="text-xs text-purple-600 hover:text-purple-700 font-medium"
+                    >+ Reservar</button>
+                  </div>
+                ))}
+              {/* Sub sin dependentId: opción de reservar otra (comportamiento anterior) */}
+              {!subDependentId && managing.reservas < managing.cupoMax && sesionesDisponibles > 0 && (
+                <button
+                  onClick={() => { const slot = managing; setManaging(null); openConfirm(slot) }}
+                  className="w-full bg-purple-600 text-white py-2 rounded-lg font-medium hover:bg-purple-700"
+                >
+                  + Reservar otra
+                </button>
+              )}
             </div>
-            {managing.reservas < managing.cupoMax && sesionesDisponibles > 0 && (
-              <button
-                onClick={() => { const slot = managing; setManaging(null); openConfirm(slot) }}
-                className="w-full bg-purple-600 text-white py-2 rounded-lg font-medium hover:bg-purple-700"
-              >
-                + Reservar otra
-              </button>
-            )}
             <button onClick={() => setManaging(null)}
               className="w-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
               Cerrar

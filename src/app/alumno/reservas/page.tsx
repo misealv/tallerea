@@ -26,7 +26,7 @@ interface SubLean {
   dependentId?: Types.ObjectId
   dependentNombreSnapshot?: string
 }
-interface BookingLean { _id: Types.ObjectId; slotIndex: number; fecha: Date; estado: string; dependentNombreSnapshot?: string }
+interface BookingLean { _id: Types.ObjectId; subscriptionId?: Types.ObjectId; slotIndex: number; fecha: Date; estado: string; dependentNombreSnapshot?: string }
 
 export default async function ReservasPage({ searchParams }: { searchParams: Promise<{ sub?: string; workshop?: string }> }) {
   const session = await getServerSession(authOptions)
@@ -47,6 +47,37 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
 
   const bookings = await Booking.find({ subscriptionId: subId, estado: { $ne: 'cancelada' }, activo: true })
     .lean<BookingLean[]>()
+
+  // Subs hermanas del mismo taller (mismo alumno, distinta suscripción) — para apoderados con varios alumnos
+  const siblingSubDocs = await Subscription.find({
+    studentId,
+    workshopId: workshop._id,
+    estado: 'activa',
+    activo: true,
+    _id: { $ne: subId },
+  }).select('_id sesionesUsadas sesionesTotales sesionesDisponibles fechaVencimiento clasesPrepagadas dependentId dependentNombreSnapshot')
+    .lean<SubLean[]>()
+
+  const siblingBookings = siblingSubDocs.length > 0
+    ? await Booking.find({
+        subscriptionId: { $in: siblingSubDocs.map(s => s._id) },
+        estado: { $ne: 'cancelada' },
+        activo: true,
+      }).select('subscriptionId slotIndex').lean<BookingLean[]>()
+    : []
+
+  const siblingSubscriptions = siblingSubDocs.map(ss => {
+    const vi = getSubViewInfo(ss)
+    return {
+      subscriptionId: String(ss._id),
+      dependentId: ss.dependentId ? String(ss.dependentId) : undefined,
+      dependentNombre: ss.dependentNombreSnapshot ?? 'Familiar',
+      sesionesDisponibles: vi.disponibles,
+      bookedSlotIndices: siblingBookings
+        .filter(b => String(b.subscriptionId) === String(ss._id))
+        .map(b => b.slotIndex),
+    }
+  })
 
   const reservedMap = new Map<number, { bookingId: string; dependentNombre?: string }[]>()
   for (const b of bookings) {
@@ -101,6 +132,7 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
             allSlots={calendarSlots}
             subDependentId={sub.dependentId ? String(sub.dependentId) : undefined}
             subDependentNombre={sub.dependentNombreSnapshot}
+            siblingSubscriptions={siblingSubscriptions}
           />
         )
       })()}
