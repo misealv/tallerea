@@ -345,8 +345,12 @@ export const SubscriptionService = {
     if (data.clasesCantidad !== undefined) {
       if (!Number.isInteger(data.clasesCantidad) || data.clasesCantidad < 1)
         throw new Error('clasesCantidad debe ser entero >= 1')
-      if (data.clasesCantidad < (sub.sesionesUsadas ?? 0))
-        throw new Error(`No puedes reducir el paquete: el alumno ya consumió ${sub.sesionesUsadas} clases`)
+      // [PREPAGADO] El piso es el máximo entre sesionesUsadas y consumidas para evitar
+      // que el pre-save hook rechace con 'consumidas debe estar entre 0 y cantidad'
+      const consumidasActual = sub.clasesPrepagadas?.consumidas ?? 0
+      const pisoClases = Math.max(sub.sesionesUsadas ?? 0, consumidasActual)
+      if (data.clasesCantidad < pisoClases)
+        throw new Error(`No puedes reducir el paquete: el alumno ya consumió ${pisoClases} clases`)
       const delta = data.clasesCantidad - sub.sesionesTotales
       sub.sesionesTotales = data.clasesCantidad
       sub.sesionesDisponibles = Math.max(0, (sub.sesionesDisponibles ?? 0) + delta)
@@ -1125,8 +1129,12 @@ export const SubscriptionService = {
     if (input.cantidad !== undefined) {
       if (!Number.isInteger(input.cantidad) || input.cantidad < 1)
         throw new Error('Cantidad debe ser entero >= 1')
-      if (input.cantidad < sub.sesionesUsadas)
-        throw new Error(`No puedes reducir el paquete a ${input.cantidad}: el alumno ya consumió ${sub.sesionesUsadas} clases`)
+      // [PREPAGADO] El piso es el máximo entre sesionesUsadas y consumidas para evitar
+      // que el pre-save hook rechace con 'consumidas debe estar entre 0 y cantidad'
+      const consumidasActual = sub.clasesPrepagadas?.consumidas ?? 0
+      const pisoClases = Math.max(sub.sesionesUsadas, consumidasActual)
+      if (input.cantidad < pisoClases)
+        throw new Error(`No puedes reducir el paquete a ${input.cantidad}: el alumno ya consumió ${pisoClases} clases`)
 
       const delta = input.cantidad - sub.sesionesTotales
       sub.sesionesTotales = input.cantidad
