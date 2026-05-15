@@ -115,7 +115,10 @@ export const BookingService = {
     if (!slot) throw new Error('Sesión no encontrada')
     if (slot.cancelado) throw new Error('Sesión cancelada')
     if (!slot.fecha) throw new Error('Sesión sin fecha definida')
-    if (new Date(slot.fecha) <= new Date()) {
+    const [hfR, mfR] = ((slot.horaFin as string | undefined) ?? '23:59').split(':').map(Number)
+    const slotEndR = new Date(slot.fecha)
+    slotEndR.setUTCHours(hfR, mfR, 0, 0)
+    if (slotEndR <= new Date()) {
       throw new Error('No se puede reservar una sesión que ya ocurrió')
     }
 
@@ -563,7 +566,11 @@ export const BookingService = {
     if (!slot) throw new Error('Sesión no encontrada')
     if (slot.cancelado) throw new Error('Sesión cancelada')
     if (!slot.fecha) throw new Error('Sesión sin fecha definida')
-    if (new Date(slot.fecha) <= new Date()) throw new Error('No se puede reservar una sesión que ya ocurrió')
+    // Usar fecha+horaFin para determinar si el slot ya pasó (fecha se almacena como medianoche UTC)
+    const [hf, mf] = ((slot.horaFin as string | undefined) ?? '23:59').split(':').map(Number)
+    const slotEnd = new Date(slot.fecha)
+    slotEnd.setUTCHours(hf, mf, 0, 0)
+    if (slotEnd <= new Date()) throw new Error('No se puede reservar una sesión que ya ocurrió')
 
     // Cupo disponible
     if (slot.reservas >= workshop.cupoPorSesion) throw new Error('Sesión llena — no hay cupo disponible')
