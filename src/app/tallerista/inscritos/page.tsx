@@ -37,6 +37,7 @@ interface SubLean {
   precioSnapshot?: number
   precioEspecial?: boolean
   notaPrecioEspecial?: string
+  autoRenovar?: boolean
   createdAt: Date
   dependentNombreSnapshot?: string
   clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }
@@ -267,6 +268,9 @@ export default async function InscritosGlobalPage() {
                               precioActual={s.precioSnapshot ?? s.monto}
                               fechaVencimientoActual={new Date(s.fechaVencimiento).toISOString()}
                               notaActual={s.notaPrecioEspecial}
+                              clasesCantidadActual={s.sesionesTotales}
+                              sesionesUsadas={s.sesionesUsadas ?? 0}
+                              autoRenovarActual={s.autoRenovar ?? false}
                             />
                           )}
                         </td>
@@ -332,6 +336,9 @@ export default async function InscritosGlobalPage() {
                           precioActual={s.precioSnapshot ?? s.monto}
                           fechaVencimientoActual={new Date(s.fechaVencimiento).toISOString()}
                           notaActual={s.notaPrecioEspecial}
+                          clasesCantidadActual={s.sesionesTotales}
+                          sesionesUsadas={s.sesionesUsadas ?? 0}
+                          autoRenovarActual={s.autoRenovar ?? false}
                         />
                       )}
                       {s.estado === 'activa' && (

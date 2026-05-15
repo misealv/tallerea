@@ -310,6 +310,8 @@ export const SubscriptionService = {
       precioSnapshot?: number
       fechaVencimiento?: Date
       notaPrecioEspecial?: string
+      clasesCantidad?: number
+      autoRenovar?: boolean
     }
   ): Promise<ISubscription> {
     await dbConnect()
@@ -320,14 +322,17 @@ export const SubscriptionService = {
       if (!Number.isInteger(data.precioSnapshot) || data.precioSnapshot < 0) {
         throw new Error('[FINANCE] precioSnapshot debe ser entero CLP >= 0')
       }
+      // Si cambia el precio, invalidar cache mpInitPoint
+      if (sub.precioSnapshot !== data.precioSnapshot) {
+        sub.mpInitPoint = undefined
+        sub.mpInitPointCreatedAt = undefined
+      }
       sub.precioSnapshot = data.precioSnapshot
+      sub.monto = data.precioSnapshot
       sub.precioEspecial = true
     }
     if (data.fechaVencimiento !== undefined) {
       sub.fechaVencimiento = data.fechaVencimiento
-      // [PREPAGADO] Si la suscripción tiene paquete prepagado, caducaEn es la fuente de verdad
-      // para el cron y el display. Mantener ambos campos sincronizados al editar la fecha desde
-      // el modal "Editar suscripción" — evita que la edición quede inerte cuando hay prepago.
       if (sub.clasesPrepagadas && sub.clasesPrepagadas.cantidad > 0) {
         sub.clasesPrepagadas.caducaEn = data.fechaVencimiento
         sub.markModified('clasesPrepagadas')
@@ -335,6 +340,29 @@ export const SubscriptionService = {
     }
     if (data.notaPrecioEspecial !== undefined) {
       sub.notaPrecioEspecial = data.notaPrecioEspecial
+    }
+    // Cantidad de clases del paquete — sincroniza sesionesTotales y disponibles
+    if (data.clasesCantidad !== undefined) {
+      if (!Number.isInteger(data.clasesCantidad) || data.clasesCantidad < 1)
+        throw new Error('clasesCantidad debe ser entero >= 1')
+      if (data.clasesCantidad < (sub.sesionesUsadas ?? 0))
+        throw new Error(`No puedes reducir el paquete: el alumno ya consumió ${sub.sesionesUsadas} clases`)
+      const delta = data.clasesCantidad - sub.sesionesTotales
+      sub.sesionesTotales = data.clasesCantidad
+      sub.sesionesDisponibles = Math.max(0, (sub.sesionesDisponibles ?? 0) + delta)
+      if (!sub.clasesPrepagadas) {
+        sub.clasesPrepagadas = {
+          cantidad: data.clasesCantidad,
+          consumidas: sub.sesionesUsadas ?? 0,
+          creadoPor: sub.inscritoPor ?? sub.studentId,
+        } as ISubscription['clasesPrepagadas']
+      } else {
+        sub.clasesPrepagadas.cantidad = data.clasesCantidad
+      }
+      sub.markModified('clasesPrepagadas')
+    }
+    if (data.autoRenovar !== undefined) {
+      sub.autoRenovar = data.autoRenovar
     }
 
     await sub.save()

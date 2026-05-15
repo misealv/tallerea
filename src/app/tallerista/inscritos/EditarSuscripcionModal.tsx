@@ -9,6 +9,9 @@ interface Props {
   precioActual: number
   fechaVencimientoActual: string   // ISO string
   notaActual?: string
+  clasesCantidadActual?: number
+  sesionesUsadas?: number
+  autoRenovarActual?: boolean
   onSuccess?: () => void
 }
 
@@ -19,24 +22,29 @@ export default function EditarSuscripcionModal({
   precioActual,
   fechaVencimientoActual,
   notaActual,
+  clasesCantidadActual,
+  sesionesUsadas = 0,
+  autoRenovarActual = false,
   onSuccess,
 }: Props) {
-  const [open, setOpen]       = useState(false)
-  const [precio, setPrecio]   = useState(String(precioActual))
-  // Formato YYYY-MM-DD para el input date
+  const [open, setOpen]           = useState(false)
+  const [precio, setPrecio]       = useState(String(precioActual))
+  const [cantidad, setCantidad]   = useState(String(clasesCantidadActual ?? ''))
+  const [autoRenovar, setAutoR]   = useState(autoRenovarActual)
   const fechaDefault = fechaVencimientoActual
     ? new Date(fechaVencimientoActual).toISOString().slice(0, 10)
     : ''
-  const [fecha, setFecha]     = useState(fechaDefault)
-  const [nota, setNota]       = useState(notaActual ?? '')
-  const [saving, setSaving]   = useState(false)
-  const [error, setError]     = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const [fecha, setFecha]         = useState(fechaDefault)
+  const [nota, setNota]           = useState(notaActual ?? '')
+  const [saving, setSaving]       = useState(false)
+  const [error, setError]         = useState<string | null>(null)
+  const [success, setSuccess]     = useState(false)
   const router = useRouter()
 
   function handleOpen() {
-    // Resetear a valores actuales
     setPrecio(String(precioActual))
+    setCantidad(String(clasesCantidadActual ?? ''))
+    setAutoR(autoRenovarActual)
     setFecha(fechaDefault)
     setNota(notaActual ?? '')
     setError(null)
@@ -60,6 +68,12 @@ export default function EditarSuscripcionModal({
       setSaving(false)
       return
     }
+    const cantidadInt = cantidad.trim() ? parseInt(cantidad, 10) : undefined
+    if (cantidadInt !== undefined && (!Number.isInteger(cantidadInt) || cantidadInt < 1)) {
+      setError('La cantidad de clases debe ser un entero mayor a 0')
+      setSaving(false)
+      return
+    }
 
     // La API valida que fecha sea futura; enviamos como ISO UTC medianoche
     const fechaISO = new Date(fecha + 'T23:59:59.000Z').toISOString()
@@ -70,6 +84,8 @@ export default function EditarSuscripcionModal({
         fechaVencimiento: fechaISO,
       }
       if (nota.trim()) body.notaPrecioEspecial = nota.trim()
+      if (cantidadInt !== undefined) body.clasesCantidad = cantidadInt
+      if (autoRenovar !== autoRenovarActual) body.autoRenovar = autoRenovar
 
       const res = await fetch(`/api/subscriptions/${subscriptionId}`, {
         method: 'PATCH',
@@ -114,7 +130,7 @@ export default function EditarSuscripcionModal({
               {success ? (
                 <div className="text-center py-4">
                   <p className="text-green-600 font-medium text-sm">✓ Cambios guardados</p>
-                  <p className="text-xs text-gray-400 mt-1">El precio especial se aplicará en la próxima renovación.</p>
+                  <p className="text-xs text-gray-400 mt-1">Los cambios se aplican en el próximo ciclo de renovación.</p>
                   <button
                     onClick={() => setOpen(false)}
                     className="mt-4 text-xs text-indigo-600 hover:underline"
@@ -126,7 +142,23 @@ export default function EditarSuscripcionModal({
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Precio especial (CLP)
+                      Clases por ciclo
+                    </label>
+                    <input
+                      type="number"
+                      min={sesionesUsadas || 1}
+                      step="1"
+                      value={cantidad}
+                      onChange={e => setCantidad(e.target.value)}
+                      placeholder="Ej: 4"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Mínimo {sesionesUsadas} (ya consumidas). Deja vacío para no cambiar.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Precio mensual (CLP)
                     </label>
                     <input
                       type="number"
@@ -137,12 +169,12 @@ export default function EditarSuscripcionModal({
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
                       required
                     />
-                    <p className="text-xs text-gray-400 mt-1">Se usará en la próxima renovación. No afecta el cobro actual.</p>
+                    <p className="text-xs text-gray-400 mt-1">Se usará en la próxima renovación.</p>
                   </div>
 
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Fecha de vencimiento
+                      Fecha de vencimiento (próximo cobro)
                     </label>
                     <input
                       type="date"
@@ -152,6 +184,18 @@ export default function EditarSuscripcionModal({
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
                       required
                     />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      id={`auto-${subscriptionId}`}
+                      type="checkbox"
+                      checked={autoRenovar}
+                      onChange={e => setAutoR(e.target.checked)}
+                    />
+                    <label htmlFor={`auto-${subscriptionId}`} className="text-sm text-gray-700">
+                      Auto-renovar al vencer
+                    </label>
                   </div>
 
                   <div>

@@ -5,11 +5,13 @@ import { SubscriptionService } from '@/services/SubscriptionService'
 import { WorkshopService } from '@/services/WorkshopService'
 import { z } from 'zod'
 
-// [FINANCE RISK] Schema para edición de precio especial / fecha de vencimiento
+// [FINANCE RISK] Schema para edición de precio especial / fecha de vencimiento / paquete de clases
 const AdminUpdateSchema = z.object({
   precioSnapshot:     z.number().int().nonnegative().optional(),
   fechaVencimiento:   z.string().datetime().optional(),
   notaPrecioEspecial: z.string().max(500).optional(),
+  clasesCantidad:     z.number().int().min(1).optional(),  // nueva cantidad del paquete
+  autoRenovar:        z.boolean().optional(),
 }).strict()
 
 export async function GET(
@@ -59,7 +61,7 @@ export async function DELETE(
   }
 }
 
-// [FINANCE RISK] Solo tallerista dueño del workshop o admin puede editar precio/fecha
+// [FINANCE RISK] Solo tallerista dueño del workshop o admin puede editar precio/fecha/paquete
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -106,6 +108,8 @@ export async function PATCH(
       precioSnapshot:     parsed.data.precioSnapshot,
       fechaVencimiento,
       notaPrecioEspecial: parsed.data.notaPrecioEspecial,
+      clasesCantidad:     parsed.data.clasesCantidad,
+      autoRenovar:        parsed.data.autoRenovar,
     })
     return NextResponse.json(updated)
   } catch (error: unknown) {
