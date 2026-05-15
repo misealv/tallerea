@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
+
+const MAX_FILE_SIZE = 500 * 1024 * 1024  // 500 MB por archivo
 
 interface FileNode {
   _id: string
@@ -44,7 +46,6 @@ const ALLOWED_MIME = [
 
 export default function MaterialesPage() {
   const { id } = useParams<{ id: string }>()
-  const router = useRouter()
 
   const [parent, setParent] = useState<string | null>(null)
   const [items, setItems] = useState<FileNode[]>([])
@@ -63,6 +64,7 @@ export default function MaterialesPage() {
 
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<string>('')
+  const [uploadPct, setUploadPct] = useState(0)
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -107,7 +109,6 @@ export default function MaterialesPage() {
     if (!confirm(msg)) return
     const res = await fetch(`/api/workshops/${id}/files/${node._id}`, { method: 'DELETE' })
     if (!res.ok) { const d = await res.json(); alert(d.error); return }
-    setItems(prev => prev.filter(n => n._id !== node._id))
     await cargar(parent)
   }
 
@@ -134,13 +135,39 @@ export default function MaterialesPage() {
     await cargar(parent)
   }
 
+  // Subir un archivo a Cloudinary con progreso real (XHR)
+  function subirACloudinary(
+    url: string,
+    form: FormData,
+    onProgress: (pct: number) => void,
+  ): Promise<{ public_id: string; secure_url: string; bytes: number }> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', url)
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
+      }
+      xhr.onload = () => {
+        try {
+          const json = JSON.parse(xhr.responseText)
+          if (xhr.status >= 200 && xhr.status < 300) resolve(json)
+          else reject(new Error(json.error?.message ?? `Error ${xhr.status}`))
+        } catch { reject(new Error('Respuesta inválida de Cloudinary')) }
+      }
+      xhr.onerror = () => reject(new Error('Error de red'))
+      xhr.send(form)
+    })
+  }
+
   async function subirArchivos(files: FileList | null) {
     if (!files || files.length === 0) return
     setUploading(true)
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       if (!ALLOWED_MIME.includes(file.type)) { alert(`Tipo no permitido: ${file.name}`); continue }
+      if (file.size > MAX_FILE_SIZE) { alert(`${file.name} excede 500 MB`); continue }
       setUploadProgress(`Subiendo ${i + 1}/${files.length}: ${file.name}`)
+      setUploadPct(0)
       try {
         // 1. Pedir firma
         const sigRes = await fetch(`/api/workshops/${id}/files/signature`, {
@@ -150,19 +177,18 @@ export default function MaterialesPage() {
         const sig = await sigRes.json()
         if (!sigRes.ok) throw new Error(sig.error ?? `Cuota llena o tipo no permitido`)
 
-        // 2. Subir directo a Cloudinary
+        // 2. Subir directo a Cloudinary con progreso
         const form = new FormData()
         form.append('file', file)
         form.append('api_key', sig.apiKey)
         form.append('timestamp', String(sig.timestamp))
         form.append('signature', sig.signature)
         form.append('folder', sig.folder)
-        const cdnRes = await fetch(
+        const cdn = await subirACloudinary(
           `https://api.cloudinary.com/v1_1/${sig.cloudName}/${sig.resourceType}/upload`,
-          { method: 'POST', body: form }
+          form,
+          setUploadPct,
         )
-        const cdn = await cdnRes.json()
-        if (!cdnRes.ok) throw new Error(cdn.error?.message ?? 'Error en Cloudinary')
 
         // 3. Registrar en Mongo
         const regRes = await fetch(`/api/workshops/${id}/files`, {
@@ -182,7 +208,7 @@ export default function MaterialesPage() {
         if (!regRes.ok) throw new Error(reg.error)
       } catch (e: unknown) { alert(`Error con ${file.name}: ${e instanceof Error ? e.message : 'Error'}`) }
     }
-    setUploading(false); setUploadProgress('')
+    setUploading(false); setUploadProgress(''); setUploadPct(0)
     await cargar(parent)
   }
 
@@ -223,7 +249,7 @@ export default function MaterialesPage() {
         </button>
         <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
           className="text-sm px-3 py-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 font-medium disabled:opacity-50">
-          {uploading ? uploadProgress || 'Subiendo…' : '⬆️ Subir archivos'}
+          {uploading ? `${uploadProgress} (${uploadPct}%)` : '⬆️ Subir archivos'}
         </button>
         <input ref={fileInputRef} type="file" multiple accept={ALLOWED_MIME.join(',')} className="hidden"
           onChange={e => subirArchivos(e.target.files)} />
