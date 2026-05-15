@@ -44,6 +44,14 @@ export async function PUT(req: NextRequest) {
       updates.liquidacionMinimaDefault = min
     }
 
+    if (body.cuotaPorTalleristaMB !== undefined) {
+      const mb = Number(body.cuotaPorTalleristaMB)
+      if (!Number.isInteger(mb) || mb < 100 || mb > 102400) {
+        return NextResponse.json({ error: 'Cuota debe ser entero entre 100 MB y 100 GB (102400)' }, { status: 400 })
+      }
+      updates.cuotaPorTalleristaMB = mb
+    }
+
     const config = await SiteConfigService.update(updates)
     return NextResponse.json(config)
   } catch (error: unknown) {

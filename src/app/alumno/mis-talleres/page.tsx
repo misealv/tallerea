@@ -15,8 +15,8 @@ import { Types } from 'mongoose'
 
 export const dynamic = 'force-dynamic'
 
-interface WorkshopRef { titulo: string; slug: string }
-interface WorkshopWithMedia { titulo: string; slug: string; imagenes: string[]; ownerId: Types.ObjectId }
+interface WorkshopRef { titulo: string; slug: string; _id: Types.ObjectId }
+interface WorkshopWithMedia { titulo: string; slug: string; imagenes: string[]; ownerId: Types.ObjectId; _id: Types.ObjectId }
 interface WorkshopWithSlots { titulo: string; slug: string; slots: Array<{ horaInicio: string; horaFin: string; cancelado?: boolean }> }
 interface OwnerRef { name: string }
 interface LocationRef { nombre: string; direccion: string; comuna: string; ciudad: string }
@@ -25,6 +25,7 @@ interface SlotInfo { dia?: string; horaInicio: string; horaFin: string; fecha?: 
 interface SesionDetail {
   titulo: string
   slug: string
+  workshopId: string
   horaInicio: string
   horaFin: string
   fechaSlot: string | null
@@ -109,6 +110,7 @@ async function resolveSesiones(
       details.push({
         titulo: w.titulo,
         slug: w.slug,
+        workshopId: String(w._id),
         horaInicio: slot?.horaInicio ?? '',
         horaFin: slot?.horaFin ?? '',
         fechaSlot: slot?.fecha ? new Date(slot.fecha).toISOString().slice(0, 10) : null,
@@ -235,6 +237,10 @@ export default async function MisTalleresPage() {
                   subscriptionId={String(s._id)}
                   proximaBooking={proxBooking && proxSlot ? { horaInicio: proxSlot.horaInicio, horaFin: proxSlot.horaFin, fecha: proxBooking.fecha } : null}
                 />
+                <Link href={`/alumno/mis-talleres/${String(wMedia._id)}/materiales`}
+                  className="text-xs text-orange-600 hover:text-orange-800 font-medium ml-1 mt-0.5 inline-block">
+                  📂 Ver material del taller
+                </Link>
               )
             })}
           </div>
@@ -250,18 +256,23 @@ export default async function MisTalleresPage() {
           </div>
           <div className="space-y-3">
             {puntualSessions.map(p => (
-              <TallerCard
-                key={p.enrollmentId}
-                titulo={p.titulo}
-                slug={p.slug}
-                profesorNombre={p.profesorNombre}
-                esPuntual
-                horaInicioSlot={p.horaInicio || undefined}
-                horaFinSlot={p.horaFin || undefined}
-                fechaSlotStr={p.fechaSlot}
-                diaSemana={p.diaSemana || undefined}
-                montoPagado={p.monto}
-              />
+              <div key={p.enrollmentId}>
+                <TallerCard
+                  titulo={p.titulo}
+                  slug={p.slug}
+                  profesorNombre={p.profesorNombre}
+                  esPuntual
+                  horaInicioSlot={p.horaInicio || undefined}
+                  horaFinSlot={p.horaFin || undefined}
+                  fechaSlotStr={p.fechaSlot}
+                  diaSemana={p.diaSemana || undefined}
+                  montoPagado={p.monto}
+                />
+                <Link href={`/alumno/mis-talleres/${p.workshopId}/materiales`}
+                  className="text-xs text-orange-600 hover:text-orange-800 font-medium ml-1 mt-0.5 inline-block">
+                  📂 Ver material del taller
+                </Link>
+              </div>
             ))}
           </div>
         </section>
@@ -276,18 +287,23 @@ export default async function MisTalleresPage() {
           </div>
           <div className="space-y-3">
             {clasesPrueba.map(cp => (
-              <TallerCard
-                key={cp.enrollmentId}
-                titulo={cp.titulo}
-                slug={cp.slug}
-                profesorNombre={cp.profesorNombre}
-                esClasePrueba
-                horaInicioSlot={cp.horaInicio || undefined}
-                horaFinSlot={cp.horaFin || undefined}
-                fechaSlotStr={cp.fechaSlot}
-                diaSemana={cp.diaSemana || undefined}
-                montoPagado={cp.monto}
-              />
+              <div key={cp.enrollmentId}>
+                <TallerCard
+                  titulo={cp.titulo}
+                  slug={cp.slug}
+                  profesorNombre={cp.profesorNombre}
+                  esClasePrueba
+                  horaInicioSlot={cp.horaInicio || undefined}
+                  horaFinSlot={cp.horaFin || undefined}
+                  fechaSlotStr={cp.fechaSlot}
+                  diaSemana={cp.diaSemana || undefined}
+                  montoPagado={cp.monto}
+                />
+                <Link href={`/alumno/mis-talleres/${cp.workshopId}/materiales`}
+                  className="text-xs text-orange-600 hover:text-orange-800 font-medium ml-1 mt-0.5 inline-block">
+                  📂 Ver material del taller
+                </Link>
+              </div>
             ))}
           </div>
         </section>

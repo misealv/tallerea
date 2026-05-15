@@ -7,17 +7,22 @@ import { useState, useEffect } from 'react'
 interface Config {
   comisionPct: number
   liquidacionMinimaDefault: number
+  cuotaPorTalleristaMB: number
 }
 
 export default function AdminConfiguracionPage() {
-  const [config, setConfig] = useState<Config>({ comisionPct: 15, liquidacionMinimaDefault: 5000 })
+  const [config, setConfig] = useState<Config>({ comisionPct: 15, liquidacionMinimaDefault: 5000, cuotaPorTalleristaMB: 1024 })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
 
   useEffect(() => {
     fetch('/api/admin/config').then(r => r.json()).then(data => {
-      setConfig({ comisionPct: data.comisionPct, liquidacionMinimaDefault: data.liquidacionMinimaDefault })
+      setConfig({
+        comisionPct: data.comisionPct,
+        liquidacionMinimaDefault: data.liquidacionMinimaDefault,
+        cuotaPorTalleristaMB: data.cuotaPorTalleristaMB ?? 1024,
+      })
       setLoading(false)
     })
   }, [])
@@ -66,6 +71,18 @@ export default function AdminConfiguracionPage() {
             className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
           <p className="text-xs text-gray-400 mt-1">
             Monto mínimo para generar liquidación a un profesor. Si acumula menos, se posterga.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Cuota de almacenamiento por tallerista (MB)
+          </label>
+          <input type="number" min="100" max="102400" step="100" value={config.cuotaPorTalleristaMB}
+            onChange={(e) => setConfig(prev => ({ ...prev, cuotaPorTalleristaMB: Number(e.target.value) }))}
+            className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
+          <p className="text-xs text-gray-400 mt-1">
+            Espacio máximo de materiales por tallerista. 1024 = 1 GB. Mínimo 100 MB, máximo 100 GB.
           </p>
         </div>
 
