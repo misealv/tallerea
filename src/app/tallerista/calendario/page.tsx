@@ -214,19 +214,19 @@ export default function CalendarioTallerista() {
       )}
 
       {/* Tabla semanal */}
-      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+      <div className="overflow-x-auto rounded-xl border border-gray-300 dark:border-gray-600">
         <table className="w-full text-sm border-collapse min-w-[560px]">
           <thead>
-            <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-              <th className="py-2 px-3 text-xs text-gray-400 font-normal text-left w-16">Hora</th>
+            <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-600">
+              <th className="py-2 px-3 text-xs text-gray-500 font-semibold text-left w-16">Hora</th>
               {DIAS_WEEK.map((dia, i) => {
                 const dateStr = weekDates[i]
                 const isToday = dateStr === today
                 const d = addDays(weekStart, i)
                 const hasSlots = horasUnicas.some(h => slotByKey.has(`${dateStr}|${h}`))
                 return (
-                  <th key={dia} className="py-2 px-1 text-center">
-                    <div className={`text-xs font-semibold ${hasSlots ? 'text-purple-700 dark:text-purple-400' : 'text-gray-400 dark:text-gray-600'}`}>
+                  <th key={dia} className="py-2 px-1 text-center border-l border-gray-300 dark:border-gray-600">
+                    <div className={`text-xs font-semibold ${hasSlots ? 'text-purple-700 dark:text-purple-400' : 'text-gray-500 dark:text-gray-400'}`}>
                       {DIA_LABEL[dia]}
                     </div>
                     <div className={`text-xs mt-0.5 mx-auto flex items-center justify-center rounded-full w-6 h-6 font-semibold
@@ -249,17 +249,17 @@ export default function CalendarioTallerista() {
                 </td>
               </tr>
             ) : horasUnicas.map(hora => (
-              <tr key={hora} className="border-b border-gray-100 dark:border-gray-800 last:border-0">
-                <td className="py-2 px-3 text-xs text-gray-400 font-mono align-top pt-3">{hora}</td>
+              <tr key={hora} className="border-b border-gray-200 dark:border-gray-700 last:border-0">
+                <td className="py-2 px-3 text-xs text-gray-500 font-mono font-semibold align-top pt-3">{hora}</td>
                 {DIAS_WEEK.map((_, i) => {
                   const dateStr = weekDates[i]
                   const slot = slotByKey.get(`${dateStr}|${hora}`)
-                  if (!slot) return <td key={i} className="py-1 px-1" />
+                  if (!slot) return <td key={i} className="py-1 px-1 border-l border-gray-200 dark:border-gray-700" />
                   const colorIdx = colorMap.get(slot.workshopId) ?? 0
                   const isPast = dateStr < today
                   const lleno = slot.reservas >= slot.cupo
                   return (
-                    <td key={i} className="py-1 px-1">
+                    <td key={i} className="py-1 px-1 border-l border-gray-200 dark:border-gray-700">
                       <div
                         className={`rounded-lg px-2 py-2 text-center text-xs cursor-pointer select-none transition
                           ${slot.cancelado

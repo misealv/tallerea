@@ -135,10 +135,10 @@ export default function CalendarGridAlumno({
       )}
 
       {/* Grilla */}
-      <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-xl">
+      <div className="overflow-x-auto border border-gray-300 dark:border-gray-600 rounded-xl">
         <div className="min-w-[640px]">
           {/* Header días */}
-          <div className="grid grid-cols-[48px_repeat(7,1fr)] border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
+          <div className="grid grid-cols-[48px_repeat(7,1fr)] border-b border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
             <div />
             {weekDays.map((wd, i) => {
               // Comparar fecha UTC de la columna con la fecha local actual del usuario
@@ -162,9 +162,9 @@ export default function CalendarGridAlumno({
           <div className="relative bg-white dark:bg-gray-900" style={{ height: (HORA_FIN - HORA_INI) * 2 * CELL_H }}>
             {/* Líneas de hora */}
             {Array.from({ length: HORA_FIN - HORA_INI }, (_, i) => (
-              <div key={i} className="absolute left-0 right-0 border-t border-gray-100 dark:border-gray-800 flex"
+              <div key={i} className="absolute left-0 right-0 border-t border-gray-300 dark:border-gray-600 flex"
                 style={{ top: i * 2 * CELL_H }}>
-                <span className="text-[10px] text-gray-400 dark:text-gray-600 w-12 text-right pr-1 -mt-2 select-none">
+                <span className="text-[10px] text-gray-500 dark:text-gray-400 w-12 text-right pr-1 -mt-2 select-none font-medium">
                   {String(HORA_INI + i).padStart(2, '0')}:00
                 </span>
               </div>
@@ -172,7 +172,7 @@ export default function CalendarGridAlumno({
 
             {/* Columnas de días (fondo) */}
             {weekDays.map((_, colIdx) => (
-              <div key={colIdx} className="absolute top-0 bottom-0 border-l border-gray-100 dark:border-gray-800"
+              <div key={colIdx} className="absolute top-0 bottom-0 border-l border-gray-300 dark:border-gray-600"
                 style={{ left: `calc(48px + ${colIdx} * ((100% - 48px) / 7))`, width: `calc((100% - 48px) / 7)` }} />
             ))}
 
