@@ -28,8 +28,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   if (parent && !validateObjectId(parent)) return NextResponse.json({ error: 'parent inválido' }, { status: 400 })
 
   const role = session.user.role
-  const tallerEstado = (session.user as { tallerEstado?: string }).tallerEstado
-  const esTallerista = role === 'admin' || tallerEstado === 'aprobado'
 
   // Verificar acceso al taller y determinar visibilidad permitida
   const w = await WorkshopService.getByIdIncludingInactive(params.id)

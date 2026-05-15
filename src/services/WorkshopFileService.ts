@@ -1,6 +1,6 @@
 import 'server-only'
 import dbConnect from '@/lib/db'
-import WorkshopFile, { IWorkshopFile, IWorkshopFileDoc, FileVisibilidad } from '@/models/WorkshopFile'
+import WorkshopFile, { IWorkshopFileDoc, FileVisibilidad } from '@/models/WorkshopFile'
 import { SiteConfigService } from '@/services/SiteConfigService'
 import cloudinary from '@/lib/cloudinary'
 import { Types } from 'mongoose'
