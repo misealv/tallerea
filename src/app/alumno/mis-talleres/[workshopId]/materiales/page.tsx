@@ -30,6 +30,16 @@ function FileIcon({ node }: { node: FileNode }) {
   return <span className="text-xl">📎</span>
 }
 
+// Inserta fl_attachment en URLs Cloudinary para forzar descarga en lugar de inline preview.
+// El atributo HTML `download` es ignorado en cross-origin; esta es la forma oficial de Cloudinary.
+function urlDescarga(url: string, nombre?: string): string {
+  if (!url.includes('/upload/')) return url
+  const flag = nombre
+    ? `fl_attachment:${encodeURIComponent(nombre.replace(/\.[^.]+$/, ''))}`
+    : 'fl_attachment'
+  return url.replace('/upload/', `/upload/${flag}/`)
+}
+
 export default function AlumnoMaterialesPage() {
   const { workshopId } = useParams<{ workshopId: string }>()
   const [parent, setParent] = useState<string | null>(null)
@@ -56,7 +66,11 @@ export default function AlumnoMaterialesPage() {
   useEffect(() => { cargar(parent) }, [parent, cargar])
 
   function abrirItem(node: FileNode) {
-    if (node.tipo === 'folder') { setParent(node._id); return }
+    if (node.tipo === 'folder') {
+      setVideoUrl(null)
+      setParent(node._id)
+      return
+    }
     if (node.resourceType === 'video' && node.cloudinaryUrl) {
       setVideoUrl(node.cloudinaryUrl)
     }
@@ -129,7 +143,7 @@ export default function AlumnoMaterialesPage() {
                   </button>
                 )}
                 {node.tipo === 'file' && node.cloudinaryUrl && (
-                  <a href={node.cloudinaryUrl} target="_blank" rel="noopener noreferrer" download
+                  <a href={urlDescarga(node.cloudinaryUrl, node.nombre)} target="_blank" rel="noopener noreferrer"
                     className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
                     ⬇ Descargar
                   </a>

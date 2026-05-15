@@ -34,6 +34,14 @@ function FileIcon({ node }: { node: FileNode }) {
   return <span className="text-2xl">📎</span>
 }
 
+function urlDescarga(url: string, nombre?: string): string {
+  if (!url.includes('/upload/')) return url
+  const flag = nombre
+    ? `fl_attachment:${encodeURIComponent(nombre.replace(/\.[^.]+$/, ''))}`
+    : 'fl_attachment'
+  return url.replace('/upload/', `/upload/${flag}/`)
+}
+
 const ALLOWED_MIME = [
   'image/jpeg','image/png','image/webp','image/gif',
   'video/mp4','video/quicktime','video/webm',
@@ -341,7 +349,7 @@ export default function MaterialesPage() {
                 </button>
                 {/* Descargar (solo archivos) */}
                 {node.tipo === 'file' && node.cloudinaryUrl && (
-                  <a href={node.cloudinaryUrl} target="_blank" rel="noopener noreferrer" title="Descargar"
+                  <a href={urlDescarga(node.cloudinaryUrl, node.nombre)} target="_blank" rel="noopener noreferrer" title="Descargar"
                     className="text-[11px] px-2 py-1 rounded-md border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">
                     ⬇️
                   </a>
