@@ -58,6 +58,30 @@ export default function InscribirAlumnoPage() {
   const [nombre, setNombre] = useState('')
   const [nota, setNota]     = useState('')
 
+  // Lookup de alumno existente al ingresar email
+  const [lookupStatus, setLookupStatus] = useState<'idle' | 'loading' | 'found' | 'new'>('idle')
+  async function handleEmailBlur() {
+    const e = email.trim().toLowerCase()
+    if (!e || !e.includes('@')) return
+    setLookupStatus('loading')
+    try {
+      const res = await fetch(`/api/tallerista/inscripciones-manuales/lookup-alumno?email=${encodeURIComponent(e)}`)
+      const data = await res.json()
+      if (data.found) {
+        setNombre(data.nombre)
+        // Pre-llenar dependientes existentes solo si el taller es recurrente y el form está vacío
+        if (isRecurrente && data.dependents?.length > 0 && deps.length === 1 && !deps[0].nombre.trim()) {
+          setDeps(data.dependents.map((d: { _id: string; nombre: string }) => ({
+            ...emptyDep(), nombre: d.nombre,
+          })))
+        }
+        setLookupStatus('found')
+      } else {
+        setLookupStatus('new')
+      }
+    } catch { setLookupStatus('idle') }
+  }
+
   // Puntual: campos adicionales
   const [slotIndex, setSlotIndex]     = useState<number | null>(null)
   const [montoPagado, setMontoPagado] = useState(0)
@@ -202,9 +226,9 @@ export default function InscribirAlumnoPage() {
     }
   }
 
-  if (loading) return <div className="p-8 text-gray-500">Cargando taller…</div>
-
   const isRecurrente = workshop?.modeloAcceso === 'recurrente'
+
+  if (loading) return <div className="p-8 text-gray-500">Cargando taller…</div>
 
   return (
     <div className="max-w-xl mx-auto px-4 py-8">
@@ -235,9 +259,20 @@ export default function InscribirAlumnoPage() {
           <legend className="text-sm font-semibold text-gray-700">Apoderado / titular de la cuenta</legend>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Email *</label>
-            <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
+            <input type="email" required value={email}
+              onChange={e => { setEmail(e.target.value); setLookupStatus('idle') }}
+              onBlur={handleEmailBlur}
               placeholder="apoderado@email.com"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+            {lookupStatus === 'loading' && (
+              <p className="mt-1 text-xs text-gray-400">Buscando alumno…</p>
+            )}
+            {lookupStatus === 'found' && (
+              <p className="mt-1 text-xs text-emerald-600">✓ Alumno existente — nombre y menores cargados automáticamente</p>
+            )}
+            {lookupStatus === 'new' && (
+              <p className="mt-1 text-xs text-indigo-500">Alumno nuevo — se creará la cuenta al inscribir</p>
+            )}
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Nombre completo *</label>
