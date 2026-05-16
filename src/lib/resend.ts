@@ -386,7 +386,11 @@ export async function sendSubscriptionVencida({
   const resend = getResend()
   const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
   const linkUrl = initPoint ?? `${baseUrl}/talleres/${workshopSlug}`
-  const linkLabel = initPoint ? 'Renovar mi paquete' : 'Ver el taller y renovar'
+  const linkLabel = initPoint ? 'Renovar mi paquete' : 'Ver paquetes disponibles'
+  // Texto del cuerpo según si hay precio acordado o libre elección de paquete
+  const cuerpoPrincipal = precioAcordado
+    ? `<p>¿Quieres continuar? Renueva con un clic al precio acordado.</p>`
+    : `<p>¿Quieres continuar? Elige el paquete que mejor se ajuste a ti.</p>`
   const precioText = precioAcordado
     ? `<p style="color: #7c3aed; font-weight: 600;">Precio acordado: $${precioAcordado.toLocaleString('es-CL')} CLP${clasesCantidad ? ` · ${clasesCantidad} clases` : ''}</p>`
     : ''
@@ -400,7 +404,7 @@ export async function sendSubscriptionVencida({
         <h2 style="color: #7c3aed;">Tu suscripción venció</h2>
         <p>Hola <strong>${name}</strong>,</p>
         <p>Tu suscripción a <strong>${workshopTitulo}</strong> llegó a su fin. Las reservas que tenías programadas fueron canceladas automáticamente.</p>
-        <p>¿Quieres continuar? Renueva con un clic al precio acordado.</p>
+        ${cuerpoPrincipal}
         ${precioText}
         <a href="${linkUrl}" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
           ${linkLabel}
@@ -543,7 +547,10 @@ export async function sendSubscriptionRenovar({
   const resend = getResend()
   const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
   const linkUrl = initPoint ?? `${baseUrl}/talleres/${workshopSlug}`
-  const linkLabel = initPoint ? 'Renovar mi paquete' : 'Renovar suscripción'
+  const linkLabel = initPoint ? 'Renovar mi paquete' : 'Ver paquetes disponibles'
+  const cuerpoPrincipal = precioAcordado
+    ? `<p>Tu período de suscripción a <strong>${workshopTitulo}</strong> terminó. Para seguir asistiendo, renueva con un clic al precio acordado.</p>`
+    : `<p>Tu período de suscripción a <strong>${workshopTitulo}</strong> terminó. Para seguir asistiendo, elige el paquete que mejor se ajuste a ti.</p>`
   const precioText = precioAcordado
     ? `<p style="color: #7c3aed; font-weight: 600;">Precio acordado: $${precioAcordado.toLocaleString('es-CL')} CLP${clasesCantidad ? ` · ${clasesCantidad} clases` : ''}</p>`
     : ''
@@ -556,7 +563,7 @@ export async function sendSubscriptionRenovar({
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #7c3aed;">¡Tu ciclo terminó!</h2>
         <p>Hola <strong>${name}</strong>,</p>
-        <p>Tu período de suscripción a <strong>${workshopTitulo}</strong> terminó. Para seguir asistiendo, renueva con un clic.</p>
+        ${cuerpoPrincipal}
         ${precioText}
         <a href="${linkUrl}" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
           ${linkLabel}
