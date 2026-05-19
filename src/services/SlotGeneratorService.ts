@@ -148,16 +148,31 @@ export const SlotGeneratorService = {
       return workshop
     }
 
-    // Mantener TODOS los slots existentes (con o sin reservas).
-    // Solo agregar slots nuevos cuya (fecha + horaInicio) no exista ya en el array.
+    // Patrones activos en la plantilla actual (dia|horaInicio)
+    const activePatterns = new Set(
+      (workshop.plantillaSemanal ?? []).map(
+        (p: { dia: string; horaInicio: string }) => `${p.dia}|${p.horaInicio}`
+      )
+    )
+    const now = new Date()
+
+    // Eliminar slots futuros sin reservas cuyo patrón ya no está en la plantilla.
+    // Se conservan: slots pasados, slots con reservas, y slots cuyo patrón sigue activo.
+    const slotsBase = workshop.slots.filter((s: ISlot) => {
+      if (!s.fecha || s.fecha <= now) return true
+      if ((s.reservas ?? 0) > 0) return true
+      return activePatterns.has(`${s.dia}|${s.horaInicio}`)
+    })
+
+    // Solo agregar slots nuevos cuya (fecha + horaInicio) no exista ya.
     // Esto evita duplicados si applyGeneratedSlots se llama más de una vez.
     const existingKeys = new Set(
-      workshop.slots.map((s: ISlot) => `${s.fecha?.toISOString()}-${s.horaInicio}`)
+      slotsBase.map((s: ISlot) => `${s.fecha?.toISOString()}-${s.horaInicio}`)
     )
     const filtered = newSlots.filter(
       s => !existingKeys.has(`${s.fecha?.toISOString()}-${s.horaInicio}`)
     )
-    workshop.slots = [...workshop.slots, ...filtered] as ISlot[]
+    workshop.slots = [...slotsBase, ...filtered] as ISlot[]
 
     // Calcular fechaFin
     if (workshop.slots.length > 0) {
