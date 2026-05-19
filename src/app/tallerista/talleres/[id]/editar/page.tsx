@@ -117,9 +117,30 @@ export default function EditarTallerPage() {
           paquetes:         w.paquetes         ?? undefined,
           clasePrueba:      w.clasePrueba       ?? undefined,
         })
-        // Cargar slots existentes — normalizar dia y deduplicar por dia+horaInicio.
-        // Slots con fecha específica (sesiones generadas) se colapsan en su patrón semanal.
-        if (Array.isArray(w.slots)) {
+        // Para recurrente: usar plantillaSemanal como fuente de verdad del patrón.
+        // Leer desde w.slots causaba que patrones eliminados reaparecieran si
+        // quedaban slots pasados (históricos) con ese dia+horaInicio.
+        // Para puntual: deduplicar desde w.slots (no tiene plantillaSemanal).
+        if (w.modeloAcceso === 'recurrente' && Array.isArray(w.plantillaSemanal) && w.plantillaSemanal.length > 0) {
+          const cupoDefault = parseInt(String(w.cupoPorSesion)) || 10
+          const deduped: SlotData[] = w.plantillaSemanal.map((p: { dia: string; horaInicio: string; horaFin: string }) => {
+            const diaNorm = p.dia.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+            // Tomar cupoMax del primer slot generado con ese patrón, si existe
+            const matchingSlot = Array.isArray(w.slots)
+              ? (w.slots as (SlotData & { fecha?: unknown })[]).find(
+                  s => s.dia.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() === diaNorm
+                    && s.horaInicio === p.horaInicio
+                )
+              : undefined
+            const cupoMax = matchingSlot?.cupoMax ?? cupoDefault
+            return { dia: diaNorm, horaInicio: p.horaInicio, horaFin: p.horaFin, cupoMax, cupoDisponible: cupoMax }
+          })
+          setSlots(deduped)
+          setOriginalPlantilla(JSON.stringify(
+            deduped.map(s => ({ dia: s.dia, horaInicio: s.horaInicio, horaFin: s.horaFin }))
+          ))
+        } else if (Array.isArray(w.slots)) {
+          // Fallback para puntual o talleres sin plantillaSemanal: deduplicar desde slots.
           const seen = new Set<string>()
           const deduped: SlotData[] = []
           for (const s of w.slots as (SlotData & { fecha?: unknown })[]) {
@@ -137,7 +158,6 @@ export default function EditarTallerPage() {
             }
           }
           setSlots(deduped)
-          // Guardar plantilla original serializada para comparar al guardar
           setOriginalPlantilla(JSON.stringify(
             deduped.map(s => ({ dia: s.dia, horaInicio: s.horaInicio, horaFin: s.horaFin }))
           ))
