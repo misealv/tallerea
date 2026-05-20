@@ -169,9 +169,11 @@ export default async function InscritosPage({
               </tr></thead>
               <tbody>{subscriptionsFiltradas.map(s => {
                 const prepaid = s.clasesPrepagadas
-                const prepaidActivo = prepaid && prepaid.consumidas < prepaid.cantidad
                 const esBecado = s.precioEspecial && s.precioSnapshot === 0
                 const vi = getSubViewInfo(s)
+                // [FIX 2026-05] usar vi.prepaidActivo (fuente única sesionesDisponibles).
+                // Antes: prepaid.consumidas < prepaid.cantidad → falsos positivos tras reset.
+                const prepaidActivo = vi.prepaidActivo
                 return (
                   <tr key={String(s._id)} className="border-t border-gray-100">
                     <td className="px-4 py-2 font-medium text-gray-800">
@@ -198,14 +200,14 @@ export default async function InscritosPage({
                         ) : (
                           <span className="text-gray-700 font-medium">${s.monto.toLocaleString('es-CL')}</span>
                         )}
-                        {/* Clases — usar siempre vi.disponibles (fuente de verdad atómica) */}
+                        {/* Clases — fuente única sesionesDisponibles/sesionesUsadas */}
                         {prepaidActivo ? (
                           <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium w-fit">
-                            {vi.disponibles}/{vi.totales} clases
+                            {vi.disponibles} disp. · {vi.usadas}/{vi.totales} usadas
                           </span>
                         ) : (
                           <span className="text-xs text-gray-400">
-                            {vi.disponibles}/{vi.totales === 999 ? '∞' : vi.totales} sesiones
+                            {vi.disponibles} disp. · {vi.usadas}/{vi.totales === 999 ? '∞' : vi.totales} usadas
                           </span>
                         )}
                         {/* Vigencia */}
