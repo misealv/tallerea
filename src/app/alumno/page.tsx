@@ -568,8 +568,6 @@ export default async function AlumnoDashboard() {
           <div className="space-y-3">
             {subscriptions.map(s => {
               const prepaid = s.clasesPrepagadas
-              // [FIX] sesionesDisponibles es la única fuente atómica
-              const prepaidActivo = !!prepaid && s.sesionesDisponibles > 0
               const wMedia = s.workshopId as unknown as WorkshopWithMedia
               const devueltas = cancelledByProf.filter(b => (b.workshopId as WorkshopRef).slug === wMedia.slug).length
               const disponibles = s.sesionesDisponibles

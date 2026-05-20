@@ -217,8 +217,6 @@ export default async function MisTalleresPage() {
           <div className="space-y-3">
             {subscriptions.map(s => {
               const prepaid = s.clasesPrepagadas
-              // [FIX] sesionesDisponibles es la única fuente atómica (movida por consumeSesion/devolverSesion)
-              const prepaidActivo = !!prepaid && s.sesionesDisponibles > 0
               const wMedia = s.workshopId as unknown as WorkshopWithMedia
               const disponibles = s.sesionesDisponibles
               const profesorNombre = profMap.get(String(wMedia.ownerId)) ?? 'Tallerista'
