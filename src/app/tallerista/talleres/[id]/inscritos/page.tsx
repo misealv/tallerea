@@ -198,10 +198,10 @@ export default async function InscritosPage({
                         ) : (
                           <span className="text-gray-700 font-medium">${s.monto.toLocaleString('es-CL')}</span>
                         )}
-                        {/* Clases */}
+                        {/* Clases — usar siempre vi.disponibles (fuente de verdad atómica) */}
                         {prepaidActivo ? (
                           <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium w-fit">
-                            {prepaid!.cantidad - prepaid!.consumidas}/{prepaid!.cantidad} clases
+                            {vi.disponibles}/{vi.totales} clases
                           </span>
                         ) : (
                           <span className="text-xs text-gray-400">

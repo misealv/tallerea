@@ -217,9 +217,10 @@ export default async function MisTalleresPage() {
           <div className="space-y-3">
             {subscriptions.map(s => {
               const prepaid = s.clasesPrepagadas
-              const prepaidActivo = prepaid && prepaid.consumidas < prepaid.cantidad
+              // [FIX] sesionesDisponibles es la única fuente atómica (movida por consumeSesion/devolverSesion)
+              const prepaidActivo = !!prepaid && s.sesionesDisponibles > 0
               const wMedia = s.workshopId as unknown as WorkshopWithMedia
-              const disponibles = prepaidActivo ? (prepaid!.cantidad - prepaid!.consumidas) : s.sesionesDisponibles
+              const disponibles = s.sesionesDisponibles
               const profesorNombre = profMap.get(String(wMedia.ownerId)) ?? 'Tallerista'
               const proxBooking = bookingBySub.get(String(s._id))
               const proxSlot = proxBooking ? (proxBooking.workshopId as WorkshopWithSlots).slots?.[proxBooking.slotIndex] : undefined

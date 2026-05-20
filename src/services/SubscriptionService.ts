@@ -390,43 +390,20 @@ export const SubscriptionService = {
    * @param motivo          Estado terminal del Booking que dispara el consumo
    *                        (reservado para futuro audit log)
    */
+  /**
+   * @deprecated [PREPAGADO] Mantenido como no-op para retrocompat.
+   * El saldo se consume EN LA RESERVA vía consumeSesion (Modelo A puro).
+   * Marcar asistencia / no-show / cancelación-fuera-de-plazo no debe afectar saldo
+   * porque ya fue descontado al crear el Booking.
+   * Llamadas existentes en BookingService quedaron como no-op silencioso.
+   */
   async consumePrepaid(
     subscriptionId: string,
     motivo: 'asistio' | 'no_show' | 'cancelacion_fuera_plazo'
   ): Promise<ISubscription | null> {
-    await dbConnect()
-    void motivo // [DEUDA] no se persiste todavía — pendiente audit log
-
-    // Update atómico con guards: (a) saldo > 0  (b) no caducado
-    // Sin caducaEn → siempre válido. Con caducaEn → solo si caducaEn > now.
-    const now = new Date()
-    const updated = await Subscription.findOneAndUpdate(
-      {
-        _id: subscriptionId,
-        clasesPrepagadas: { $exists: true },
-        $expr: { $lt: ['$clasesPrepagadas.consumidas', '$clasesPrepagadas.cantidad'] },
-        $or: [
-          { 'clasesPrepagadas.caducaEn': { $exists: false } },
-          { 'clasesPrepagadas.caducaEn': null },
-          { 'clasesPrepagadas.caducaEn': { $gt: now } },
-        ],
-      },
-      { $inc: { 'clasesPrepagadas.consumidas': 1 } },
-      { new: true }
-    ).lean<ISubscription>()
-
-    // [PREPAGADO] Si quedó agotado tras este consumo → notificar al alumno con link MP
-    if (
-      updated?.clasesPrepagadas &&
-      updated.clasesPrepagadas.consumidas >= updated.clasesPrepagadas.cantidad
-    ) {
-      // Fire-and-forget: nunca bloquear el flujo de Booking si falla la notificación
-      this.notifyPrepaidExhausted(String(updated._id)).catch((err) => {
-        console.error('[PREPAGADO] notifyPrepaidExhausted failed', err)
-      })
-    }
-
-    return updated // null si no tiene saldo prepagado activo
+    void subscriptionId
+    void motivo
+    return null
   },
 
   /**
@@ -474,10 +451,12 @@ export const SubscriptionService = {
   hasPrepaidBalance(sub: ISubscription): boolean {
     if (!sub.clasesPrepagadas) return false
     if (sub.clasesPrepagadas.caducaEn && new Date() > sub.clasesPrepagadas.caducaEn) return false
-    return sub.clasesPrepagadas.consumidas < sub.clasesPrepagadas.cantidad
+    // [FIX] Fuente única: sesionesDisponibles. Antes leía clasesPrepagadas.consumidas
+    // que se desincronizaba (caso Ramaciotti / Lidia mayo 2026).
+    return sub.sesionesDisponibles > 0
   },
 
-  // Consumir 1 sesión (llamado por BookingService) — [RACE] atómico
+  // Consumir 1 sesión (llamado por BookingService al crear booking) — [RACE] atómico
   async consumeSesion(subscriptionId: string): Promise<ISubscription> {
     await dbConnect()
     const now = new Date()
@@ -500,27 +479,21 @@ export const SubscriptionService = {
       throw new Error('No quedan sesiones disponibles')
     }
 
-    // [SYNC] Si la suscripción tiene saldo prepagado activo, sincronizar el contador
-    // de consumidas. El panel del alumno y la inscripción manual usan este campo
-    // como fuente de verdad, así que debe moverse junto con sesionesUsadas.
-    await Subscription.updateOne(
-      {
-        _id: subscriptionId,
-        'clasesPrepagadas.cantidad': { $gt: 0 },
-        $expr: { $lt: ['$clasesPrepagadas.consumidas', '$clasesPrepagadas.cantidad'] },
-        $or: [
-          { 'clasesPrepagadas.caducaEn': { $exists: false } },
-          { 'clasesPrepagadas.caducaEn': null },
-          { 'clasesPrepagadas.caducaEn': { $gt: now } },
-        ],
-      },
-      { $inc: { 'clasesPrepagadas.consumidas': 1 } }
-    )
+    // [FIX 2026-05] Eliminado bloque [SYNC] que muteaba clasesPrepagadas.consumidas.
+    // sesionesDisponibles/sesionesUsadas son fuente única de verdad.
+    // clasesPrepagadas.consumidas queda como metadata histórica congelada.
+
+    // [PREPAGADO] Si quedó agotado tras este consumo → notificar al alumno
+    if (updated.clasesPrepagadas && updated.sesionesDisponibles === 0) {
+      this.notifyPrepaidExhausted(String(updated._id)).catch((err) => {
+        console.error('[PREPAGADO] notifyPrepaidExhausted failed', err)
+      })
+    }
 
     return updated
   },
 
-  // Devolver 1 sesión (cancelación de booking) — [RACE] atómico, con tope superior
+  // Devolver 1 sesión (cancelación dentro de plazo) — [RACE] atómico, con tope superior
   async devolverSesion(subscriptionId: string): Promise<ISubscription> {
     await dbConnect()
     // Solo devolver si sesionesUsadas > 0 — evita acumular por double-cancel
@@ -536,12 +509,7 @@ export const SubscriptionService = {
       return sub
     }
 
-    // [SYNC] Mantener clasesPrepagadas.consumidas en sintona con sesionesUsadas
-    await Subscription.updateOne(
-      { _id: subscriptionId, 'clasesPrepagadas.consumidas': { $gt: 0 } },
-      { $inc: { 'clasesPrepagadas.consumidas': -1 } }
-    )
-
+    // [FIX 2026-05] Eliminado bloque [SYNC] simetrico que muteaba clasesPrepagadas.consumidas.
     return updated
   },
 
@@ -909,10 +877,15 @@ export const SubscriptionService = {
       ? (input.precioSnapshot ?? 0)
       : (workshop.precioFijo?.monto ?? workshop.precio ?? 0)
 
-    // Construir clasesPrepagadas doc
+    // Construir clasesPrepagadas doc.
+    // [FIX 2026-05] consumidas SIEMPRE arranca en 0. Si el tallerista declara
+    // "clases ya consumidas fuera del sistema" (consumidasAlInscribir > 0), eso
+    // se refleja en sesionesDisponibles = cantidad - X (más arriba). El campo
+    // clasesPrepagadas.consumidas es metadata histórica y NO debe arrancar con
+    // un offset porque luego no se mantendrá sincronizado con bookings reales.
     const clasesPrepagadasDoc = input.clasesPrepagadas ? {
       cantidad: input.clasesPrepagadas.cantidad,
-      consumidas: input.clasesPrepagadas.consumidasAlInscribir ?? 0,
+      consumidas: 0,
       fechaPago: input.clasesPrepagadas.fechaPago,
       metodoPago: input.clasesPrepagadas.metodoPago,
       montoDeclarado: input.clasesPrepagadas.montoDeclarado,

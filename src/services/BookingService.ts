@@ -322,11 +322,9 @@ export const BookingService = {
     booking.canceladaRazon = razon
     await booking.save()
 
-    // [PREPAGADO] Fuera de plazo → consume saldo prepagado (equivalente a no-show)
-    await SubscriptionService.consumePrepaid(
-      String(booking.subscriptionId),
-      'cancelacion_fuera_plazo'
-    ).catch(() => null) // silencioso si no hay saldo prepagado
+    // [FIX 2026-05] Fuera de plazo NO devuelve saldo (ya consumido en la reserva).
+    // Antes se llamaba consumePrepaid que dobleaba el conteo en clasesPrepagadas.consumidas.
+    // Modelo A puro: consumir en reserva, no devolver en no-show/fuera-plazo.
 
     // Liberar cupo del slot
     const workshop = await Workshop.findById(booking.workshopId)
@@ -355,24 +353,16 @@ export const BookingService = {
     await booking.save()
 
     if (estado === 'asistio') {
-      // [PREPAGADO] Asistencia confirmada → consume saldo prepagado si existe
-      await SubscriptionService.consumePrepaid(
-        String(booking.subscriptionId),
-        'asistio'
-      ).catch(() => null)
+      // [FIX 2026-05] Asistencia confirmada NO consume saldo aparte: ya fue
+      // descontado al crear el Booking vía consumeSesion. Modelo A puro.
     } else {
       // no_asistio: verificar política del taller
       const workshop = await Workshop.findById(booking.workshopId)
       if (workshop?.plan?.politicaNoShow === 'reagendar_una_vez') {
-        // Política: devolver sesión (no consume prepagado)
+        // Política: devolver sesión (el alumno puede reagendar)
         await SubscriptionService.devolverSesion(String(booking.subscriptionId))
-      } else {
-        // Política por defecto: no-show consume saldo prepagado
-        await SubscriptionService.consumePrepaid(
-          String(booking.subscriptionId),
-          'no_show'
-        ).catch(() => null)
       }
+      // Política por defecto: no-show NO devuelve saldo (sesión ya consumida en reserva).
     }
 
     return booking

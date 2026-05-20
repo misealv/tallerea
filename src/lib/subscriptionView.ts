@@ -37,10 +37,16 @@ export interface SubViewInfo {
  */
 export function getSubViewInfo(sub: SubViewInput): SubViewInfo {
   const prepaid = sub.clasesPrepagadas
-  const prepaidActivo = !!prepaid && prepaid.consumidas < prepaid.cantidad
-  const disponibles = prepaidActivo ? prepaid!.cantidad - prepaid!.consumidas : sub.sesionesDisponibles
+  // [FIX] `sesionesDisponibles`/`sesionesUsadas` son la ÚNICA fuente de verdad
+  // atómica (movida por consumeSesion/devolverSesion en cada Booking).
+  // `clasesPrepagadas.consumidas` es metadata histórica que puede desincronizarse:
+  //   - Si la sub se creó sin clasesPrepagadas y se agregaron después
+  //   - Si la sub se inscribió con consumidasAlInscribir > 0 (clases previas en papel)
+  // Por eso NO se usa para calcular disponibles. Solo aporta caducaEn y total visual.
+  const prepaidActivo = !!prepaid && sub.sesionesDisponibles > 0
+  const disponibles = sub.sesionesDisponibles
   const usadas = sub.sesionesUsadas
-  const totales = prepaidActivo ? prepaid!.cantidad : sub.sesionesTotales
+  const totales = prepaid ? prepaid.cantidad : sub.sesionesTotales
   const fechaVigenciaReal =
     prepaidActivo && prepaid!.caducaEn
       ? new Date(prepaid!.caducaEn)
