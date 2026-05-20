@@ -8,6 +8,7 @@ import User from '@/models/User'
 
 const SetPasswordSchema = z.object({
   password: z.string().min(8, 'Mínimo 8 caracteres'),
+  currentPassword: z.string().optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -26,15 +27,26 @@ export async function POST(req: NextRequest) {
 
   try {
     await dbConnect()
-    const hash = await bcrypt.hash(parsed.data.password, 12)
-    const updated = await User.findByIdAndUpdate(
-      session.user.id,
-      { password: hash },
-      { new: false }
-    )
-    if (!updated) {
+    // Necesitamos password actual para verificar si ya existe (por defecto está select:false)
+    const user = await User.findById(session.user.id).select('+password')
+    if (!user) {
       return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
     }
+
+    // Si ya tiene password, exigir la actual (evita que alguien con sesión robada la cambie)
+    if (user.password) {
+      const current = parsed.data.currentPassword
+      if (!current) {
+        return NextResponse.json({ error: 'Debes ingresar tu contraseña actual' }, { status: 400 })
+      }
+      const ok = await bcrypt.compare(current, user.password)
+      if (!ok) {
+        return NextResponse.json({ error: 'Contraseña actual incorrecta' }, { status: 400 })
+      }
+    }
+
+    user.password = await bcrypt.hash(parsed.data.password, 12)
+    await user.save()
     return NextResponse.json({ success: true })
   } catch {
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })

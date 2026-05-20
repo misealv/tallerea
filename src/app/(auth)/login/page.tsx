@@ -110,6 +110,12 @@ function LoginForm() {
           </button>
         </form>
 
+        <p className="text-center text-sm mt-4">
+          <Link href="/recuperar" className="text-purple-600 hover:underline">
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </p>
+
         <p className="text-center text-sm text-gray-500 mt-6">
           ¿Quieres publicar talleres?{' '}
           <Link href="/registro-tallerista" className="text-purple-600 font-medium hover:underline">

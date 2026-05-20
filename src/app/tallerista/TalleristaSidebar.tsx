@@ -15,6 +15,7 @@ const navItems = [
   { href: '/tallerista/liquidaciones',label: 'Liquidaciones',   icon: '🏦' },
   { href: '/tallerista/espacios',     label: 'Mis espacios',    icon: '📍' },
   { href: '/tallerista/perfil',       label: 'Mi perfil',       icon: '👤' },
+  { href: '/cuenta/cambiar-clave',    label: 'Cambiar clave',   icon: '🔑' },
 ]
 
 interface Props {
