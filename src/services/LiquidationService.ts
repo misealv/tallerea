@@ -33,6 +33,7 @@ export const LiquidationService = {
     const query = { ...filters }
     const [data, total] = await Promise.all([
       Liquidation.find(query)
+        .populate('ownerId', 'name email')
         .skip((page - 1) * limit)
         .limit(limit)
         .sort({ createdAt: -1 })

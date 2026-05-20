@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 
 interface Liquidation {
   _id: string
-  accountId: { _id: string; nombre: string }
+  ownerId: { _id: string; name: string; email: string }
   totalBruto: number
   totalFeeTallerea: number
   totalProfesor: number
@@ -16,33 +16,36 @@ interface Liquidation {
   fechaPago?: string
 }
 
-interface Account {
+interface Tallerista {
   _id: string
-  nombre: string
+  name: string
+  email: string
+  taller?: { estado?: string }
 }
 
 export default function AdminLiquidacionesPage() {
   const [liquidations, setLiquidations] = useState<Liquidation[]>([])
-  const [accounts, setAccounts] = useState<Account[]>([])
+  const [talleristas, setTalleristas] = useState<Tallerista[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
-  const [selectedAccount, setSelectedAccount] = useState('')
+  const [selectedOwner, setSelectedOwner] = useState('')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
   const [error, setError] = useState('')
 
   const fetchData = useCallback(async () => {
-    const [lRes, aRes] = await Promise.all([
+    const [lRes, uRes] = await Promise.all([
       fetch('/api/admin/liquidations?limit=50'),
-      fetch('/api/admin/accounts'),
+      fetch('/api/admin/users'),
     ])
     if (lRes.ok) {
       const lData = await lRes.json()
       setLiquidations(lData.data || [])
     }
-    if (aRes.ok) {
-      const aData = await aRes.json()
-      setAccounts(aData || [])
+    if (uRes.ok) {
+      const uData: Tallerista[] = await uRes.json()
+      // Solo talleristas aprobados
+      setTalleristas(uData.filter(u => u.taller?.estado === 'aprobado'))
     }
     setLoading(false)
   }, [])
@@ -50,8 +53,8 @@ export default function AdminLiquidacionesPage() {
   useEffect(() => { fetchData() }, [fetchData])
 
   async function handleGenerate() {
-    if (!selectedAccount || !desde || !hasta) {
-      setError('Selecciona espacio y período')
+    if (!selectedOwner || !desde || !hasta) {
+      setError('Selecciona tallerista y período')
       return
     }
     setGenerating(true)
@@ -59,7 +62,7 @@ export default function AdminLiquidacionesPage() {
     const res = await fetch('/api/admin/liquidations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountId: selectedAccount, desde, hasta }),
+      body: JSON.stringify({ ownerId: selectedOwner, desde, hasta }),
     })
     setGenerating(false)
     if (!res.ok) {
@@ -130,10 +133,10 @@ export default function AdminLiquidacionesPage() {
       <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
         <h2 className="font-semibold text-gray-900 mb-4">Generar liquidación</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <select value={selectedAccount} onChange={e => setSelectedAccount(e.target.value)}
+          <select value={selectedOwner} onChange={e => setSelectedOwner(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-            <option value="">Seleccionar espacio</option>
-            {accounts.map(a => <option key={a._id} value={a._id}>{a.nombre}</option>)}
+            <option value="">Seleccionar tallerista</option>
+            {talleristas.map(t => <option key={t._id} value={t._id}>{t.name} ({t.email})</option>)}
           </select>
           <input type="date" value={desde} onChange={e => setDesde(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Desde" />
@@ -153,7 +156,7 @@ export default function AdminLiquidacionesPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-gray-600">
             <tr>
-              <th className="px-4 py-3">Espacio</th>
+              <th className="px-4 py-3">Tallerista</th>
               <th className="px-4 py-3">Período</th>
               <th className="px-4 py-3 text-right">Profesor</th>
               <th className="px-4 py-3 text-right">Pagos</th>
@@ -164,7 +167,7 @@ export default function AdminLiquidacionesPage() {
           <tbody className="divide-y divide-gray-100">
             {liquidations.map(l => (
               <tr key={l._id}>
-                <td className="px-4 py-3 font-medium text-gray-900">{l.accountId?.nombre || '—'}</td>
+                <td className="px-4 py-3 font-medium text-gray-900">{l.ownerId?.name || '—'}</td>
                 <td className="px-4 py-3 text-gray-500 text-xs">
                   {new Date(l.periodo.desde).toLocaleDateString('es-CL')} — {new Date(l.periodo.hasta).toLocaleDateString('es-CL')}
                 </td>
@@ -195,7 +198,7 @@ export default function AdminLiquidacionesPage() {
           {liquidations.map(l => (
             <div key={l._id} className="px-4 py-3 space-y-1">
               <div className="flex items-start justify-between gap-2">
-                <p className="font-medium text-gray-900 text-sm">{l.accountId?.nombre || '—'}</p>
+                <p className="font-medium text-gray-900 text-sm">{l.ownerId?.name || '—'}</p>
                 <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${estadoBadge[l.estado] || 'bg-gray-100'}`}>{l.estado}</span>
               </div>
               <p className="text-xs text-gray-500">
