@@ -407,7 +407,59 @@ export const SubscriptionService = {
   },
 
   /**
-   * [PREPAGADO] Genera un link MP con precioSnapshot y envía email al alumno.
+   * [PREPAGADO] Crea preferencia MP para recargar saldo de una suscripción activa.
+   * El alumno selecciona un paquete del taller y al pagar se suman las clases
+   * a la suscripción existente (no se crea otra Subscription).
+   *
+   * Idempotencia y acreditación final viven en PaymentService.handleApprovedRecarga,
+   * invocado por el webhook MP con externalRef = `rec:<subId>:<paqueteId>`.
+   */
+  async createRechargePreference(
+    subscriptionId: string,
+    paqueteId: string,
+    studentId: string,
+  ): Promise<{ initPoint: string; preferenceId: string; monto: number }> {
+    await dbConnect()
+
+    const sub = await Subscription.findById(subscriptionId).lean<ISubscription>()
+    if (!sub) throw new Error('Suscripción no encontrada')
+    if (String(sub.studentId) !== String(studentId)) throw new Error('Forbidden')
+    if (sub.estado !== 'activa') throw new Error('Solo se puede recargar una suscripción activa')
+
+    const workshop = await Workshop.findById(sub.workshopId)
+      .select('titulo paquetes')
+      .lean<{ titulo: string; paquetes?: { _id: mongoose.Types.ObjectId; nombre: string; precio: number; sesionesIncluidas: number; duracionDias: number; activo: boolean }[] }>()
+    if (!workshop) throw new Error('Taller no encontrado')
+
+    const paquete = workshop.paquetes?.find(p => String(p._id) === paqueteId && p.activo)
+    if (!paquete) throw new Error('Paquete no disponible')
+    if (!Number.isInteger(paquete.precio) || paquete.precio <= 0) {
+      throw new Error('Paquete con precio inválido')
+    }
+
+    const student = await User.findById(studentId).select('email').lean<{ email: string } | null>()
+    if (!student?.email) throw new Error('Alumno sin email')
+
+    const preference = await createPaymentPreference({
+      externalRef: `rec:${subscriptionId}:${paqueteId}`,
+      workshopTitle: `${workshop.titulo} — Recarga: ${paquete.nombre}`,
+      amount: paquete.precio,
+      payerEmail: student.email,
+    })
+
+    if (!preference?.init_point) throw new Error('No se pudo generar el link de pago')
+
+    return {
+      initPoint: preference.init_point as string,
+      preferenceId: preference.id as string,
+      monto: paquete.precio,
+    }
+  },
+
+  /**
+   * [PREPAGADO] Notifica al alumno que agotó su paquete e invita a continuar.
+   * - Si tiene precioSnapshot > 0: genera link MP al precio acordado.
+   * - Si precio es $0 o no hay precio acordado: muestra los paquetes activos del taller.
    * Se invoca al detectar saldo agotado. NO bloquea el flujo si falla.
    */
   async notifyPrepaidExhausted(subscriptionId: string): Promise<void> {
@@ -415,31 +467,52 @@ export const SubscriptionService = {
 
     const sub = await Subscription.findById(subscriptionId).lean<ISubscription>()
     if (!sub?.clasesPrepagadas) return
-    if (!sub.precioSnapshot || sub.precioSnapshot <= 0) return // sin precio acordado
 
     const [student, workshop] = await Promise.all([
       User.findById(sub.studentId).select('name email').lean<{ name: string; email: string } | null>(),
-      Workshop.findById(sub.workshopId).select('titulo').lean<{ titulo: string } | null>(),
+      Workshop.findById(sub.workshopId).select('titulo slug paquetes').lean<{
+        titulo: string; slug: string; paquetes?: { nombre: string; precio: number; sesionesIncluidas: number; activo: boolean; orden: number }[]
+      } | null>(),
     ])
     if (!student?.email || !workshop) return
 
-    // Crear preferencia MP con precioSnapshot — externalRef sub:<id> ya conocido por el webhook
-    const preference = await createPaymentPreference({
-      externalRef: `sub:${subscriptionId}:prepaid-renewal`,
-      workshopTitle: workshop.titulo,
-      amount: sub.precioSnapshot,
-      payerEmail: student.email,
-    })
+    const cantidad = sub.clasesPrepagadas.cantidad
 
-    if (!preference?.init_point) return
+    // Caso A: tiene precio acordado > 0 → link MP al mismo precio
+    if (sub.precioSnapshot && sub.precioSnapshot > 0) {
+      const preference = await createPaymentPreference({
+        externalRef: `sub:${subscriptionId}:prepaid-renewal`,
+        workshopTitle: workshop.titulo,
+        amount: sub.precioSnapshot,
+        payerEmail: student.email,
+      })
+      if (!preference?.init_point) return
+
+      await sendPrepaidExhausted({
+        email: student.email,
+        name: student.name || 'Alumno',
+        workshopTitulo: workshop.titulo,
+        workshopSlug: workshop.slug,
+        initPoint: preference.init_point,
+        monto: sub.precioSnapshot,
+        cantidad,
+      })
+      return
+    }
+
+    // Caso B: precio $0 o sin precio → mostrar paquetes activos del taller
+    const paquetesActivos = (workshop.paquetes ?? [])
+      .filter(p => p.activo)
+      .sort((a, b) => a.orden - b.orden)
 
     await sendPrepaidExhausted({
       email: student.email,
       name: student.name || 'Alumno',
       workshopTitulo: workshop.titulo,
-      initPoint: preference.init_point,
-      monto: sub.precioSnapshot,
-      cantidad: sub.clasesPrepagadas.cantidad,
+      workshopSlug: workshop.slug,
+      workshopId: String(sub.workshopId),
+      cantidad,
+      paquetes: paquetesActivos,
     })
   },
 

@@ -482,42 +482,99 @@ export async function sendSesionCancelada({
  * [PREPAGADO] Notifica al alumno que sus clases prepagadas se agotaron
  * y le envía link de pago MP para continuar (respetando precioSnapshot original).
  */
+type PaqueteEmail = {
+  nombre: string
+  precio: number
+  sesionesIncluidas: number
+}
+
 export async function sendPrepaidExhausted({
   email,
   name,
   workshopTitulo,
+  workshopSlug,
+  workshopId,
   initPoint,
   monto,
   cantidad,
+  paquetes,
 }: {
   email: string
   name: string
   workshopTitulo: string
-  initPoint: string
-  monto: number
+  workshopSlug: string
+  workshopId?: string
   cantidad: number
+  // Caso A: precio acordado → link MP directo
+  initPoint?: string
+  monto?: number
+  // Caso B: sin precio acordado → mostrar paquetes del taller
+  paquetes?: PaqueteEmail[]
 }) {
   if (!process.env.RESEND_API_KEY) return
 
   const resend = getResend()
-  const montoFmt = monto.toLocaleString('es-CL')
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+
+  // Bloque de acción según caso
+  let accionHtml: string
+  if (initPoint && monto && monto > 0) {
+    // Caso A: renovar al precio acordado
+    const montoFmt = monto.toLocaleString('es-CL')
+    accionHtml = `
+      <p>Para seguir asistiendo, paga el siguiente paquete con el mismo precio que acordaste:</p>
+      <p style="font-size: 24px; font-weight: bold; color: #7c3aed; margin: 16px 0;">
+        $${montoFmt} CLP
+      </p>
+      <a href="${initPoint}" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 16px 0;">
+        Pagar y continuar
+      </a>`
+  } else if (paquetes && paquetes.length > 0) {
+    // Caso B: mostrar paquetes disponibles del taller.
+    // Si hay workshopId → enrutar al flujo de recarga del alumno (suma saldo a sub existente).
+    // Si no → fallback a la página pública del taller.
+    const tallerUrl = workshopId
+      ? `${baseUrl}/alumno/mis-talleres/${workshopId}/recargar`
+      : `${baseUrl}/talleres/${workshopSlug}`
+    const paquetesHtml = paquetes.map(p => `
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #f3f4f6;">
+          <strong>${p.nombre}</strong><br>
+          <span style="color: #6b7280; font-size: 13px;">${p.sesionesIncluidas} clases</span>
+        </td>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #f3f4f6; text-align: right; font-weight: bold; color: #7c3aed;">
+          $${p.precio.toLocaleString('es-CL')} CLP
+        </td>
+      </tr>`).join('')
+    accionHtml = `
+      <p>Para seguir asistiendo, elige el paquete que mejor se ajuste a ti:</p>
+      <table style="width: 100%; border-collapse: collapse; margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+        ${paquetesHtml}
+      </table>
+      <a href="${tallerUrl}" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 16px 0;">
+        Ver paquetes y continuar
+      </a>`
+  } else {
+    // Sin paquetes configurados — solo invitar a contactar
+    const tallerUrl = `${baseUrl}/talleres/${workshopSlug}`
+    // No hay paquetes: apuntamos a la página del taller (no a /inscribirse que estaría vacía)
+    accionHtml = `
+      <p>Para seguir asistiendo, visita la página del taller o contacta directamente a tu profesor.</p>
+      <a href="${tallerUrl}" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 16px 0;">
+        Ver taller
+      </a>`
+  }
 
   await resend.emails.send({
     from: FROM_EMAIL,
     to: email,
-    subject: `Completaste tus ${cantidad} clases en "${workshopTitulo}" — continúa con un clic`,
+    subject: `Completaste tus ${cantidad} clases en "${workshopTitulo}" — ¡seguimos!`,
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #7c3aed;">¡Felicitaciones por completar tu ciclo!</h2>
         <p>Hola <strong>${name}</strong>,</p>
         <p>Ya asististe a las <strong>${cantidad} clases</strong> de tu paquete de <strong>${workshopTitulo}</strong>.</p>
-        <p>Para seguir asistiendo, paga el siguiente paquete con el mismo precio que acordaste:</p>
-        <p style="font-size: 24px; font-weight: bold; color: #7c3aed; margin: 16px 0;">
-          $${montoFmt} CLP
-        </p>
-        <a href="${initPoint}" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 16px 0;">
-          Pagar y continuar
-        </a>
+        ${accionHtml}
         <p style="color: #6b7280; font-size: 14px;">Si tienes dudas o prefieres otro arreglo, contacta directamente a tu profesor.</p>
         <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
       </div>

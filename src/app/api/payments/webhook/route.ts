@@ -54,8 +54,14 @@ export async function POST(req: NextRequest) {
 
     if (payment.status === 'approved' && payment.external_reference) {
       const ref = payment.external_reference
-      // Rutear según prefijo: 'enr:<id>' o 'sub:<id>'. Sin prefijo asume enrollment (legacy)
-      if (ref.startsWith('sub:')) {
+      // Rutear según prefijo: 'enr:<id>' | 'sub:<id>' | 'rec:<subId>:<paqueteId>'.
+      // Sin prefijo asume enrollment (legacy)
+      if (ref.startsWith('rec:')) {
+        const [subId, paqueteId] = ref.slice(4).split(':')
+        if (subId && paqueteId) {
+          await PaymentService.handleApprovedRecarga(subId, paqueteId, String(paymentId))
+        }
+      } else if (ref.startsWith('sub:')) {
         await PaymentService.handleApprovedSubscription(ref.slice(4), String(paymentId))
       } else if (ref.startsWith('enr:')) {
         await PaymentService.handleApprovedPayment(ref.slice(4), String(paymentId))

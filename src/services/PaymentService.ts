@@ -452,4 +452,88 @@ export const PaymentService = {
       // No bloquear el flujo por fallo de email
     }
   },
+
+  // [FINANCE RISK][PREPAGADO] Acredita recarga de paquete a una suscripción activa.
+  // No crea una nueva Subscription: suma clases al saldo existente y extiende vencimiento.
+  // Idempotencia por mercadoPagoId unique en PaymentBreakdown.
+  async handleApprovedRecarga(subscriptionId: string, paqueteId: string, paymentId: string): Promise<void> {
+    await dbConnect()
+
+    // [IDEMPOTENCIA] Si ya existe breakdown para este paymentId, no reprocesar
+    const existingBreakdown = await PaymentBreakdown.findOne({ mercadoPagoId: String(paymentId) }).lean<{ _id: mongoose.Types.ObjectId }>()
+    if (existingBreakdown) return
+
+    const subscription = await Subscription.findById(subscriptionId)
+    if (!subscription) return
+    if (subscription.estado !== 'activa') {
+      // No se acreditan recargas a subs vencidas/canceladas. MP igual recibe 200.
+      return
+    }
+
+    const workshop = await Workshop.findById(subscription.workshopId)
+      .select('ownerId precioModalidad paquetes')
+      .lean<{
+        _id: mongoose.Types.ObjectId
+        ownerId: mongoose.Types.ObjectId
+        precioModalidad?: 'neto' | 'bruto'
+        paquetes?: { _id: mongoose.Types.ObjectId; nombre: string; precio: number; sesionesIncluidas: number; duracionDias: number; activo: boolean }[]
+      }>()
+    if (!workshop) throw new Error('Taller no encontrado al acreditar recarga')
+
+    const paquete = workshop.paquetes?.find(p => String(p._id) === paqueteId)
+    if (!paquete) throw new Error('Paquete no encontrado al acreditar recarga')
+
+    // [CUADRATURA] Crear PaymentBreakdown — inmutable, idempotente por mercadoPagoId
+    const feePct = await SiteConfigService.getComisionPct()
+    const desglose = FinanceService.calcularDesglose(paquete.precio, feePct)
+
+    try {
+      await new PaymentBreakdown({
+        subscriptionId: subscription._id,
+        workshopId: subscription.workshopId,
+        ownerId: workshop.ownerId,
+        studentId: subscription.studentId,
+        montoBruto: desglose.montoBruto,
+        comisionMP: 0,
+        feeTallerea: desglose.feeTallerea,
+        montoProfesor: desglose.montoProfesor,
+        porcentajeFee: feePct,
+        precioModalidad: workshop.precioModalidad ?? 'bruto',
+        tipo: 'pago',
+        estado: 'cobrado',
+        mercadoPagoId: String(paymentId),
+        fechaCobro: new Date(),
+      }).save()
+    } catch (err: unknown) {
+      const code = (err as { code?: number })?.code
+      if (code === 11000) return // E11000 → ya procesado por reintento del webhook
+      throw err
+    }
+
+    // Sumar saldo a la suscripción
+    const sesionesExtra = paquete.sesionesIncluidas
+    subscription.sesionesTotales += sesionesExtra
+    subscription.sesionesDisponibles += sesionesExtra
+
+    // Extender vencimiento: desde el mayor entre fechaVencimiento actual y hoy
+    if (paquete.duracionDias && paquete.duracionDias > 0) {
+      const base = subscription.fechaVencimiento > new Date() ? subscription.fechaVencimiento : new Date()
+      subscription.fechaVencimiento = new Date(base.getTime() + paquete.duracionDias * 24 * 60 * 60 * 1000)
+    }
+
+    await subscription.save()
+
+    // Audit log
+    try {
+      await FinanceService.log(
+        'pago_recibido',
+        'PaymentBreakdown',
+        String(subscription._id),
+        paquete.precio,
+        String(subscription.studentId)
+      )
+    } catch {
+      // No bloquear flujo
+    }
+  },
 }
