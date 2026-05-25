@@ -18,6 +18,27 @@
 
 ---
 
+## Regla de Sincronización Git — OBLIGATORIA
+
+**Antes de comenzar cualquier tarea:**
+```bash
+cd /home/miseal/tallerea && git pull
+```
+
+**Al terminar cualquier tarea** (cambios de código, archivos nuevos, fixes):
+```bash
+cd /home/miseal/tallerea && git add -A && git commit -m "<type>(<scope>): <descripción>" && git push
+```
+
+Reglas:
+- **SIEMPRE hacer pull** antes de modificar cualquier archivo. Nunca trabajar sobre una copia desactualizada.
+- **SIEMPRE commit + push** al terminar una tarea. Nunca dejar trabajo terminado sin commitear.
+- Usar [Conventional Commits](https://www.conventionalcommits.org/): `feat`, `fix`, `docs`, `refactor`, `chore`.
+- Si `git pull` genera conflictos de merge, detener y reportar al usuario antes de continuar.
+- Nunca usar `--force` push. Nunca enmendar commits publicados.
+
+---
+
 ## Proyecto
 
 **Tallerea** es un **MarketSaaS** chileno: marketplace de talleres de arte + SaaS de gestión para el tallerista.
