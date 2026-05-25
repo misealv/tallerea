@@ -8,6 +8,7 @@ import Booking from '@/models/Booking'
 import Enrollment from '@/models/Enrollment'
 import User from '@/models/User'
 import { sendSesionCancelada } from '@/lib/resend'
+import { SubscriptionService } from '@/services/SubscriptionService'
 import { Types } from 'mongoose'
 
 export const dynamic = 'force-dynamic'
@@ -132,11 +133,21 @@ export async function PATCH(req: NextRequest) {
   )
   if (!booking) return NextResponse.json({ error: 'Reserva no encontrada o ya cancelada' }, { status: 404 })
 
-  // Incrementar cupo disponible del slot (caché)
+  // [FINANCE RISK] Devolver sesión a la suscripción si corresponde
+  if (booking.subscriptionId) {
+    await SubscriptionService.devolverSesion(String(booking.subscriptionId)).catch(() => null)
+  }
+
+  // Actualizar caché de cupo del slot
   if (slotIndex >= 0 && slotIndex < workshop.slots.length) {
     const slot = workshop.slots[slotIndex]
     if (typeof slot.cupoDisponible === 'number') {
+      // Puntual: restaurar cupoDisponible
       slot.cupoDisponible = Math.min(slot.cupoDisponible + 1, slot.cupoMax ?? workshop.cupoPorSesion)
+      await workshop.save()
+    } else if (typeof slot.reservas === 'number' && slot.reservas > 0) {
+      // Recurrente: decrementar reservas
+      slot.reservas = slot.reservas - 1
       await workshop.save()
     }
   }
