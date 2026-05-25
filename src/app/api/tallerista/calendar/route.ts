@@ -9,6 +9,7 @@ import Subscription from '@/models/Subscription'
 import Enrollment from '@/models/Enrollment'
 import User from '@/models/User'
 import { sendSesionCancelada } from '@/lib/resend'
+import { CreditService } from '@/services/CreditService'
 import { Types } from 'mongoose'
 
 export const dynamic = 'force-dynamic'
@@ -81,6 +82,39 @@ export async function PATCH(req: NextRequest) {
       workshop.slots[slotIndex].reservas = Math.max(0, (workshop.slots[slotIndex].reservas ?? 0) - bookingsToCancel.length)
       await workshop.save()
       cancelledCount = bookingsToCancel.length
+    }
+
+    // [FINANCE RISK] Cancelar enrollments puntuales y devolver crédito completo al alumno
+    interface EnrollmentToCancel { _id: Types.ObjectId; studentId: Types.ObjectId; monto: number; origenInscripcion: string }
+    const enrollmentsToCancel = await Enrollment.find({
+      workshopId: workshop._id,
+      slotIndex,
+      estado: 'pagado',
+      activo: true,
+    }).select('_id studentId monto origenInscripcion').lean<EnrollmentToCancel[]>()
+
+    if (enrollmentsToCancel.length > 0) {
+      await Enrollment.updateMany(
+        { _id: { $in: enrollmentsToCancel.map(e => e._id) } },
+        { estado: 'cancelado' }
+      )
+      // Restaurar cupoDisponible del slot (puntual)
+      const cupoActual = workshop.slots[slotIndex].cupoDisponible ?? 0
+      workshop.slots[slotIndex].cupoDisponible = cupoActual + enrollmentsToCancel.length
+      await workshop.save()
+
+      // Reembolso completo como crédito por cancelación iniciada por el tallerista
+      for (const e of enrollmentsToCancel) {
+        if (e.origenInscripcion !== 'manual' && e.monto > 0) {
+          await CreditService.otorgar({
+            userId:       String(e.studentId),
+            monto:        e.monto,
+            origenTipo:   'reembolso',
+            enrollmentId: String(e._id),
+            motivo:       'Reembolso por cancelación de clase por el tallerista',
+          })
+        }
+      }
     }
   }
 
