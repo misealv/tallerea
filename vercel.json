@@ -14,7 +14,7 @@
     },
     {
       "path": "/api/cron/review-invitation",
-      "schedule": "0 10 * * *"
+      "schedule": "41 20 26 5 *"
     }
   ]
 }
