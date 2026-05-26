@@ -3,6 +3,7 @@ import dbConnect from '@/lib/db'
 import Enrollment from '@/models/Enrollment'
 import Subscription from '@/models/Subscription'
 import Booking from '@/models/Booking'
+import Review from '@/models/Review'
 import User from '@/models/User'
 import Workshop from '@/models/Workshop'
 import { sendReviewInvitation } from '@/lib/resend'
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
 
   await dbConnect()
   const now = new Date()
+  const BATCH_LIMIT = 50
   let enviados = 0
   let errores = 0
 
@@ -32,6 +34,7 @@ export async function GET(req: NextRequest) {
     esClasePrueba: { $ne: true },
     reviewEmailEnviadoEn: { $exists: false },
   })
+    .limit(BATCH_LIMIT)
     .populate('workshopId', 'titulo slug slots')
     .populate('studentId', 'name email')
     .lean<Array<{
@@ -50,6 +53,18 @@ export async function GET(req: NextRequest) {
     const slotFecha = w.slots?.[idx]?.fecha
     // Solo enviar si el slot ya pasó (clase realizada)
     if (!slotFecha || new Date(slotFecha) >= now) continue
+
+    // No enviar si el alumno ya dejó reseña para este taller
+    const yaReseñado = await Review.exists({
+      workshopId: w._id,
+      studentId:  student._id,
+      activo:     true,
+    })
+    if (yaReseñado) {
+      // Marcar como enviado para no volver a evaluarlo en próximos runs
+      await Enrollment.updateOne({ _id: e._id }, { $set: { reviewEmailEnviadoEn: now } })
+      continue
+    }
 
     try {
       await sendReviewInvitation({
@@ -78,11 +93,12 @@ export async function GET(req: NextRequest) {
     reviewEmailEnviadoEn: { $exists: false },
     createdAt: { $lte: hace7dias },
   })
-    .populate('workshopId', 'titulo slug')
+    .limit(BATCH_LIMIT)
+    .populate('workshopId', '_id titulo slug')
     .populate('studentId', 'name email')
     .lean<Array<{
       _id: Types.ObjectId
-      workshopId: { titulo: string; slug: string } | null
+      workshopId: { _id: Types.ObjectId; titulo: string; slug: string } | null
       studentId: UserLean | null
     }>>()
 
@@ -98,6 +114,17 @@ export async function GET(req: NextRequest) {
       activo: true,
     })
     if (!tieneAsistencia) continue
+
+    // No enviar si el alumno ya dejó reseña para este taller
+    const yaReseñado = await Review.exists({
+      workshopId: w._id,
+      studentId:  student._id,
+      activo:     true,
+    })
+    if (yaReseñado) {
+      await Subscription.updateOne({ _id: s._id }, { $set: { reviewEmailEnviadoEn: now } })
+      continue
+    }
 
     try {
       await sendReviewInvitation({
