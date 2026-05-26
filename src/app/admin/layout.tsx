@@ -25,6 +25,7 @@ export default async function AdminLayout({
           <Link href="/admin/finanzas" className="text-gray-600 hover:text-purple-700 whitespace-nowrap px-2 py-1 rounded hover:bg-purple-50">Finanzas</Link>
           <Link href="/admin/liquidaciones" className="text-gray-600 hover:text-purple-700 whitespace-nowrap px-2 py-1 rounded hover:bg-purple-50">Liquidaciones</Link>
           <Link href="/admin/talleristas" className="text-gray-600 hover:text-purple-700 whitespace-nowrap px-2 py-1 rounded hover:bg-purple-50">Talleristas</Link>
+          <Link href="/admin/resenas" className="text-gray-600 hover:text-purple-700 whitespace-nowrap px-2 py-1 rounded hover:bg-purple-50">Reseñas</Link>
           <Link href="/admin/configuracion" className="text-gray-600 hover:text-purple-700 whitespace-nowrap px-2 py-1 rounded hover:bg-purple-50">Configuración</Link>
         </nav>
       </header>
