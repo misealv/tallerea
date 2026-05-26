@@ -911,3 +911,46 @@ export async function sendRecordatorioReservar({
       </div>`,
   })
 }
+
+// ─── Invitación a dejar reseña post-clase ────────────────────────────────────
+
+export async function sendReviewInvitation({
+  email,
+  name,
+  workshopTitle,
+  workshopSlug,
+}: {
+  email: string
+  name: string
+  workshopTitle: string
+  workshopSlug: string
+}) {
+  if (!process.env.RESEND_API_KEY) return
+
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+  // URL directa a la página de reseñas del alumno (no al taller público)
+  const reviewsUrl = `${baseUrl}/alumno/reviews`
+
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: email,
+    subject: `¿Cómo estuvo ${workshopTitle}? Déjanos tu reseña`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7c3aed;">¿Cómo fue tu experiencia?</h2>
+        <p>Hola <strong>${name}</strong>,</p>
+        <p>Terminaste tu clase de <strong>${workshopTitle}</strong>. Tu opinión ayuda a otros alumnos a elegir sus talleres.</p>
+        <p>Solo toma 30 segundos:</p>
+        <a href="${reviewsUrl}" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; margin: 16px 0; font-size: 16px;">
+          Dejar mi reseña
+        </a>
+        <p style="color: #6b7280; font-size: 13px; margin-top: 8px;">
+          Si el enlace no abre, cópialo en tu navegador:<br>
+          <span style="color: #7c3aed;">${reviewsUrl}</span>
+        </p>
+        <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
+      </div>
+    `,
+  })
+}

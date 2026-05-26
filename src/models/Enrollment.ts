@@ -17,6 +17,7 @@ export interface IEnrollment extends Document {
   inscritoPor?: Types.ObjectId;
   notaTallerista?: string;
   activo: boolean;
+  reviewEmailEnviadoEn?: Date;
   createdAt: Date;
 }
 
@@ -37,6 +38,7 @@ const EnrollmentSchema = new Schema<IEnrollment>({
   inscritoPor:           { type: Schema.Types.ObjectId, ref: 'User' },
   notaTallerista:        { type: String, maxlength: 500 },
   activo:          { type: Boolean, default: true },
+  reviewEmailEnviadoEn: { type: Date },
 }, { timestamps: true });
 
 // Validación: inscripción manual requiere inscritoPor + coherencia dependentId/snapshot

@@ -110,9 +110,9 @@ export const ReviewService = {
       }
     }
 
-    // --- Canal 2: Subscriptions con ≥30 días y al menos 1 booking asistio ---
+    // --- Canal 2: Subscriptions con ≥7 días y al menos 1 booking asistio ---
     const umbraldias = new Date(now)
-    umbraldias.setDate(umbraldias.getDate() - 30)
+    umbraldias.setDate(umbraldias.getDate() - 7)
 
     type SubscriptionLean = {
       _id: mongoose.Types.ObjectId

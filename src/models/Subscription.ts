@@ -42,6 +42,7 @@ export interface ISubscription extends Document {
   mpInitPoint?: string;
   mpInitPointCreatedAt?: Date;
   clasesPrepagadas?: IClasesPrepagadas;
+  reviewEmailEnviadoEn?: Date;
   createdAt: Date;
 }
 
@@ -86,6 +87,7 @@ const SubscriptionSchema = new Schema<ISubscription>({
     creadoPor:       { type: Schema.Types.ObjectId, ref: 'User' },
     caducaEn:        { type: Date },  // opcional: fecha límite de validez
   },
+  reviewEmailEnviadoEn: { type: Date },
 }, { timestamps: true });
 
 // Validaciones de inscripción manual

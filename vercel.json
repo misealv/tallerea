@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/recordatorio-reservas",
       "schedule": "0 13 * * 1"
+    },
+    {
+      "path": "/api/cron/review-invitation",
+      "schedule": "0 10 * * *"
     }
   ]
 }

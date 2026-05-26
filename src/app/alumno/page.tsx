@@ -12,6 +12,8 @@ import Location from '@/models/Location'
 import CancelBookingButton from '@/components/CancelBookingButton'
 import TallerCard from '@/components/TallerCard'
 import SaldoTooltipButton from '@/components/SaldoTooltipButton'
+import ReviewBannerClient from '@/components/ReviewBannerClient'
+import { ReviewService } from '@/services/ReviewService'
 import { shouldHideTrial } from '@/lib/trialFilters'
 import { createPaymentPreference } from '@/lib/mercadopago'
 import { Types } from 'mongoose'
@@ -263,6 +265,13 @@ export default async function AlumnoDashboard() {
       .filter((slug): slug is string => Boolean(slug))
   )
 
+  // Contar talleres elegibles para reseña (no bloquea el dashboard si falla)
+  let reviewsElegiblesCount = 0
+  try {
+    const elegibles = await ReviewService.getElegibles(studentId)
+    reviewsElegiblesCount = elegibles.length
+  } catch { /* No bloquear dashboard si falla */ }
+
   const [clasesPrueba, puntualSessions] = await Promise.all([
     resolveClasePrueba(enrollments, slugsConSubHistorica).catch((err) => {
       console.error('[alumno] Error cargando detalles de clase de prueba:', err)
@@ -343,6 +352,9 @@ export default async function AlumnoDashboard() {
         </h1>
         <p className="text-gray-500 mt-1 text-sm">Tu espacio de aprendizaje en Tallerea.</p>
       </div>
+
+      {/* Banner reseñas pendientes */}
+      <ReviewBannerClient count={reviewsElegiblesCount} />
 
       {/* Banner pagos pendientes */}
       {pagosPendientes.length > 0 && (
