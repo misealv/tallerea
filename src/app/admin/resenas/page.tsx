@@ -37,11 +37,17 @@ export default function AdminResenasPage() {
   }, [])
 
   async function togglePublicado(id: string) {
+    const target = reviews.find((r) => r._id === id)
+    if (!target) return
     setToggling(id)
-    const res = await fetch(`/api/admin/reviews/${id}`, { method: 'PATCH' })
+    const res = await fetch(`/api/admin/reviews/${id}/moderar`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publicado: !target.publicado }),
+    })
     if (res.ok) {
-      const { publicado } = await res.json()
-      setReviews((prev) => prev.map((r) => r._id === id ? { ...r, publicado } : r))
+      const updated = await res.json()
+      setReviews((prev) => prev.map((r) => r._id === id ? { ...r, publicado: updated.publicado } : r))
     }
     setToggling(null)
   }
