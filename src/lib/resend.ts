@@ -918,12 +918,11 @@ export async function sendReviewInvitation({
   email,
   name,
   workshopTitle,
-  workshopSlug,
 }: {
   email: string
   name: string
   workshopTitle: string
-  workshopSlug: string
+  workshopSlug?: string  // aceptado por compatibilidad, no se usa en la URL
 }) {
   if (!process.env.RESEND_API_KEY) return
 

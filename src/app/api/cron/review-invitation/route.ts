@@ -4,8 +4,6 @@ import Enrollment from '@/models/Enrollment'
 import Subscription from '@/models/Subscription'
 import Booking from '@/models/Booking'
 import Review from '@/models/Review'
-import User from '@/models/User'
-import Workshop from '@/models/Workshop'
 import { sendReviewInvitation } from '@/lib/resend'
 import { Types } from 'mongoose'
 
