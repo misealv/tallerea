@@ -82,6 +82,9 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Canal 2: Subscriptions ≥7 días con booking asistido, aún sin email ─────
+  // Deduplicar por (workshopId, studentId) para evitar emails duplicados
+  // cuando un alumno tiene múltiples suscripciones al mismo taller
+  const procesadosCanal2 = new Set<string>()
   const hace7dias = new Date(now)
   hace7dias.setDate(hace7dias.getDate() - 7)
 
@@ -113,6 +116,13 @@ export async function GET(req: NextRequest) {
     })
     if (!tieneAsistencia) continue
 
+    // Deduplicar: si ya enviamos email a este alumno para este taller en este run, marcar y saltar
+    const claveDedup = `${w._id}_${student._id}`
+    if (procesadosCanal2.has(claveDedup)) {
+      await Subscription.updateOne({ _id: s._id }, { $set: { reviewEmailEnviadoEn: now } })
+      continue
+    }
+
     // No enviar si el alumno ya dejó reseña para este taller
     const yaReseñado = await Review.exists({
       workshopId: w._id,
@@ -135,6 +145,7 @@ export async function GET(req: NextRequest) {
         { _id: s._id },
         { $set: { reviewEmailEnviadoEn: now } }
       )
+      procesadosCanal2.add(claveDedup)
       enviados++
     } catch {
       errores++
