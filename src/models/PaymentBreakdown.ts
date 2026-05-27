@@ -77,5 +77,11 @@ PaymentBreakdownSchema.index({ ownerId: 1, estado: 1 });
 PaymentBreakdownSchema.index({ studentId: 1 });
 PaymentBreakdownSchema.index({ liquidationId: 1 });
 PaymentBreakdownSchema.index({ estado: 1, fechaCobro: 1 });
+// [IDEMPOTENCIA] Garantiza que un mismo pago de MP no se registre dos veces.
+// Sparse: permite ajustes/reembolsos manuales sin mercadoPagoId.
+PaymentBreakdownSchema.index(
+  { mercadoPagoId: 1 },
+  { unique: true, sparse: true, name: 'mercadoPagoId_unique_sparse' }
+);
 
 export default mongoose.models.PaymentBreakdown || mongoose.model<IPaymentBreakdown>('PaymentBreakdown', PaymentBreakdownSchema);
