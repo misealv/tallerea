@@ -3,12 +3,14 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { WorkshopService } from '@/services/WorkshopService'
 import { SiteConfigService } from '@/services/SiteConfigService'
+import { ReviewService } from '@/services/ReviewService'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import PrecioCard from '@/components/PrecioCard'
 import PublicWeeklyCalendar from '@/components/PublicWeeklyCalendar'
 import WorkshopGallery from '@/components/WorkshopGallery'
 import ClasePruebaCTA from '@/components/ClasePruebaCTA'
+import ReviewsList from '@/components/ReviewsList'
 
 export const revalidate = 3600 // 1 hora — Googlebot obtiene página cacheada en edge
 
@@ -82,7 +84,10 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
   const workshop = await WorkshopService.getBySlug(slug)
   if (!workshop) notFound()
 
-  const comisionPct = await SiteConfigService.getComisionPct()
+  const [comisionPct, reviewsResult] = await Promise.all([
+    SiteConfigService.getComisionPct(),
+    ReviewService.getByWorkshop(String(workshop._id), 1, 10),
+  ])
 
   const loc = workshop.locationId as unknown as {
     nombre: string; direccion: string; comuna: string; ciudad: string
@@ -465,6 +470,23 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+            {/* Reseñas de alumnos */}
+            {reviewsResult.total > 0 && (
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                  Reseñas de alumnos ({reviewsResult.total})
+                </h2>
+                <ReviewsList
+                  reviews={reviewsResult.data.map(r => ({
+                    _id: String(r._id),
+                    rating: r.rating,
+                    comentario: r.comentario,
+                    createdAt: r.createdAt,
+                    studentId: r.studentId as { name?: string; image?: string } | null,
+                  }))}
+                />
               </div>
             )}
           </div>

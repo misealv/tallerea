@@ -3,8 +3,10 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { TallerService } from '@/services/TallerService'
 import { WorkshopService } from '@/services/WorkshopService'
+import { ReviewService } from '@/services/ReviewService'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import ReviewsList from '@/components/ReviewsList'
 
 export const revalidate = 60
 
@@ -24,6 +26,12 @@ export default async function PerfilTalleristaPage({ params }: { params: { slug:
   const { taller } = tallerista
   const { data: talleres } = await WorkshopService.getByOwnerId(String(tallerista._id))
   const talleresPub = talleres.filter(t => t.activo && !t.deletedAt)
+
+  // Obtener reseñas de todos los talleres del tallerista
+  const workshopIds = talleres.map(t => String(t._id))
+  const reviews = workshopIds.length > 0
+    ? await ReviewService.getByAccount(workshopIds, 10)
+    : []
 
   const redes = taller.redesSociales ?? {}
 
@@ -146,6 +154,26 @@ export default async function PerfilTalleristaPage({ params }: { params: { slug:
             </div>
           )}
         </section>
+
+        {/* Reseñas de alumnos */}
+        {reviews.length > 0 && (
+          <section>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Reseñas ({taller.reviewsCount})
+            </h2>
+            <ReviewsList
+              reviews={reviews.map(r => ({
+                _id: String(r._id),
+                rating: r.rating,
+                comentario: r.comentario,
+                createdAt: r.createdAt,
+                studentId: r.studentId as { name?: string; image?: string } | null,
+                workshopId: r.workshopId as { titulo?: string; slug?: string } | null,
+              }))}
+              mostrarTaller
+            />
+          </section>
+        )}
 
       </main>
 
