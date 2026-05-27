@@ -52,7 +52,7 @@ export default async function TalleristaDashboardPage() {
 
   const ingresoNeto = pagos.reduce((acc, p) => acc + (p.montoProfesor ?? 0), 0)
   const pendienteLiquidar = pagos
-    .filter(p => p.estado === 'recibido')
+    .filter(p => p.estado === 'cobrado')
     .reduce((acc, p) => acc + (p.montoProfesor ?? 0), 0)
 
   const cards: { label: string; value: string; href?: string; highlight?: boolean }[] = [
