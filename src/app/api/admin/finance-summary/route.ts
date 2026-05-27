@@ -16,7 +16,7 @@ export async function GET() {
 
   // Agrega por ownerId (tallerista directo — flujo nuevo)
   const byOwner = await PaymentBreakdown.aggregate([
-    { $match: { tipo: 'pago' } },
+    { $match: { tipo: { $in: ['pago', 'ajuste'] } } },
     {
       $group: {
         _id: '$ownerId',
