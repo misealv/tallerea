@@ -59,16 +59,24 @@ export const LiquidationService = {
   ): Promise<ILiquidation> {
     await dbConnect()
 
+    // Pagos del período + ajustes compensatorios pendientes sin restricción de fecha.
+    // Los ajustes se crean con fechaCobro = now(), no con la fecha del pago original,
+    // por lo que no se filtran por rango para evitar que queden fuera del período.
     const breakdownFilter: Record<string, unknown> = {
       ownerId,
       estado: 'cobrado',
       liquidationId: { $exists: false },
-      fechaCobro: { $gte: desde, $lte: hasta },
+      $or: [
+        { tipo: { $in: ['pago', 'reembolso'] }, fechaCobro: { $gte: desde, $lte: hasta } },
+        { tipo: 'ajuste' },
+      ],
     }
 
     const breakdowns = await PaymentBreakdown.find(breakdownFilter)
 
-    if (breakdowns.length === 0) {
+    // Considerar que puede haber solo ajustes si todos los pagos ya fueron liquidados
+    const soloAjustes = breakdowns.every(b => b.tipo === 'ajuste')
+    if (breakdowns.length === 0 || soloAjustes) {
       throw new Error('No hay pagos cobrados para liquidar en este período')
     }
 
