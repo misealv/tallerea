@@ -45,7 +45,7 @@ export default async function TalleristaDashboardPage() {
       'reagendamiento.estado': 'pendiente',
       activo: true,
     }),
-    PaymentBreakdown.find({ $or: [{ ownerId }, { accountId: ownerId }], tipo: 'pago' })
+    PaymentBreakdown.find({ $or: [{ ownerId }, { accountId: ownerId }], tipo: { $in: ['pago', 'ajuste'] } })
       .select('montoProfesor estado')
       .lean<PBLean[]>(),
   ])

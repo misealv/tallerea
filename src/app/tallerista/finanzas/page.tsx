@@ -61,7 +61,7 @@ export default async function FinanzasPage() {
   const workshopIds = workshops.map(w => w._id)
 
   const [breakdowns, manualRecords] = await Promise.all([
-    PaymentBreakdown.find({ ownerId, tipo: 'pago' })
+    PaymentBreakdown.find({ ownerId, tipo: { $in: ['pago', 'ajuste'] } })
       .populate('workshopId', 'titulo')
       .sort({ createdAt: -1 })
       .limit(50)
@@ -136,12 +136,15 @@ export default async function FinanzasPage() {
                     <th className="px-3 py-2">Fecha</th>
                   </tr></thead>
                   <tbody>{breakdowns.map(b => (
-                    <tr key={String(b._id)} className="border-t border-gray-100">
+                    <tr key={String(b._id)} className={`border-t border-gray-100 ${b.tipo === 'ajuste' ? 'bg-red-50' : ''}`}>
                       <td className="px-3 py-2 text-gray-800 max-w-[120px] truncate">{(b.workshopId as { titulo: string })?.titulo ?? '—'}</td>
-                      <td className="px-3 py-2">${b.montoBruto.toLocaleString('es-CL')}</td>
-                      <td className="px-3 py-2 font-medium text-indigo-700">${b.montoProfesor.toLocaleString('es-CL')}</td>
+                      <td className={`px-3 py-2 ${b.tipo === 'ajuste' ? 'text-red-600' : ''}`}>${b.montoBruto.toLocaleString('es-CL')}</td>
+                      <td className={`px-3 py-2 font-medium ${b.tipo === 'ajuste' ? 'text-red-600' : 'text-indigo-700'}`}>${b.montoProfesor.toLocaleString('es-CL')}</td>
                       <td className="px-3 py-2">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[b.estado] ?? ''}`}>{b.estado}</span>
+                        {b.tipo === 'ajuste'
+                          ? <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">ajuste</span>
+                          : <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[b.estado] ?? ''}`}>{b.estado}</span>
+                        }
                       </td>
                       <td className="px-3 py-2 text-gray-400">{new Date(b.createdAt).toLocaleDateString('es-CL')}</td>
                     </tr>
@@ -151,14 +154,17 @@ export default async function FinanzasPage() {
               {/* Cards — móvil */}
               <div className="md:hidden space-y-2">
                 {breakdowns.map(b => (
-                  <div key={String(b._id)} className="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3">
+                  <div key={String(b._id)} className={`border rounded-xl p-3 flex items-center justify-between gap-3 ${b.tipo === 'ajuste' ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-800 truncate">{(b.workshopId as { titulo: string })?.titulo ?? '—'}</p>
                       <p className="text-xs text-gray-400 mt-0.5">{new Date(b.createdAt).toLocaleDateString('es-CL')}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-sm font-bold text-indigo-700">${b.montoProfesor.toLocaleString('es-CL')}</p>
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${ESTADO_COLOR[b.estado] ?? ''}`}>{b.estado}</span>
+                      <p className={`text-sm font-bold ${b.tipo === 'ajuste' ? 'text-red-600' : 'text-indigo-700'}`}>${b.montoProfesor.toLocaleString('es-CL')}</p>
+                      {b.tipo === 'ajuste'
+                        ? <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-red-100 text-red-700">ajuste</span>
+                        : <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${ESTADO_COLOR[b.estado] ?? ''}`}>{b.estado}</span>
+                      }
                     </div>
                   </div>
                 ))}
