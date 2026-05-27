@@ -914,6 +914,150 @@ export async function sendRecordatorioReservar({
 
 // ─── Invitación a dejar reseña post-clase ────────────────────────────────────
 
+// ─── Liquidación pagada ─────────────────────────────────────────────────────
+
+export interface LiquidacionPagadaFila {
+  workshopTitulo: string
+  studentNombre: string
+  tipo: 'pago' | 'reembolso' | 'ajuste'
+  fechaCobro?: Date | string
+  montoBruto: number
+  montoProfesor: number
+}
+
+export async function sendLiquidacionPagada({
+  profesorEmail,
+  profesorNombre,
+  desde,
+  hasta,
+  totalBruto,
+  totalProfesor,
+  fechaPago,
+  filas,
+  comprobanteUrl,
+}: {
+  profesorEmail: string
+  profesorNombre: string
+  desde: Date
+  hasta: Date
+  totalBruto: number
+  totalProfesor: number
+  fechaPago: Date
+  filas: LiquidacionPagadaFila[]
+  comprobanteUrl?: string
+}) {
+  if (!process.env.RESEND_API_KEY) return
+
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+
+  const fmt = (d: Date | string) =>
+    new Date(d).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })
+  const clp = (n: number) =>
+    n.toLocaleString('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 })
+
+  const tipoLabel: Record<string, string> = {
+    pago:      'Pago',
+    reembolso: 'Reembolso',
+    ajuste:    'Ajuste',
+  }
+  const tipoColor: Record<string, string> = {
+    pago:      '#16a34a',
+    reembolso: '#d97706',
+    ajuste:    '#dc2626',
+  }
+
+  const filaRows = filas.map(f => `
+    <tr style="border-bottom: 1px solid #f3f4f6;">
+      <td style="padding: 10px 8px; color: #374151;">${f.workshopTitulo}</td>
+      <td style="padding: 10px 8px; color: #374151;">${f.studentNombre}</td>
+      <td style="padding: 10px 8px; text-align: center;">
+        <span style="background: ${tipoColor[f.tipo] ?? '#6b7280'}22; color: ${tipoColor[f.tipo] ?? '#6b7280'}; padding: 2px 8px; border-radius: 9999px; font-size: 12px; font-weight: 600;">
+          ${tipoLabel[f.tipo] ?? f.tipo}
+        </span>
+      </td>
+      <td style="padding: 10px 8px; color: #6b7280; font-size: 13px; text-align: center;">${f.fechaCobro ? fmt(f.fechaCobro) : '—'}</td>
+      <td style="padding: 10px 8px; text-align: right; color: #374151;">${clp(f.montoBruto)}</td>
+      <td style="padding: 10px 8px; text-align: right; font-weight: 600; color: #111827;">${clp(f.montoProfesor)}</td>
+    </tr>
+  `).join('')
+
+  const comprobanteBlock = comprobanteUrl
+    ? `<p style="margin-top: 16px;">
+        <a href="${comprobanteUrl}" style="color: #7c3aed; text-decoration: underline; font-size: 14px;">Ver comprobante de pago</a>
+      </p>`
+    : ''
+
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: profesorEmail,
+    subject: `Tallerea: tu pago de ${clp(totalProfesor)} fue acreditado`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 680px; margin: 0 auto; color: #111827;">
+        <div style="background: #7c3aed; padding: 28px 32px; border-radius: 12px 12px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 22px;">💸 Pago acreditado</h1>
+          <p style="color: #ede9fe; margin: 6px 0 0; font-size: 14px;">Tallerea.cl</p>
+        </div>
+
+        <div style="background: #ffffff; padding: 28px 32px; border: 1px solid #e5e7eb; border-top: none;">
+          <p>Hola <strong>${profesorNombre}</strong>,</p>
+          <p>Te informamos que hemos acreditado tu pago correspondiente al período <strong>${fmt(desde)} — ${fmt(hasta)}</strong>.</p>
+
+          <div style="background: #f9fafb; border-radius: 10px; padding: 20px; margin: 20px 0; display: flex; gap: 32px;">
+            <div>
+              <p style="margin: 0; color: #6b7280; font-size: 13px;">Total acreditado</p>
+              <p style="margin: 4px 0 0; font-size: 28px; font-weight: 700; color: #7c3aed;">${clp(totalProfesor)}</p>
+            </div>
+            <div style="margin-left: 48px;">
+              <p style="margin: 0; color: #6b7280; font-size: 13px;">Fecha de pago</p>
+              <p style="margin: 4px 0 0; font-size: 16px; font-weight: 600;">${fmt(fechaPago)}</p>
+            </div>
+          </div>
+
+          <h3 style="font-size: 15px; color: #374151; margin: 24px 0 12px;">Detalle de pagos incluidos</h3>
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <thead>
+              <tr style="background: #f3f4f6; text-align: left;">
+                <th style="padding: 10px 8px; color: #6b7280; font-weight: 600;">Taller</th>
+                <th style="padding: 10px 8px; color: #6b7280; font-weight: 600;">Alumno/a</th>
+                <th style="padding: 10px 8px; color: #6b7280; font-weight: 600; text-align: center;">Tipo</th>
+                <th style="padding: 10px 8px; color: #6b7280; font-weight: 600; text-align: center;">Fecha cobro</th>
+                <th style="padding: 10px 8px; color: #6b7280; font-weight: 600; text-align: right;">Bruto</th>
+                <th style="padding: 10px 8px; color: #6b7280; font-weight: 600; text-align: right;">Tu parte</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filaRows}
+            </tbody>
+            <tfoot>
+              <tr style="background: #faf5ff; border-top: 2px solid #7c3aed;">
+                <td colspan="4" style="padding: 12px 8px; font-weight: 700; color: #111827;">Total</td>
+                <td style="padding: 12px 8px; text-align: right; font-weight: 700;">${clp(totalBruto)}</td>
+                <td style="padding: 12px 8px; text-align: right; font-weight: 700; color: #7c3aed; font-size: 16px;">${clp(totalProfesor)}</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          ${comprobanteBlock}
+
+          <p style="margin-top: 24px;">
+            <a href="${baseUrl}/tallerista/finanzas" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; font-size: 14px;">
+              Ver mis finanzas
+            </a>
+          </p>
+
+          <p style="color: #9ca3af; font-size: 12px; margin-top: 32px; border-top: 1px solid #f3f4f6; padding-top: 16px;">
+            Este correo es un comprobante automático generado por Tallerea.cl.<br>
+            Ante cualquier consulta, responde directamente a este email.
+          </p>
+        </div>
+      </div>
+    `,
+  })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function sendReviewInvitation({
   email,
   name,

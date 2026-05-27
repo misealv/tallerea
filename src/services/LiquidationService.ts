@@ -2,7 +2,9 @@ import dbConnect from '@/lib/db'
 import Liquidation, { ILiquidation } from '@/models/Liquidation'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
 import User from '@/models/User'
+import Workshop from '@/models/Workshop'
 import { FinanceService } from '@/services/FinanceService'
+import { sendLiquidacionPagada } from '@/lib/resend'
 
 interface PaginatedResult<T> {
   data: T[]
@@ -169,6 +171,47 @@ export const LiquidationService = {
       liquidation.totalProfesor,
       userId
     )
+
+    // Notificación al tallerista
+    try {
+      const owner = await User.findById(liquidation.ownerId).select('name email').lean<{ name: string; email: string }>()
+
+      // Obtener títulos de workshops y nombres de alumnos para el detalle
+      const workshopIds = Array.from(new Set(breakdowns.map(b => String(b.workshopId))))
+      const studentIds  = Array.from(new Set(breakdowns.map(b => String(b.studentId))))
+
+      const [workshops, students] = await Promise.all([
+        Workshop.find({ _id: { $in: workshopIds } }).select('_id titulo').lean<{ _id: unknown; titulo: string }[]>(),
+        User.find({ _id: { $in: studentIds } }).select('_id name').lean<{ _id: unknown; name: string }[]>(),
+      ])
+
+      const wMap = Object.fromEntries(workshops.map(w => [String(w._id), w.titulo]))
+      const sMap = Object.fromEntries(students.map(s => [String(s._id), s.name]))
+
+      if (owner?.email) {
+        await sendLiquidacionPagada({
+          profesorEmail:  owner.email,
+          profesorNombre: owner.name ?? 'Tallerista',
+          desde:          liquidation.periodo.desde,
+          hasta:          liquidation.periodo.hasta,
+          totalBruto:     liquidation.totalBruto,
+          totalProfesor:  liquidation.totalProfesor,
+          fechaPago:      liquidation.fechaPago,
+          comprobanteUrl: liquidation.comprobanteUrl,
+          filas: breakdowns.map(b => ({
+            workshopTitulo: wMap[String(b.workshopId)] ?? 'Taller',
+            studentNombre:  sMap[String(b.studentId)]  ?? 'Alumno/a',
+            tipo:           b.tipo as 'pago' | 'reembolso' | 'ajuste',
+            fechaCobro:     b.fechaCobro,
+            montoBruto:     b.montoBruto,
+            montoProfesor:  b.montoProfesor,
+          })),
+        })
+      }
+    } catch (emailErr) {
+      // El fallo del email no debe revertir la liquidación ya guardada
+      console.error('[LiquidationService] Error enviando email de notificación:', emailErr)
+    }
 
     return liquidation
   },
