@@ -16,6 +16,7 @@ export interface IEnrollment extends Document {
   origenInscripcion: 'checkout' | 'manual';
   inscritoPor?: Types.ObjectId;
   notaTallerista?: string;
+  asistio?: boolean | null;  // null = sin marcar, true = asistió, false = no asistió
   activo: boolean;
   reviewEmailEnviadoEn?: Date;
   createdAt: Date;
@@ -38,6 +39,7 @@ const EnrollmentSchema = new Schema<IEnrollment>({
   inscritoPor:           { type: Schema.Types.ObjectId, ref: 'User' },
   notaTallerista:        { type: String, maxlength: 500 },
   activo:          { type: Boolean, default: true },
+  asistio:         { type: Boolean, default: null },
   reviewEmailEnviadoEn: { type: Date },
 }, { timestamps: true });
 

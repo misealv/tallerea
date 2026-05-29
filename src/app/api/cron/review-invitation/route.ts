@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
       workshopId: WorkshopLean | null
       studentId: UserLean | null
       slotIndex: number | null
+      asistio?: boolean | null
     }>>()
 
   for (const e of enrollmentsPendientes) {
@@ -49,8 +50,9 @@ export async function GET(req: NextRequest) {
 
     const idx = e.slotIndex ?? 0
     const slotFecha = w.slots?.[idx]?.fecha
-    // Solo enviar si el slot ya pasó (clase realizada)
-    if (!slotFecha || new Date(slotFecha) >= now) continue
+    // Enviar si tallerista marcó asistio=true, o si el slot ya pasó sin asistio marcado (backward compat)
+    const puedeEnviar = e.asistio === true || (e.asistio == null && slotFecha && new Date(slotFecha) < now)
+    if (!puedeEnviar) continue
 
     // No enviar si el alumno ya dejó reseña para este taller
     const yaReseñado = await Review.exists({

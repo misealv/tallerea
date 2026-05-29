@@ -95,6 +95,7 @@ export const ReviewService = {
     type EnrollmentLean = {
       _id: mongoose.Types.ObjectId
       slotIndex: number | null
+      asistio?: boolean | null
       workshopId: WorkshopLean | null
     }
     const enrollments = await Enrollment.find({
@@ -115,7 +116,11 @@ export const ReviewService = {
       if (excluidos.some(id => id.equals(w._id))) continue
       const slotIndex = e.slotIndex ?? 0
       const slotFecha = w.slots?.[slotIndex]?.fecha
-      if (slotFecha && new Date(slotFecha) < now) {
+      // Elegible si: (a) tallerista marcó asistio = true, o
+      // (b) no hay asistio marcado (campo null/undefined) y la fecha del slot ya pasó (backward compat)
+      const asistioMarcado = e.asistio
+      const slotPasado = slotFecha && new Date(slotFecha) < now
+      if (asistioMarcado === true || (asistioMarcado == null && slotPasado)) {
         elegibles.push(w)
         origen.set(String(w._id), { enrollmentId: e._id })
       }

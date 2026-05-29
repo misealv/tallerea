@@ -9,6 +9,7 @@ import Subscription from '@/models/Subscription'
 import Booking from '@/models/Booking'
 import { Types } from 'mongoose'
 import MarcaAsistenciaButton from '@/components/MarcaAsistenciaButton'
+import MarcaAsistenciaEnrollmentButton from '@/components/MarcaAsistenciaEnrollmentButton'
 import EditarPrecioButton from '@/components/EditarPrecioButton'
 import CancelarInscripcionButton from '@/components/CancelarInscripcionButton'
 import ReservarClaseModal from '@/app/tallerista/inscritos/ReservarClaseModal'
@@ -17,7 +18,7 @@ import { getSubViewInfo } from '@/lib/subscriptionView'
 export const dynamic = 'force-dynamic'
 
 interface StudentRef { name: string; email: string }
-interface EnrollmentLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; monto: number; slotIndex: number | null; createdAt: Date; origenInscripcion?: string }
+interface EnrollmentLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; monto: number; slotIndex: number | null; createdAt: Date; origenInscripcion?: string; asistio?: boolean | null }
 interface SubLean { _id: Types.ObjectId; studentId: StudentRef; estado: string; sesionesUsadas: number; sesionesTotales: number; sesionesDisponibles: number; fechaVencimiento: Date; monto: number; clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }; origenInscripcion?: string; precioEspecial?: boolean; precioSnapshot?: number; notaPrecioEspecial?: string; dependentNombreSnapshot?: string }
 interface BookingLean { _id: Types.ObjectId; studentId: StudentRef; subscriptionId: Types.ObjectId; slotIndex: number; fecha: Date; estado: string; dependentNombreSnapshot?: string }
 interface WorkshopLean { _id: Types.ObjectId; titulo: string; ownerId?: Types.ObjectId; accountId?: Types.ObjectId; slots: { horaInicio: string; horaFin: string; fecha?: Date }[] }
@@ -129,7 +130,7 @@ export default async function InscritosPage({
             <table className="w-full text-sm border-collapse">
               <thead><tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
                 <th className="px-4 py-2">Alumno</th><th className="px-4 py-2">Email</th>
-                <th className="px-4 py-2">Monto</th><th className="px-4 py-2">Estado</th><th className="px-4 py-2">Fecha</th><th className="px-4 py-2"></th>
+                <th className="px-4 py-2">Monto</th><th className="px-4 py-2">Estado</th><th className="px-4 py-2">Fecha</th><th className="px-4 py-2">Asistencia</th><th className="px-4 py-2"></th>
               </tr></thead>
               <tbody>{enrollmentsFiltrados.map(e => (
                 <tr key={String(e._id)} className="border-t border-gray-100">
@@ -143,6 +144,14 @@ export default async function InscritosPage({
                   <td className="px-4 py-2">${e.monto.toLocaleString('es-CL')}</td>
                   <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[e.estado] ?? ''}`}>{e.estado}</span></td>
                   <td className="px-4 py-2 text-gray-400">{new Date(e.createdAt).toLocaleDateString('es-CL')}</td>
+                  <td className="px-4 py-2">
+                    {e.estado === 'pagado' && (
+                      <MarcaAsistenciaEnrollmentButton
+                        enrollmentId={String(e._id)}
+                        asistioActual={e.asistio}
+                      />
+                    )}
+                  </td>
                   <td className="px-4 py-2">
                     <CancelarInscripcionButton
                       id={String(e._id)}
