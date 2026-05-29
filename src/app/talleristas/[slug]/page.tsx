@@ -13,9 +13,36 @@ export const revalidate = 60
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   const tallerista = await TallerService.getBySlug(params.slug)
   if (!tallerista) return { title: 'Tallerea' }
+
+  const { slug } = params
+  const description = tallerista.taller?.bio?.slice(0, 155) ?? `Conoce a ${tallerista.name}, tallerista en Tallerea Chile.`
+  const ogImage = tallerista.taller?.logo ?? null
+  const especialidades = tallerista.taller?.especialidades?.join(', ') ?? ''
+  const fullTitle = `${tallerista.name}${especialidades ? ` — ${especialidades}` : ''} | Tallerea`
+
   return {
-    title: `${tallerista.name} — Tallerea`,
-    description: tallerista.taller?.bio?.slice(0, 155) ?? '',
+    title: fullTitle,
+    description,
+    alternates: {
+      canonical: `https://tallerea.cl/talleristas/${slug}`,
+    },
+    openGraph: {
+      title: fullTitle,
+      description,
+      url: `https://tallerea.cl/talleristas/${slug}`,
+      siteName: 'Tallerea',
+      locale: 'es_CL',
+      type: 'profile',
+      ...(ogImage && {
+        images: [{ url: ogImage, width: 400, height: 400, alt: tallerista.name }],
+      }),
+    },
+    twitter: {
+      card: ogImage ? 'summary_large_image' : 'summary',
+      title: fullTitle,
+      description,
+      ...(ogImage && { images: [ogImage] }),
+    },
   }
 }
 
@@ -35,8 +62,36 @@ export default async function PerfilTalleristaPage({ params }: { params: { slug:
 
   const redes = taller.redesSociales ?? {}
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Person',
+    name: tallerista.name,
+    url: `https://tallerea.cl/talleristas/${taller.slug}`,
+    ...(taller.logo && { image: taller.logo }),
+    ...(taller.bio && { description: taller.bio }),
+    ...(taller.especialidades?.length > 0 && {
+      knowsAbout: taller.especialidades,
+    }),
+    ...(taller.redesSociales?.instagram && {
+      sameAs: [`https://instagram.com/${taller.redesSociales.instagram.replace('@', '')}`],
+    }),
+    ...(taller.reviewsCount > 0 && {
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: taller.reviewsAvg.toFixed(1),
+        reviewCount: taller.reviewsCount,
+        bestRating: 5,
+        worstRating: 1,
+      },
+    }),
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <Navbar />
 
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-10 space-y-10">
