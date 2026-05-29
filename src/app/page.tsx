@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { WorkshopService } from "@/services/WorkshopService";
 import { SiteConfigService } from "@/services/SiteConfigService";
+import { ReviewService } from "@/services/ReviewService";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import WorkshopCard from "@/components/WorkshopCard";
@@ -10,6 +11,7 @@ export const dynamic = 'force-dynamic'
 export default async function Home() {
   const featured = await WorkshopService.getAll({}, 1, 6);
   const comisionPct = await SiteConfigService.getComisionPct();
+  const recentReviews = await ReviewService.getRecent(6);
 
   return (
     <>
@@ -106,6 +108,47 @@ export default async function Home() {
                       priority={i < 3}
                     />
                   );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Reseñas recientes */}
+          {recentReviews.length > 0 && (
+            <section className="text-left mb-16">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Lo que dicen nuestros alumnos</h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {recentReviews.map((review) => {
+                  const alumno = review.studentId as { name?: string } | null
+                  const taller = review.workshopId as { titulo?: string; slug?: string } | null
+                  const nombre = alumno?.name ?? 'Alumno anónimo'
+                  return (
+                    <div key={String(review._id)} className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm flex flex-col gap-3">
+                      <div className="flex gap-0.5">
+                        {[1,2,3,4,5].map((star) => (
+                          <span key={star} className={`text-base ${star <= review.rating ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                        ))}
+                      </div>
+                      {review.comentario && (
+                        <p className="text-sm text-gray-700 leading-relaxed line-clamp-3">&ldquo;{review.comentario}&rdquo;</p>
+                      )}
+                      <div className="mt-auto flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 text-xs font-semibold shrink-0">
+                            {nombre.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-xs text-gray-500 font-medium">{nombre}</span>
+                        </div>
+                        {taller?.slug && taller?.titulo && (
+                          <Link href={`/talleres/${taller.slug}`} className="text-xs text-purple-600 hover:underline truncate max-w-[120px]">
+                            {taller.titulo}
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  )
                 })}
               </div>
             </section>

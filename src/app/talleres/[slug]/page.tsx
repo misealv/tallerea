@@ -402,8 +402,10 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                       {/* Rating */}
                       {(owner.taller?.reviewsCount ?? 0) > 0 && (
                         <div className="flex items-center gap-1 mt-0.5">
-                          <span className="text-yellow-400 text-sm">★</span>
-                          <span className="text-sm font-medium text-gray-700">
+                          {[1,2,3,4,5].map((star) => (
+                            <span key={star} className={`text-sm ${star <= Math.round(owner.taller!.reviewsAvg!) ? 'text-yellow-400' : 'text-gray-300'}`}>★</span>
+                          ))}
+                          <span className="text-sm font-medium text-gray-700 ml-1">
                             {owner.taller!.reviewsAvg!.toFixed(1)}
                           </span>
                           <span className="text-sm text-gray-500">

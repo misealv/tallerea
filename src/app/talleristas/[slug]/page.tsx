@@ -126,9 +126,13 @@ export default async function PerfilTalleristaPage({ params }: { params: { slug:
             )}
 
             {taller.reviewsCount > 0 && (
-              <p className="text-sm text-gray-500 mt-2">
-                ⭐ {taller.reviewsAvg.toFixed(1)} · {taller.reviewsCount} reseña{taller.reviewsCount !== 1 ? 's' : ''}
-              </p>
+              <div className="flex items-center gap-1 mt-2">
+                {[1,2,3,4,5].map((star) => (
+                  <span key={star} className={`text-sm ${star <= Math.round(taller.reviewsAvg) ? 'text-yellow-400' : 'text-gray-300'}`}>★</span>
+                ))}
+                <span className="text-sm font-medium text-gray-700 ml-1">{taller.reviewsAvg.toFixed(1)}</span>
+                <span className="text-sm text-gray-500">· {taller.reviewsCount} reseña{taller.reviewsCount !== 1 ? 's' : ''}</span>
+              </div>
             )}
 
             {/* Redes sociales */}

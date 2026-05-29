@@ -45,6 +45,17 @@ export const ReviewService = {
       .lean<IReview[]>()
   },
 
+  // Devuelve las últimas reviews publicadas de toda la plataforma (para homepage)
+  async getRecent(limit = 6): Promise<IReview[]> {
+    await dbConnect()
+    return Review.find({ publicado: true, activo: true })
+      .populate('studentId', 'name image')
+      .populate('workshopId', 'titulo slug')
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean<IReview[]>()
+  },
+
   // Devuelve reviews publicados de un taller (para página pública)
   async getByWorkshop(
     workshopId: string,

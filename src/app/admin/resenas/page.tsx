@@ -72,9 +72,11 @@ export default function AdminResenasPage() {
           Reseñas
           <span className="ml-2 text-sm font-normal text-gray-400">({reviews.length} total)</span>
         </h1>
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <span className="text-yellow-400 text-lg">★</span>
-          <span className="font-semibold text-gray-700">{promedio}</span>
+        <div className="flex items-center gap-1.5 text-sm text-gray-500">
+          {reviews.length > 0 && [1,2,3,4,5].map((s) => (
+            <span key={s} className={s <= Math.round(parseFloat(promedio)) ? 'text-yellow-400 text-lg' : 'text-gray-300 text-lg'}>★</span>
+          ))}
+          <span className="font-semibold text-gray-700 ml-1">{promedio}</span>
           <span>promedio</span>
         </div>
       </div>
