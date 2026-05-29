@@ -129,8 +129,8 @@ export default async function InscritosPage({
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead><tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
-                <th className="px-4 py-2">Alumno</th><th className="px-4 py-2">Email</th>
-                <th className="px-4 py-2">Monto</th><th className="px-4 py-2">Estado</th><th className="px-4 py-2">Fecha</th><th className="px-4 py-2">Asistencia</th><th className="px-4 py-2"></th>
+                <th className="px-4 py-2">Alumno</th><th className="px-4 py-2">Asistencia</th>
+                <th className="px-4 py-2">Estado</th><th className="px-4 py-2">Monto</th><th className="px-4 py-2">Fecha</th><th className="px-4 py-2 hidden md:table-cell">Email</th><th className="px-4 py-2"></th>
               </tr></thead>
               <tbody>{enrollmentsFiltrados.map(e => (
                 <tr key={String(e._id)} className="border-t border-gray-100">
@@ -140,18 +140,18 @@ export default async function InscritosPage({
                       <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">manual</span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-gray-500">{(e.studentId as StudentRef).email}</td>
-                  <td className="px-4 py-2">${e.monto.toLocaleString('es-CL')}</td>
-                  <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[e.estado] ?? ''}`}>{e.estado}</span></td>
-                  <td className="px-4 py-2 text-gray-400">{new Date(e.createdAt).toLocaleDateString('es-CL')}</td>
                   <td className="px-4 py-2">
-                    {e.estado === 'pagado' && (
+                    {e.estado !== 'cancelado' && (
                       <MarcaAsistenciaEnrollmentButton
                         enrollmentId={String(e._id)}
                         asistioActual={e.asistio}
                       />
                     )}
                   </td>
+                  <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[e.estado] ?? ''}`}>{e.estado}</span></td>
+                  <td className="px-4 py-2">${e.monto.toLocaleString('es-CL')}</td>
+                  <td className="px-4 py-2 text-gray-400">{new Date(e.createdAt).toLocaleDateString('es-CL')}</td>
+                  <td className="px-4 py-2 text-gray-500 hidden md:table-cell">{(e.studentId as StudentRef).email}</td>
                   <td className="px-4 py-2">
                     <CancelarInscripcionButton
                       id={String(e._id)}
