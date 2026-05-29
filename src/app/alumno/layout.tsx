@@ -8,10 +8,11 @@ export default async function AlumnoLayout({ children }: { children: React.React
   if (!session) redirect('/alumno/acceso')
 
   const userName = session.user.name ?? session.user.email ?? 'Alumno'
+  const tallerEstado = session.user.tallerEstado ?? null
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AlumnoNavbar userName={userName} />
+      <AlumnoNavbar userName={userName} tallerEstado={tallerEstado} />
       <main className="max-w-4xl mx-auto px-4 py-8">
         {children}
       </main>

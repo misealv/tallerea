@@ -74,7 +74,15 @@ export default function TalleristaSidebar({ userName }: Props) {
       </nav>
 
       {/* Footer */}
-      <div className="p-3 border-t border-gray-100">
+      <div className="p-3 border-t border-gray-100 space-y-1">
+        {/* Acceso rápido al panel alumno */}
+        <Link
+          href="/alumno"
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-purple-700 hover:bg-purple-50 transition-colors border border-purple-100"
+        >
+          <span className="text-base">🎓</span>
+          Mis clases como alumno
+        </Link>
         <button
           onClick={() => signOut({ callbackUrl: '/' })}
           className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"

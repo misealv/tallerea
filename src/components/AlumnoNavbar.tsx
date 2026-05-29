@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation'
 
 interface AlumnoNavbarProps {
   userName: string
+  tallerEstado?: string | null
 }
 
 function getInitials(name: string): string {
@@ -29,7 +30,8 @@ const LINKS = [
   { href: '/alumno/dependientes',   label: 'Dependientes' },
 ]
 
-export default function AlumnoNavbar({ userName }: AlumnoNavbarProps) {
+export default function AlumnoNavbar({ userName, tallerEstado }: AlumnoNavbarProps) {
+  const esTallerista = tallerEstado === 'aprobado'
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
 
@@ -69,6 +71,16 @@ export default function AlumnoNavbar({ userName }: AlumnoNavbarProps) {
               {l.label}
             </Link>
           ))}
+
+          {/* Link al panel tallerista si corresponde */}
+          {esTallerista && (
+            <Link
+              href="/tallerista"
+              className="px-3 py-2 rounded-lg text-sm transition-colors text-purple-700 bg-purple-50 hover:bg-purple-100 font-medium border border-purple-200"
+            >
+              Panel tallerista →
+            </Link>
+          )}
 
           {/* Círculo de iniciales — click para salir */}
           <button
@@ -112,6 +124,15 @@ export default function AlumnoNavbar({ userName }: AlumnoNavbarProps) {
       {open && (
         <div className="sm:hidden bg-white border-t border-gray-100 px-4 pt-2 pb-4 space-y-1">
           <p className="text-xs text-gray-400 px-3 py-2">Hola, {userName}</p>
+          {esTallerista && (
+            <Link
+              href="/tallerista"
+              onClick={() => setOpen(false)}
+              className="flex items-center px-3 py-3 rounded-lg text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 min-h-[44px]"
+            >
+              Panel tallerista →
+            </Link>
+          )}
           {LINKS.map(l => (
             <Link
               key={l.href}
