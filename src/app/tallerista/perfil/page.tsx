@@ -29,6 +29,8 @@ interface PerfilForm {
   instagram: string
   web: string
   facebook: string
+  whatsapp: string
+  whatsappEnabled: boolean
 }
 
 // Botón IA reutilizable para completar texto con IA
@@ -113,6 +115,8 @@ export default function TalleristaPerfilPage() {
     instagram: '',
     web: '',
     facebook: '',
+    whatsapp: '',
+    whatsappEnabled: false,
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -141,6 +145,8 @@ export default function TalleristaPerfilPage() {
             instagram: t.redesSociales?.instagram ?? '',
             web: t.redesSociales?.web ?? '',
             facebook: t.redesSociales?.facebook ?? '',
+            whatsapp: t.redesSociales?.whatsapp ?? '',
+            whatsappEnabled: !!t.redesSociales?.whatsappEnabled,
           })
         }
         setLoading(false)
@@ -148,7 +154,7 @@ export default function TalleristaPerfilPage() {
       .catch(() => setLoading(false))
   }, [])
 
-  function update(field: keyof PerfilForm, value: string) {
+  function update(field: keyof PerfilForm, value: string | boolean) {
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
@@ -271,6 +277,8 @@ export default function TalleristaPerfilPage() {
           instagram: form.instagram,
           web: form.web,
           facebook: form.facebook,
+          whatsapp: form.whatsapp,
+          whatsappEnabled: form.whatsappEnabled,
         },
       }),
     })
@@ -583,6 +591,43 @@ export default function TalleristaPerfilPage() {
               />
             </div>
           ))}
+        </div>
+
+        {/* WhatsApp — botón en página pública del taller */}
+        <div className="p-4 bg-green-50 border border-green-200 rounded-xl space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <label className="block text-sm font-semibold text-gray-800">
+                Botón de WhatsApp en tus talleres
+              </label>
+              <p className="text-xs text-gray-600 mt-0.5">
+                Si lo activas, aparecerá un botón flotante de WhatsApp en la página pública de cada taller tuyo.
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 mt-1">
+              <input
+                type="checkbox"
+                checked={form.whatsappEnabled}
+                onChange={e => update('whatsappEnabled', e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-green-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+            </label>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-gray-500 text-sm w-24">WhatsApp</span>
+            <input
+              type="tel"
+              inputMode="tel"
+              value={form.whatsapp}
+              onChange={e => update('whatsapp', e.target.value)}
+              placeholder="+56 9 1234 5678"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+          <p className="text-xs text-gray-500">
+            Usa formato internacional. Para Chile: +56 seguido del número de 9 dígitos.
+          </p>
         </div>
 
         {error && (

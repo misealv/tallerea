@@ -17,6 +17,8 @@ const PerfilUpdateSchema = z.object({
     instagram: z.string().url().optional().or(z.literal('')),
     web: z.string().url().optional().or(z.literal('')),
     facebook: z.string().url().optional().or(z.literal('')),
+    whatsapp: z.string().trim().max(20).optional().or(z.literal('')),
+    whatsappEnabled: z.boolean().optional().default(false),
   }).optional(),
 }).strict()
 

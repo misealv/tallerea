@@ -36,7 +36,7 @@ export interface ITaller {
   especialidades: string[]
   entregaMateriales: string
   logo?: string
-  redesSociales?: { instagram?: string; web?: string; facebook?: string }
+  redesSociales?: { instagram?: string; web?: string; facebook?: string; whatsapp?: string; whatsappEnabled?: boolean }
   datosBancarios?: IDatosBancarios
   liquidacionMinima: number
   reviewsCount: number
@@ -117,6 +117,8 @@ const TallerSchema = new Schema({
     instagram: { type: String },
     web: { type: String },
     facebook: { type: String },
+    whatsapp: { type: String },
+    whatsappEnabled: { type: Boolean, default: false },
   },
   datosBancarios: DatosBancariosSchema,
   liquidacionMinima: { type: Number, default: 5000 },
