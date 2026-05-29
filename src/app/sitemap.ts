@@ -3,7 +3,8 @@ import { WorkshopService } from '@/services/WorkshopService'
 import connectDB from '@/lib/db'
 import User from '@/models/User'
 
-export const revalidate = 3600 // regenerar cada hora
+export const dynamic = 'force-dynamic' // no generar en build; sirve dinámico en Vercel
+export const revalidate = 3600 // Vercel lo cachea y regenera cada hora
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = 'https://tallerea.cl'
