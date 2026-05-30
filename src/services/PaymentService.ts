@@ -252,9 +252,10 @@ export const PaymentService = {
         const slot = (slotIdx != null && workshopFull.slots?.[slotIdx]) ? workshopFull.slots[slotIdx] : null
         if (slot) {
           if (slot.fecha) {
+            // slot.fecha es UTC midnight → usar timeZone:'UTC' para no retroceder un día al convertir a America/Santiago
             slotFecha = new Intl.DateTimeFormat('es-CL', {
               weekday: 'long', day: 'numeric', month: 'long',
-              timeZone: 'America/Santiago',
+              timeZone: 'UTC',
             }).format(new Date(slot.fecha))
           } else if (slot.dia) {
             slotFecha = slot.dia

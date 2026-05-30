@@ -123,8 +123,9 @@ export async function PATCH(req: NextRequest) {
     try {
       const slot = workshop.slots[slotIndex] as SlotLean & { fecha?: Date; horaInicio: string; horaFin: string }
       // Calcular fecha legible del slot
+      // slot.fecha es UTC midnight → timeZone:'UTC' evita retroceder un día al convertir
       const slotFecha = slot.fecha
-        ? new Date(slot.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+        ? new Date(slot.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
         : 'fecha próxima'
 
       // Obtener IDs de alumnos inscritos: bookings recurrentes + enrollments puntuales

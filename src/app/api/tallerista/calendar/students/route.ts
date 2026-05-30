@@ -138,17 +138,24 @@ export async function PATCH(req: NextRequest) {
     await SubscriptionService.devolverSesion(String(booking.subscriptionId)).catch(() => null)
   }
 
-  // Actualizar caché de cupo del slot
+  // Actualizar caché de cupo del slot (atómico, basado en modeloAcceso)
+  // BUG FIX: WorkshopService.create inicializa cupoDisponible en TODOS los slots
+  // (recurrentes incluidos), por lo que typeof slot.cupoDisponible === 'number' era
+  // siempre true → slot.reservas nunca se decrementaba en recurrente → drift acumulado.
   if (slotIndex >= 0 && slotIndex < workshop.slots.length) {
-    const slot = workshop.slots[slotIndex]
-    if (typeof slot.cupoDisponible === 'number') {
-      // Puntual: restaurar cupoDisponible
-      slot.cupoDisponible = Math.min(slot.cupoDisponible + 1, slot.cupoMax ?? workshop.cupoPorSesion)
-      await workshop.save()
-    } else if (typeof slot.reservas === 'number' && slot.reservas > 0) {
-      // Recurrente: decrementar reservas
-      slot.reservas = slot.reservas - 1
-      await workshop.save()
+    if (workshop.modeloAcceso === 'recurrente') {
+      // Recurrente: decrementar slot.reservas atómicamente
+      await Workshop.updateOne(
+        { _id: workshopId },
+        { $inc: { [`slots.${slotIndex}.reservas`]: -1 } }
+      )
+    } else {
+      // Puntual: restaurar cupoDisponible atómicamente, sin exceder el máximo
+      const maxCupo = workshop.slots[slotIndex]?.cupoMax ?? workshop.cupoPorSesion
+      await Workshop.updateOne(
+        { _id: workshopId, [`slots.${slotIndex}.cupoDisponible`]: { $lt: maxCupo } },
+        { $inc: { [`slots.${slotIndex}.cupoDisponible`]: 1 } }
+      )
     }
   }
 
@@ -157,8 +164,9 @@ export async function PATCH(req: NextRequest) {
     const student = await User.findById(booking.studentId).select('name email').lean<{ name: string; email: string }>()
     if (student) {
       const slotData = workshop.slots[slotIndex] as { fecha?: Date; horaInicio: string; horaFin: string }
+      // slot.fecha es UTC midnight → timeZone:'UTC' evita retroceder un día al convertir
       const slotFecha = slotData?.fecha
-        ? new Date(slotData.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+        ? new Date(slotData.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
         : 'próxima sesión'
       await sendSesionCancelada({
         studentEmail: student.email,

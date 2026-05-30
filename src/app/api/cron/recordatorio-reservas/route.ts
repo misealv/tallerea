@@ -114,9 +114,10 @@ export async function GET(req: NextRequest) {
 
       // Formatear slots para el email
       const slotsDisponibles = slotsEstaSemana.map(s => ({
+        // slot.fecha es UTC midnight → usar timeZone:'UTC' para no retroceder un día al convertir a America/Santiago
         fechaTexto: new Intl.DateTimeFormat('es-CL', {
           weekday: 'long', day: 'numeric', month: 'long',
-          timeZone: 'America/Santiago',
+          timeZone: 'UTC',
         }).format(new Date(s.fecha!)),
         horaTexto: `${s.horaInicio} - ${s.horaFin}`,
         cupoDisponible: workshop.cupoPorSesion - s.reservas,

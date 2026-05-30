@@ -9,9 +9,12 @@ import { sendBookingConfirmadoAlumno, sendNuevaReservaTallerista, sendReservaCan
 
 // Formatea fecha+hora del slot en zona Chile para emails
 function formatSlotForEmail(fecha: Date, horaInicio: string, horaFin: string): { fechaTexto: string; horaTexto: string } {
+  // slot.fecha se guarda como UTC midnight (ej: 2026-05-30T00:00:00Z).
+  // Usar timeZone: 'UTC' evita que America/Santiago (UTC-4) retroceda el día
+  // y muestre la fecha un día antes de la real.
   const fechaTexto = new Intl.DateTimeFormat('es-CL', {
     weekday: 'long', day: 'numeric', month: 'long',
-    timeZone: 'America/Santiago',
+    timeZone: 'UTC',
   }).format(new Date(fecha))
   return { fechaTexto, horaTexto: `${horaInicio} - ${horaFin}` }
 }
@@ -562,8 +565,22 @@ export const BookingService = {
     slotEnd.setUTCHours(hf, mf, 0, 0)
     if (slotEnd <= new Date()) throw new Error('No se puede reservar una sesión que ya ocurrió')
 
-    // Cupo disponible
-    if (slot.reservas >= workshop.cupoPorSesion) throw new Error('Sesión llena — no hay cupo disponible')
+    // Cupo disponible — usar conteo real de Bookings para detectar drift del caché
+    const actualReservas = await Booking.countDocuments({
+      workshopId: sub.workshopId,
+      slotIndex,
+      estado: { $ne: 'cancelada' },
+      activo: true,
+    })
+    // Auto-heal: si slot.reservas está inflado respecto al conteo real, corregirlo con $min
+    // (causado por bug en PATCH /calendar/students que no decrementaba el contador recurrente)
+    if (slot.reservas > actualReservas) {
+      await Workshop.updateOne(
+        { _id: sub.workshopId },
+        { $min: { [`slots.${slotIndex}.reservas`]: actualReservas } }
+      ).catch(() => null)
+    }
+    if (actualReservas >= workshop.cupoPorSesion) throw new Error('Sesión llena — no hay cupo disponible')
 
     // Reserva duplicada (incluir dependentId si aplica)
     const dupFilter: Record<string, unknown> = {
@@ -623,8 +640,9 @@ export const BookingService = {
       if (student && owner) {
         const { sendBookingPorTallerista } = await import('@/lib/resend')
         const fechaDate = new Date(slot.fecha)
-        const fechaClase = fechaDate.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Santiago' })
-        const horaClase  = fechaDate.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Santiago' })
+        // slot.fecha es UTC midnight → usar timeZone:'UTC' para no retroceder un día
+        const fechaClase = fechaDate.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })
+        const horaClase  = slot.horaInicio
         await sendBookingPorTallerista({
           studentEmail:   student.email,
           studentName:    student.name,
