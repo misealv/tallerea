@@ -1127,7 +1127,6 @@ export async function sendWorkshopAnnouncement(input: BulkAnnouncementInput): Pr
     .split('\n')
     .map(line => line.trim() ? `<p style="margin: 0 0 14px 0; color:#374151; font-size:15px; line-height:1.65;">${escapeHtml(line)}</p>` : '<div style="height:8px"></div>')
     .join('')
-  const fromName = `${input.talleristaNombre} vía Tallerea`
   const fromEmail = `Tallerea <noreply@tallerea.cl>`
 
   // Resend admite max 50 BCC por envío. Loteamos.
