@@ -130,6 +130,65 @@ export const WorkshopService = {
     await Workshop.findByIdAndUpdate(id, { deletedAt: new Date() })
   },
 
+  /**
+   * Crea un borrador nuevo copiando la configuración de un taller existente.
+   * Los slots se omiten (el tallerista define nuevas fechas).
+   * El nuevo taller queda inactivo hasta que el tallerista lo publique.
+   */
+  async duplicate(sourceId: string, ownerId: string): Promise<IWorkshop> {
+    await dbConnect()
+    const { generateSlug, ensureUniqueSlug } = await import('@/lib/slugify')
+    const source = await Workshop.findOne({ _id: sourceId, deletedAt: null }).lean<IWorkshop>()
+    if (!source) throw new Error('Taller no encontrado')
+
+    const nuevoTitulo = `${source.titulo} (copia)`
+    const baseSlug = generateSlug(nuevoTitulo)
+    const slug = await ensureUniqueSlug(baseSlug, Workshop)
+
+    const copia = new Workshop({
+      ownerId,
+      locationId:        source.locationId,
+      slug,
+      titulo:            nuevoTitulo,
+      descripcion:       source.descripcion,
+      tipo:              source.tipo,
+      tipoPersonalizado: source.tipoPersonalizado ?? null,
+      modalidad:         source.modalidad,
+      precio:            source.precio,
+      duracionSesion:    source.duracionSesion,
+      tipoRecurrencia:   source.tipoRecurrencia,
+      recurrencia:       source.recurrencia,
+      cupoPorSesion:     source.cupoPorSesion,
+      maxAlumnosActivos: source.maxAlumnosActivos ?? null,
+      plan:              source.plan,
+      precioModalidad:   source.precioModalidad,
+      modeloAcceso:      source.modeloAcceso,
+      politica:          source.politica,
+      plantillaSemanal:  source.plantillaSemanal,
+      plantillaMensual:  source.plantillaMensual,
+      cupoDefault:       source.cupoDefault,
+      cupoMax:           source.cupoMax,
+      fechaInicio:       source.fechaInicio,
+      fechaFin:          source.fechaFin ?? null,
+      edadMinima:        source.edadMinima ?? null,
+      edadMaxima:        source.edadMaxima ?? null,
+      imagenes:          source.imagenes ?? [],
+      modalidadPrecio:   source.modalidadPrecio,
+      precioFijo:        source.precioFijo,
+      aporteVoluntario:  source.aporteVoluntario,
+      paquetes:          source.paquetes ?? [],
+      clasePrueba:       source.clasePrueba,
+      // Estado inicial: borrador inactivo, sin slots, sin métricas
+      slots:             [],
+      activo:            false,
+      deletedAt:         null,
+      reviewsCount:      0,
+      reviewsAvg:        0,
+    })
+
+    return copia.save()
+  },
+
   // Obtener cupo disponible total (suma de cupoDisponible por slot)
   getTotalCupoDisponible(workshop: IWorkshop): number {
     if (workshop.slots && workshop.slots.length > 0) {

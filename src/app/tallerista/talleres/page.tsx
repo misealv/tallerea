@@ -8,6 +8,7 @@ import Enrollment from '@/models/Enrollment'
 import Subscription from '@/models/Subscription'
 import { Types } from 'mongoose'
 import EliminarTallerBtn from '@/components/EliminarTallerBtn'
+import DuplicarTallerBtn from '@/components/DuplicarTallerBtn'
 import { getCloudinaryUrl, TRANSFORM } from '@/lib/cloudinary-transform'
 
 export const dynamic = 'force-dynamic'
@@ -174,6 +175,8 @@ export default async function MisTalleresPage() {
                     </Link>
                     <span className="text-gray-300">·</span>
                     <EliminarTallerBtn id={String(w._id)} titulo={w.titulo} />
+                    <span className="text-gray-300">·</span>
+                    <DuplicarTallerBtn id={String(w._id)} titulo={w.titulo} />
                   </div>
                 </div>
               </div>
