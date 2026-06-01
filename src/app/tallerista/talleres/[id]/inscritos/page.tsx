@@ -13,6 +13,7 @@ import MarcaAsistenciaEnrollmentButton from '@/components/MarcaAsistenciaEnrollm
 import EditarPrecioButton from '@/components/EditarPrecioButton'
 import CancelarInscripcionButton from '@/components/CancelarInscripcionButton'
 import ReservarClaseModal from '@/app/tallerista/inscritos/ReservarClaseModal'
+import EnviarAnuncioModal from './EnviarAnuncioModal'
 import { getSubViewInfo } from '@/lib/subscriptionView'
 
 export const dynamic = 'force-dynamic'
@@ -94,12 +95,22 @@ export default async function InscritosPage({
           <h1 className="mt-3 text-2xl font-bold text-gray-900">{workshop.titulo}</h1>
           <p className="text-sm text-gray-500 mt-1">Inscritos y reservas activas</p>
         </div>
-        <Link
-          href={`/tallerista/talleres/${params.id}/inscribir`}
-          className="shrink-0 mt-6 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
-        >
-          + Inscribir alumno
-        </Link>
+        <div className="shrink-0 mt-6 flex flex-col gap-2 items-end">
+          <Link
+            href={`/tallerista/talleres/${params.id}/inscribir`}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+          >
+            + Inscribir alumno
+          </Link>
+          <EnviarAnuncioModal
+            workshopId={params.id}
+            workshopTitle={workshop.titulo}
+            alumnosCount={new Set([
+              ...subscriptions.filter(s => s.estado === 'activa').map(s => s.studentId?.email).filter(Boolean),
+              ...enrollments.filter(e => e.estado === 'pagado').map(e => e.studentId?.email).filter(Boolean),
+            ]).size}
+          />
+        </div>
       </div>
 
       {/* Filtros rápidos */}

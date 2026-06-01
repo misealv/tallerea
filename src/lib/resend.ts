@@ -1097,3 +1097,82 @@ export async function sendReviewInvitation({
     `,
   })
 }
+
+interface BulkAnnouncementInput {
+  workshopTitle: string
+  workshopSlug?: string
+  talleristaNombre: string
+  talleristaEmail?: string
+  asunto: string
+  mensaje: string  // texto plano, se preservan saltos de línea
+  recipients: string[]
+}
+
+/**
+ * Envía un anuncio masivo del tallerista a sus alumnos.
+ * Usa BCC para preservar privacidad.
+ * Template profesional, neutro, apto para suspensión de clase, cambios de horario, etc.
+ */
+export async function sendWorkshopAnnouncement(input: BulkAnnouncementInput): Promise<{ sent: number; skipped: number }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[ANUNCIO] RESEND_API_KEY no configurado, salteando envío')
+    return { sent: 0, skipped: input.recipients.length }
+  }
+  const recipients = Array.from(new Set(input.recipients.map(e => e.trim().toLowerCase()).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))))
+  if (recipients.length === 0) return { sent: 0, skipped: 0 }
+
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+  const mensajeHtml = input.mensaje
+    .split('\n')
+    .map(line => line.trim() ? `<p style="margin: 0 0 14px 0; color:#374151; font-size:15px; line-height:1.65;">${escapeHtml(line)}</p>` : '<div style="height:8px"></div>')
+    .join('')
+  const fromName = `${input.talleristaNombre} vía Tallerea`
+  const fromEmail = `Tallerea <noreply@tallerea.cl>`
+
+  // Resend admite max 50 BCC por envío. Loteamos.
+  const BATCH = 50
+  let sent = 0
+  for (let i = 0; i < recipients.length; i += BATCH) {
+    const batch = recipients.slice(i, i + BATCH)
+    try {
+      await resend.emails.send({
+        from: fromEmail,
+        to: 'noreply@tallerea.cl',
+        bcc: batch,
+        replyTo: input.talleristaEmail,
+        subject: input.asunto,
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #222; background:#f9fafb; padding:24px 12px;">
+            <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 28px 32px; border-radius: 12px 12px 0 0; text-align: left;">
+              <div style="color:white; font-size:13px; opacity:0.85; letter-spacing:0.5px; text-transform:uppercase;">Aviso de tu taller</div>
+              <div style="color:white; font-size:22px; font-weight:700; margin-top:6px; line-height:1.3;">${escapeHtml(input.workshopTitle)}</div>
+              <div style="color:rgba(255,255,255,0.85); font-size:14px; margin-top:8px;">De parte de ${escapeHtml(input.talleristaNombre)}</div>
+            </div>
+            <div style="background:#ffffff; padding:32px; border-radius:0 0 12px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+              ${mensajeHtml}
+              ${input.workshopSlug ? `
+                <div style="margin-top:28px; padding-top:20px; border-top:1px solid #e5e7eb;">
+                  <a href="${baseUrl}/talleres/${input.workshopSlug}" style="color:#6366f1; font-size:14px; text-decoration:none;">Ver el taller →</a>
+                </div>
+              ` : ''}
+              <div style="margin-top:24px; padding-top:16px; border-top:1px solid #e5e7eb; color:#9ca3af; font-size:12px;">
+                Este mensaje fue enviado por ${escapeHtml(input.talleristaNombre)} a través de Tallerea.<br>
+                Para responder, contesta este correo${input.talleristaEmail ? ` o escribe a ${escapeHtml(input.talleristaEmail)}` : ''}.
+              </div>
+            </div>
+            <div style="text-align:center; color:#9ca3af; font-size:11px; margin-top:16px;">— Tallerea.cl</div>
+          </div>
+        `,
+      })
+      sent += batch.length
+    } catch (err) {
+      console.error('[ANUNCIO] Error enviando lote:', err)
+    }
+  }
+  return { sent, skipped: recipients.length - sent }
+}
+
+function escapeHtml(s: string): string {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
+}
