@@ -9,6 +9,8 @@ import Subscription from '@/models/Subscription'
 import { Types } from 'mongoose'
 import ReservarClaseModal from './ReservarClaseModal'
 import EditarSuscripcionModal from './EditarSuscripcionModal'
+import ConfirmarPagoModal from './ConfirmarPagoModal'
+import RenovarExternoModal from './RenovarExternoModal'
 import { getSubViewInfo } from '@/lib/subscriptionView'
 
 export const dynamic = 'force-dynamic'
@@ -262,6 +264,24 @@ export default async function InscritosGlobalPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Taller</Link>
                             <Link href={`/tallerista/inscritos/${String(student._id)}/reservas`} className="text-xs text-gray-500 hover:underline">Reservas</Link>
+                            {s.estado === 'pendiente_pago' && (
+                              <ConfirmarPagoModal
+                                subscriptionId={String(s._id)}
+                                studentName={student.name}
+                                workshopTitle={workshop.titulo}
+                                montoEsperado={s.precioSnapshot ?? s.monto}
+                              />
+                            )}
+                            {s.estado === 'vencida' && (
+                              <RenovarExternoModal
+                                subscriptionId={String(s._id)}
+                                studentName={student.name}
+                                workshopTitle={workshop.titulo}
+                                precioAnterior={s.precioSnapshot ?? s.monto}
+                                clasesAnterior={s.sesionesTotales}
+                                dependentNombre={s.dependentNombreSnapshot}
+                              />
+                            )}
                             {(s.estado === 'activa' || s.estado === 'pendiente_pago') && (
                               <EditarSuscripcionModal
                                 subscriptionId={String(s._id)}
@@ -329,6 +349,24 @@ export default async function InscritosGlobalPage() {
                     <div className="flex items-center gap-2 pt-1 border-t border-gray-100 flex-wrap">
                       <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Ver taller</Link>
                       <Link href={`/tallerista/inscritos/${String(student._id)}/reservas`} className="text-xs text-gray-500 hover:underline">Ver reservas</Link>
+                      {s.estado === 'pendiente_pago' && (
+                        <ConfirmarPagoModal
+                          subscriptionId={String(s._id)}
+                          studentName={student.name}
+                          workshopTitle={workshop.titulo}
+                          montoEsperado={s.precioSnapshot ?? s.monto}
+                        />
+                      )}
+                      {s.estado === 'vencida' && (
+                        <RenovarExternoModal
+                          subscriptionId={String(s._id)}
+                          studentName={student.name}
+                          workshopTitle={workshop.titulo}
+                          precioAnterior={s.precioSnapshot ?? s.monto}
+                          clasesAnterior={s.sesionesTotales}
+                          dependentNombre={s.dependentNombreSnapshot}
+                        />
+                      )}
                       {(s.estado === 'activa' || s.estado === 'pendiente_pago') && (
                         <EditarSuscripcionModal
                           subscriptionId={String(s._id)}
