@@ -1135,10 +1135,13 @@ export async function sendWorkshopAnnouncement(input: BulkAnnouncementInput): Pr
   for (let i = 0; i < recipients.length; i += BATCH) {
     const batch = recipients.slice(i, i + BATCH)
     try {
+      // Usar el primer destinatario como "to" para evitar que Resend filtre
+      // el envío cuando from y to comparten el mismo dominio.
+      const [firstRecipient, ...restRecipients] = batch
       await resend.emails.send({
         from: fromEmail,
-        to: 'noreply@tallerea.cl',
-        bcc: batch,
+        to: firstRecipient,
+        bcc: restRecipients.length > 0 ? restRecipients : undefined,
         replyTo: input.talleristaEmail,
         subject: input.asunto,
         html: `
