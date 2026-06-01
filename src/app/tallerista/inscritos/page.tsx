@@ -93,6 +93,11 @@ export default async function InscritosGlobalPage() {
       .lean<SubLean[]>(),
   ])
 
+  // Subs activas/pendientes primero, vencidas/canceladas al fondo
+  const estadoOrder: Record<string, number> = { activa: 0, pendiente_pago: 1, vencida: 2, cancelada: 3 }
+  subscriptions.sort((a, b) => (estadoOrder[a.estado] ?? 9) - (estadoOrder[b.estado] ?? 9)
+    || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
   const totalPagados = enrollments.filter(e => e.estado === 'pagado').length
   const totalSubs = subscriptions.filter(s => s.estado === 'activa').length
   const totalPendientes = enrollments.filter(e => e.estado === 'pendiente').length
@@ -233,7 +238,7 @@ export default async function InscritosGlobalPage() {
                     const workshop = s.workshopId as WorkshopRef
                     const vi = getSubViewInfo(s)
                     return (
-                      <tr key={String(s._id)} className="border-t border-gray-100 hover:bg-gray-50">
+                      <tr key={String(s._id)} className={`border-t border-gray-100 hover:bg-gray-50${s.estado === 'vencida' || s.estado === 'cancelada' ? ' opacity-50' : ''}`}>
                         <td className="px-4 py-3">
                           <p className="font-medium text-gray-800 text-sm">{student.name}</p>
                           <p className="text-xs text-gray-400 mt-0.5">{student.email}</p>
@@ -272,7 +277,7 @@ export default async function InscritosGlobalPage() {
                                 montoEsperado={s.precioSnapshot ?? s.monto}
                               />
                             )}
-                            {s.estado === 'vencida' && (
+                            {(s.estado === 'vencida' || (s.estado === 'activa' && s.sesionesDisponibles === 0)) && (
                               <RenovarExternoModal
                                 subscriptionId={String(s._id)}
                                 studentName={student.name}
@@ -320,7 +325,7 @@ export default async function InscritosGlobalPage() {
                 const workshop = s.workshopId as WorkshopRef
                 const vi = getSubViewInfo(s)
                 return (
-                  <div key={String(s._id)} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+                  <div key={String(s._id)} className={`bg-white border border-gray-200 rounded-xl p-4 space-y-3${s.estado === 'vencida' || s.estado === 'cancelada' ? ' opacity-50' : ''}`}>
                     {/* Fila 1: nombre + estado */}
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -357,7 +362,7 @@ export default async function InscritosGlobalPage() {
                           montoEsperado={s.precioSnapshot ?? s.monto}
                         />
                       )}
-                      {s.estado === 'vencida' && (
+                      {(s.estado === 'vencida' || (s.estado === 'activa' && s.sesionesDisponibles === 0)) && (
                         <RenovarExternoModal
                           subscriptionId={String(s._id)}
                           studentName={student.name}
