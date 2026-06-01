@@ -62,7 +62,6 @@ export async function POST(
           'clasesPrepagadas.metodoPago':     metodoPago,
           'clasesPrepagadas.montoDeclarado': montoDeclarado,
           ...(nota ? { 'clasesPrepagadas.notaTallerista': nota } : {}),
-          ...(nota ? { notaPrecioEspecial: nota } : {}),
         },
       },
       { new: true, runValidators: true }

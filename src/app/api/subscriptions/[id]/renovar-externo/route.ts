@@ -87,7 +87,7 @@ export async function POST(
       } : {
         precioEspecial:    true,
         precioSnapshot:    prev.precioSnapshot ?? prev.monto,
-        notaPrecioEspecial: nota ?? prev.notaPrecioEspecial,
+        notaPrecioEspecial: prev.notaPrecioEspecial,
       }),
       // Heredar dependiente
       ...(prev.dependentId ? {
