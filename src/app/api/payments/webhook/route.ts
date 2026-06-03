@@ -72,8 +72,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true })
   } catch (error) {
-    console.error('[WEBHOOK_ERROR]', error instanceof Error ? error.message : error)
-    // Siempre retornar 200 para que MercadoPago no reintente
-    return NextResponse.json({ ok: true })
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error('[WEBHOOK_ERROR]', msg)
+    // Errores de negocio conocidos (idempotencia, recurso no encontrado) → 200 para no reintentar
+    // Errores transitorios (DB caída, timeout, red) → 500 para que MP reintente automáticamente
+    const isBusinessError = msg.includes('not found') || msg.includes('no encontrad') || msg.includes('estado') || msg.includes('Forbidden')
+    if (isBusinessError) return NextResponse.json({ ok: true })
+    return NextResponse.json({ error: 'Error interno' }, { status: 500 })
   }
 }
