@@ -5,6 +5,7 @@ import { SubscriptionService } from '@/services/SubscriptionService'
 import { WorkshopService } from '@/services/WorkshopService'
 import dbConnect from '@/lib/db'
 import Subscription from '@/models/Subscription'
+import User from '@/models/User'
 import { z } from 'zod'
 
 const Schema = z.object({
@@ -66,6 +67,19 @@ export async function POST(
       },
       { new: true, runValidators: true }
     ).lean()
+
+    // Notificar al alumno: enviar magic link para que pueda acceder (fire-and-forget)
+    try {
+      const student = await User.findById(sub.studentId).select('email').lean<{ email: string }>()
+      if (student?.email) {
+        const { issueMagicLink } = await import('@/lib/issueMagicLink')
+        const { sendMagicLink } = await import('@/lib/resend')
+        const { magicUrl } = await issueMagicLink(String(sub.studentId))
+        await sendMagicLink({ email: student.email, magicUrl })
+      }
+    } catch {
+      // No bloquear la activación por fallo de email
+    }
 
     return NextResponse.json(updated)
   } catch (error: unknown) {
