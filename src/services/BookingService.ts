@@ -19,6 +19,38 @@ function formatSlotForEmail(fecha: Date, horaInicio: string, horaFin: string): {
   return { fechaTexto, horaTexto: `${horaInicio} - ${horaFin}` }
 }
 
+// [TZ] Offset (en minutos) de America/Santiago para un instante dado.
+// Considera el horario de verano (UTC-3) vs invierno (UTC-4).
+function santiagoOffsetMinutes(at: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Santiago', hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(at)
+  const map: Record<string, number> = {}
+  for (const p of parts) if (p.type !== 'literal') map[p.type] = Number(p.value)
+  const asUTC = Date.UTC(
+    map.year, map.month - 1, map.day,
+    map.hour === 24 ? 0 : map.hour, map.minute, map.second
+  )
+  return (asUTC - at.getTime()) / 60000
+}
+
+// [TZ] Instante UTC real del fin del slot. La fecha del slot se almacena como
+// medianoche UTC del día civil y horaFin es hora local de Santiago ("HH:mm").
+// Sin esto, setUTCHours() interpretaba la hora chilena como UTC y marcaba la
+// clase como "ya ocurrió" 3-4 h antes de tiempo.
+function slotEndInstant(fecha: Date, horaFin: string | undefined): Date {
+  const ymd = new Date(fecha).toISOString().slice(0, 10)
+  const [y, mo, d] = ymd.split('-').map(Number)
+  const [h, mi] = (horaFin ?? '23:59').split(':').map(Number)
+  const utcGuess = Date.UTC(y, mo - 1, d, h, mi, 0, 0)
+  const off1 = santiagoOffsetMinutes(new Date(utcGuess))
+  const utc = utcGuess - off1 * 60000
+  const off2 = santiagoOffsetMinutes(new Date(utc))
+  return off2 === off1 ? new Date(utc) : new Date(utcGuess - off2 * 60000)
+}
+
 interface PaginatedResult<T> {
   data: T[]
   total: number
@@ -118,9 +150,7 @@ export const BookingService = {
     if (!slot) throw new Error('Sesión no encontrada')
     if (slot.cancelado) throw new Error('Sesión cancelada')
     if (!slot.fecha) throw new Error('Sesión sin fecha definida')
-    const [hfR, mfR] = ((slot.horaFin as string | undefined) ?? '23:59').split(':').map(Number)
-    const slotEndR = new Date(slot.fecha)
-    slotEndR.setUTCHours(hfR, mfR, 0, 0)
+    const slotEndR = slotEndInstant(slot.fecha, slot.horaFin as string | undefined)
     if (slotEndR <= new Date()) {
       throw new Error('No se puede reservar una sesión que ya ocurrió')
     }
@@ -399,7 +429,7 @@ export const BookingService = {
     if (!newSlot) throw new Error('Sesión destino no encontrada')
     if (newSlot.cancelado) throw new Error('Sesión destino cancelada')
     if (!newSlot.fecha) throw new Error('Sesión destino sin fecha definida')
-    if (new Date(newSlot.fecha) <= new Date()) {
+    if (slotEndInstant(newSlot.fecha, newSlot.horaFin as string | undefined) <= new Date()) {
       throw new Error('No se puede cambiar a una sesión que ya ocurrió')
     }
     if (newSlot.reservas >= workshop.cupoPorSesion) throw new Error('Sesión destino sin cupo')
@@ -559,10 +589,8 @@ export const BookingService = {
     if (!slot) throw new Error('Sesión no encontrada')
     if (slot.cancelado) throw new Error('Sesión cancelada')
     if (!slot.fecha) throw new Error('Sesión sin fecha definida')
-    // Usar fecha+horaFin para determinar si el slot ya pasó (fecha se almacena como medianoche UTC)
-    const [hf, mf] = ((slot.horaFin as string | undefined) ?? '23:59').split(':').map(Number)
-    const slotEnd = new Date(slot.fecha)
-    slotEnd.setUTCHours(hf, mf, 0, 0)
+    // Usar fecha+horaFin (hora local Santiago) para determinar si el slot ya pasó.
+    const slotEnd = slotEndInstant(slot.fecha, slot.horaFin as string | undefined)
     if (slotEnd <= new Date()) throw new Error('No se puede reservar una sesión que ya ocurrió')
 
     // Cupo disponible — usar conteo real de Bookings para detectar drift del caché
