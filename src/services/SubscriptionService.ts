@@ -753,10 +753,14 @@ export const SubscriptionService = {
         activo: true,
         // [PREPAGADO] Omitir suscripciones con saldo prepagado VIVO (no consumido y no caducado).
         // Si caducó el saldo, debe entrar al ciclo de renovación normal.
+        // [FIX 2026-06] Migrado de clasesPrepagadas.consumidas < cantidad → sesionesDisponibles > 0
+        // para alinear con hasPrepaidBalance() tras refactor Modelo A puro (19-may-2026).
+        // El contador clasesPrepagadas.consumidas quedó obsoleto; la fuente de verdad es sesionesDisponibles.
         $nor: [
           {
             $and: [
-              { $expr: { $lt: ['$clasesPrepagadas.consumidas', '$clasesPrepagadas.cantidad'] } },
+              { clasesPrepagadas: { $exists: true, $ne: null } },
+              { sesionesDisponibles: { $gt: 0 } },
               {
                 $or: [
                   { 'clasesPrepagadas.caducaEn': { $exists: false } },
