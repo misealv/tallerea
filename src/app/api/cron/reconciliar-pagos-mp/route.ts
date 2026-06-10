@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PaymentService } from '@/services/PaymentService'
-import { paymentClient } from '@/lib/mercadopago'
 import dbConnect from '@/lib/db'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
 
@@ -33,7 +32,7 @@ export async function GET(req: NextRequest) {
 
   let procesados = 0
   let huerfanos = 0
-  let errores: string[] = []
+  const errores: string[] = []
 
   try {
     await dbConnect()
