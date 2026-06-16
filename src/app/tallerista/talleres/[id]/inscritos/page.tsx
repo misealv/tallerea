@@ -13,6 +13,7 @@ import MarcaAsistenciaEnrollmentButton from '@/components/MarcaAsistenciaEnrollm
 import EditarPrecioButton from '@/components/EditarPrecioButton'
 import CancelarInscripcionButton from '@/components/CancelarInscripcionButton'
 import ReservarClaseModal from '@/app/tallerista/inscritos/ReservarClaseModal'
+import GenerarLinkRenovacionButton from '@/components/GenerarLinkRenovacionButton'
 import EnviarAnuncioModal from './EnviarAnuncioModal'
 import { getSubViewInfo } from '@/lib/subscriptionView'
 
@@ -256,13 +257,21 @@ export default async function InscritosPage({
                       />
                     </td>
                     <td className="px-4 py-2">
-                      {s.estado === 'activa' && (
+                      {s.estado === 'activa' && s.sesionesDisponibles > 0 && (
                         <ReservarClaseModal
                           subscriptionId={String(s._id)}
                           studentName={(s.studentId as StudentRef).name}
                           workshopTitle={workshop.titulo}
                           sesionesDisponibles={s.sesionesDisponibles}
                           dependentNombre={s.dependentNombreSnapshot}
+                        />
+                      )}
+                      {s.estado === 'activa' && s.sesionesDisponibles === 0 && (s.precioSnapshot ?? s.monto) > 0 && (
+                        <GenerarLinkRenovacionButton
+                          subscriptionId={String(s._id)}
+                          precioSnapshot={s.precioSnapshot ?? s.monto}
+                          clasesCantidad={s.clasesPrepagadas?.cantidad ?? 4}
+                          studentName={(s.studentId as StudentRef).name}
                         />
                       )}
                     </td>
