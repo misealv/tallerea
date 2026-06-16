@@ -33,6 +33,8 @@ export interface TallerCardProps {
   montoPagado?: number
   // Dependiente asignado a la suscripción
   dependentNombre?: string
+  // ID del workshop — necesario para el link de recarga cuando sesiones = 0
+  workshopId?: string
 }
 
 export default function TallerCard({
@@ -55,6 +57,7 @@ export default function TallerCard({
   diaSemana,
   montoPagado,
   dependentNombre,
+  workshopId,
 }: TallerCardProps) {
   const thumbUrl = getCloudinaryUrl(imageUrl, TRANSFORM.dashboardCard)
   const hasCaducado = caducaEn ? new Date(caducaEn) < new Date() : false
@@ -204,21 +207,27 @@ export default function TallerCard({
             Ver detalles del taller →
           </Link>
         ) : (
-          <Link
-            href={
-              subscriptionId
-                ? `/alumno/reservas?sub=${subscriptionId}&workshop=${encodeURIComponent(slug)}`
-                : `/talleres/${slug}`
-            }
-            onClick={onCardClick}
-            className={`flex items-center justify-center text-sm font-semibold text-white py-2.5 rounded-lg transition-colors ${
-              clasesRestantes > 0
-                ? 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800'
-                : 'bg-gray-300 cursor-not-allowed pointer-events-none'
-            }`}
-          >
-            {clasesRestantes > 0 ? 'Reservar otra clase' : 'Ya usaste todas tus clases · Renovar'}
-          </Link>
+          {clasesRestantes > 0 ? (
+            <Link
+              href={
+                subscriptionId
+                  ? `/alumno/reservas?sub=${subscriptionId}&workshop=${encodeURIComponent(slug)}`
+                  : `/talleres/${slug}`
+              }
+              onClick={onCardClick}
+              className="flex items-center justify-center text-sm font-semibold text-white py-2.5 rounded-lg transition-colors bg-purple-600 hover:bg-purple-700 active:bg-purple-800"
+            >
+              Reservar otra clase
+            </Link>
+          ) : (
+            <Link
+              href={workshopId ? `/alumno/mis-talleres/${workshopId}/recargar` : `/talleres/${slug}`}
+              onClick={onCardClick}
+              className="flex items-center justify-center text-sm font-semibold text-white py-2.5 rounded-lg transition-colors bg-orange-500 hover:bg-orange-600 active:bg-orange-700"
+            >
+              Comprar más clases
+            </Link>
+          )}
         )}
 
         {!esClasePrueba && !esPuntual && (

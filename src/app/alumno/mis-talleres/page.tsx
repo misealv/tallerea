@@ -234,6 +234,7 @@ export default async function MisTalleresPage() {
                     fechaVencimiento={s.fechaVencimiento}
                     caducaEn={prepaid?.caducaEn}
                     subscriptionId={String(s._id)}
+                    workshopId={String(wMedia._id)}
                     proximaBooking={proxBooking && proxSlot ? { horaInicio: proxSlot.horaInicio, horaFin: proxSlot.horaFin, fecha: proxBooking.fecha } : null}
                   />
                   <Link href={`/alumno/mis-talleres/${String(wMedia._id)}/materiales`}
