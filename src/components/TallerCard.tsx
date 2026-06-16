@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { getCloudinaryUrl, TRANSFORM } from '@/lib/cloudinary-transform'
 import { trackTallerCardClick, trackTooltipClasesOpen } from '@/lib/analytics'
+import RenovarAcordadoButton from '@/components/RenovarAcordadoButton'
 
 export interface TallerCardProps {
   titulo: string
@@ -35,6 +36,10 @@ export interface TallerCardProps {
   dependentNombre?: string
   // ID del workshop — necesario para el link de recarga cuando sesiones = 0
   workshopId?: string
+  /** Precio acordado (precioSnapshot) para renovación self-service al mismo precio especial */
+  precioRenovacion?: number
+  /** Clases que entrega cada ciclo — se muestran en el botón de renovación acordada */
+  clasesPorCiclo?: number
 }
 
 export default function TallerCard({
@@ -58,6 +63,8 @@ export default function TallerCard({
   montoPagado,
   dependentNombre,
   workshopId,
+  precioRenovacion,
+  clasesPorCiclo,
 }: TallerCardProps) {
   const thumbUrl = getCloudinaryUrl(imageUrl, TRANSFORM.dashboardCard)
   const hasCaducado = caducaEn ? new Date(caducaEn) < new Date() : false
@@ -218,6 +225,12 @@ export default function TallerCard({
             >
               Reservar otra clase
             </Link>
+          ) : precioRenovacion && subscriptionId ? (
+            <RenovarAcordadoButton
+              subscriptionId={subscriptionId}
+              precio={precioRenovacion}
+              clasesCantidad={clasesPorCiclo ?? 4}
+            />
           ) : (
             <Link
               href={workshopId ? `/alumno/mis-talleres/${workshopId}/recargar` : `/talleres/${slug}`}

@@ -54,6 +54,9 @@ interface SubscriptionLean {
   sesionesDisponibles: number
   sesionesTotales: number
   fechaVencimiento: Date
+  monto: number
+  precioEspecial?: boolean
+  precioSnapshot?: number
   clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }
 }
 
@@ -222,6 +225,11 @@ export default async function MisTalleresPage() {
               const profesorNombre = profMap.get(String(wMedia.ownerId)) ?? 'Tallerista'
               const proxBooking = bookingBySub.get(String(s._id))
               const proxSlot = proxBooking ? (proxBooking.workshopId as WorkshopWithSlots).slots?.[proxBooking.slotIndex] : undefined
+              // Precio acordado (snapshot): habilita renovación self-service al mismo precio especial
+              const precioRenovacion = s.precioEspecial && (s.precioSnapshot ?? 0) > 0
+                ? (s.precioSnapshot as number)
+                : undefined
+              const clasesPorCiclo = prepaid?.cantidad ?? s.sesionesTotales
               return (
                 <div key={String(s._id)}>
                   <TallerCard
@@ -235,6 +243,8 @@ export default async function MisTalleresPage() {
                     caducaEn={prepaid?.caducaEn}
                     subscriptionId={String(s._id)}
                     workshopId={String(wMedia._id)}
+                    precioRenovacion={precioRenovacion}
+                    clasesPorCiclo={clasesPorCiclo}
                     proximaBooking={proxBooking && proxSlot ? { horaInicio: proxSlot.horaInicio, horaFin: proxSlot.horaFin, fecha: proxBooking.fecha } : null}
                   />
                   <Link href={`/alumno/mis-talleres/${String(wMedia._id)}/materiales`}

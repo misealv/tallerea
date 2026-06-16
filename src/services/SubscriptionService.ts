@@ -457,6 +457,60 @@ export const SubscriptionService = {
   },
 
   /**
+   * [PREPAGADO] Genera una preferencia MercadoPago para renovar al PRECIO ACORDADO
+   * (precioSnapshot) de la suscripción, sumando la misma cantidad de clases del lote.
+   *
+   * Núcleo reutilizable: NO valida autorización (eso es responsabilidad del controller).
+   * Usado tanto por el alumno (self-service) como por el tallerista (link manual de respaldo).
+   *
+   * El webhook con externalRef 'prn:<subId>' invoca PaymentService.handleApprovedPrepaidRenewal,
+   * que acredita las clases y extiende el vencimiento. Idempotente por mercadoPagoId.
+   */
+  async createRenewalPreferenceAtAgreedPrice(
+    subscriptionId: string,
+  ): Promise<{ initPoint: string; monto: number; cantidad: number; studentName: string; studentEmail: string }> {
+    await dbConnect()
+
+    const sub = await Subscription.findById(subscriptionId).lean<ISubscription>()
+    if (!sub) throw new Error('Suscripción no encontrada')
+    if (sub.estado !== 'activa') throw new Error('Solo se puede renovar una suscripción activa')
+
+    const monto = sub.precioSnapshot ?? sub.monto
+    if (!monto || monto <= 0) {
+      throw new Error('Esta suscripción no tiene precio acordado mayor a $0')
+    }
+
+    const cantidad = sub.clasesPrepagadas?.cantidad ?? sub.sesionesTotales ?? 0
+    if (cantidad < 1) throw new Error('La suscripción no tiene clases por ciclo definidas')
+
+    const workshop = await Workshop.findById(sub.workshopId).select('titulo').lean<{ titulo: string } | null>()
+    if (!workshop) throw new Error('Taller no encontrado')
+
+    const student = await User.findById(sub.studentId).select('email name').lean<{ email: string; name: string } | null>()
+    if (!student?.email) throw new Error('Alumno sin email')
+
+    const label = sub.dependentNombreSnapshot
+      ? `${workshop.titulo} — ${sub.dependentNombreSnapshot} (${cantidad} clases)`
+      : `${workshop.titulo} — ${cantidad} clases`
+
+    const preference = await createPaymentPreference({
+      externalRef: `prn:${subscriptionId}`,
+      workshopTitle: label,
+      amount: monto,
+      payerEmail: student.email,
+    })
+    if (!preference?.init_point) throw new Error('No se pudo generar el link de pago')
+
+    return {
+      initPoint: preference.init_point as string,
+      monto,
+      cantidad,
+      studentName: student.name,
+      studentEmail: student.email,
+    }
+  },
+
+  /**
    * [PREPAGADO] Notifica al alumno que agotó su paquete e invita a continuar.
    * - Si tiene precioSnapshot > 0: genera link MP al precio acordado.
    * - Si precio es $0 o no hay precio acordado: muestra los paquetes activos del taller.
