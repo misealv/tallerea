@@ -206,8 +206,7 @@ export default function TallerCard({
           >
             Ver detalles del taller →
           </Link>
-        ) : (
-          {clasesRestantes > 0 ? (
+        ) : clasesRestantes > 0 ? (
             <Link
               href={
                 subscriptionId
@@ -228,7 +227,6 @@ export default function TallerCard({
               Comprar más clases
             </Link>
           )}
-        )}
 
         {!esClasePrueba && !esPuntual && (
           <Link
