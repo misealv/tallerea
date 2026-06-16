@@ -537,4 +537,85 @@ export const PaymentService = {
       // No bloquear flujo
     }
   },
+
+  /**
+   * [PREPAGADO] Acredita renovación al precio acordado (precioSnapshot) en una suscripción activa.
+   * Invocado por el webhook con externalRef = 'prn:<subId>'.
+   * Suma las mismas clases que el lote original (clasesPrepagadas.cantidad) y extiende vencimiento 30 días.
+   * Idempotencia por mercadoPagoId unique en PaymentBreakdown.
+   */
+  async handleApprovedPrepaidRenewal(subscriptionId: string, paymentId: string): Promise<void> {
+    await dbConnect()
+
+    // [IDEMPOTENCIA] Si ya existe breakdown para este paymentId, no reprocesar
+    const existingBreakdown = await PaymentBreakdown.findOne({ mercadoPagoId: String(paymentId) }).lean<{ _id: mongoose.Types.ObjectId }>()
+    if (existingBreakdown) return
+
+    const subscription = await Subscription.findById(subscriptionId)
+    if (!subscription) return
+    if (subscription.estado !== 'activa') return  // no acreditar a subs canceladas/vencidas
+
+    const cantidad = subscription.clasesPrepagadas?.cantidad
+    if (!cantidad || cantidad < 1) return  // sin info de lote, no hay nada que acreditar
+
+    const monto = subscription.precioSnapshot ?? subscription.monto
+    if (!monto || monto <= 0) return
+
+    const workshop = await Workshop.findById(subscription.workshopId)
+      .select('ownerId precioModalidad')
+      .lean<{ _id: mongoose.Types.ObjectId; ownerId: mongoose.Types.ObjectId; precioModalidad?: 'neto' | 'bruto' }>()
+    if (!workshop) throw new Error('Taller no encontrado al acreditar renovación prepagada')
+
+    // [CUADRATURA] Crear PaymentBreakdown — inmutable, idempotente por mercadoPagoId
+    const feePct = await SiteConfigService.getComisionPct()
+    const desglose = FinanceService.calcularDesglose(monto, feePct)
+
+    try {
+      await new PaymentBreakdown({
+        subscriptionId: subscription._id,
+        workshopId: subscription.workshopId,
+        ownerId: workshop.ownerId,
+        studentId: subscription.studentId,
+        montoBruto: desglose.montoBruto,
+        comisionMP: 0,
+        feeTallerea: desglose.feeTallerea,
+        montoProfesor: desglose.montoProfesor,
+        porcentajeFee: feePct,
+        precioModalidad: workshop.precioModalidad ?? 'bruto',
+        tipo: 'pago',
+        estado: 'cobrado',
+        mercadoPagoId: String(paymentId),
+        fechaCobro: new Date(),
+      }).save()
+    } catch (err: unknown) {
+      const code = (err as { code?: number })?.code
+      if (code === 11000) return  // E11000 → ya procesado por reintento del webhook
+      throw err
+    }
+
+    // Sumar saldo y extender vencimiento 30 días desde hoy o desde vencimiento actual
+    subscription.sesionesTotales += cantidad
+    subscription.sesionesDisponibles += cantidad
+    const base = subscription.fechaVencimiento > new Date() ? subscription.fechaVencimiento : new Date()
+    subscription.fechaVencimiento = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000)
+    // Actualizar fechaPago del lote prepagado al momento de este pago
+    if (subscription.clasesPrepagadas) {
+      subscription.clasesPrepagadas.fechaPago = new Date()
+      subscription.clasesPrepagadas.metodoPago = 'mercadopago'
+    }
+    await subscription.save()
+
+    // Audit log
+    try {
+      await FinanceService.log(
+        'pago_recibido',
+        'PaymentBreakdown',
+        String(subscription._id),
+        monto,
+        String(subscription.studentId)
+      )
+    } catch {
+      // No bloquear flujo
+    }
+  },
 }

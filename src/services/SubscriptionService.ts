@@ -479,9 +479,13 @@ export const SubscriptionService = {
     const cantidad = sub.clasesPrepagadas.cantidad
 
     // Caso A: tiene precio acordado > 0 → link MP al mismo precio
+    // [FIX] Usar prefijo 'prn:' (prepaid renewal) en lugar de 'sub:ID:prepaid-renewal'.
+    // El webhook con 'sub:' llama handleApprovedSubscription(ref.slice(4)) y el ID queda
+    // malformado ('SUBID:prepaid-renewal' no es ObjectId válido). El prefijo 'prn:' tiene
+    // su propio handler que acredita sesiones correctamente.
     if (sub.precioSnapshot && sub.precioSnapshot > 0) {
       const preference = await createPaymentPreference({
-        externalRef: `sub:${subscriptionId}:prepaid-renewal`,
+        externalRef: `prn:${subscriptionId}`,
         workshopTitle: workshop.titulo,
         amount: sub.precioSnapshot,
         payerEmail: student.email,

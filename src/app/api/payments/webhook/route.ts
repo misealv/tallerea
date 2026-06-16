@@ -54,12 +54,18 @@ export async function POST(req: NextRequest) {
 
     if (payment.status === 'approved' && payment.external_reference) {
       const ref = payment.external_reference
-      // Rutear según prefijo: 'enr:<id>' | 'sub:<id>' | 'rec:<subId>:<paqueteId>'.
+      // Rutear según prefijo: 'enr:<id>' | 'sub:<id>' | 'rec:<subId>:<paqueteId>' | 'prn:<subId>'.
       // Sin prefijo asume enrollment (legacy)
       if (ref.startsWith('rec:')) {
         const [subId, paqueteId] = ref.slice(4).split(':')
         if (subId && paqueteId) {
           await PaymentService.handleApprovedRecarga(subId, paqueteId, String(paymentId))
+        }
+      } else if (ref.startsWith('prn:')) {
+        // Prepaid renewal: renovación al precio acordado (precioSnapshot), suma sesiones a sub activa
+        const subId = ref.slice(4)
+        if (subId) {
+          await PaymentService.handleApprovedPrepaidRenewal(subId, String(paymentId))
         }
       } else if (ref.startsWith('sub:')) {
         await PaymentService.handleApprovedSubscription(ref.slice(4), String(paymentId))
