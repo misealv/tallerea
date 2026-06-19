@@ -9,6 +9,7 @@ export interface IEnrollment extends Document {
   monto: number;
   creditoAplicado: number;
   esClasePrueba: boolean;
+  slotFecha?: Date;           // fecha concreta elegida en el picker (YYYY-MM-DD convertida a Date UTC)
   montoPagadoVoluntario?: number;
   // Inscripción manual
   dependentId?: Types.ObjectId;
@@ -31,6 +32,7 @@ const EnrollmentSchema = new Schema<IEnrollment>({
   monto:           { type: Number, required: true, min: 0 },
   creditoAplicado: { type: Number, default: 0, min: 0 },
   esClasePrueba:   { type: Boolean, default: false },
+  slotFecha:       { type: Date },                    // fecha concreta del slot elegido
   montoPagadoVoluntario: { type: Number, min: 0 },
   // Inscripción manual
   dependentId:           { type: Schema.Types.ObjectId },

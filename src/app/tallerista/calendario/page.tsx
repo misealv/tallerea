@@ -91,7 +91,7 @@ export default function CalendarioTallerista() {
     // (enrollments puntuales/prueba no incrementan slot.reservas en el schema)
     setLoadingInscritos(true)
     try {
-      const res = await fetch(`/api/tallerista/calendar/students?workshopId=${slot.workshopId}&slotIndex=${slot.slotIndex}`)
+      const res = await fetch(`/api/tallerista/calendar/students?workshopId=${slot.workshopId}&slotIndex=${slot.slotIndex}&fecha=${slot.fecha}`)
       const data = await res.json()
       if (data.data) setInscritos(data.data)
     } catch { /* silent */ } finally { setLoadingInscritos(false) }

@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const workshopId = searchParams.get('workshopId')
   const slotIndexStr = searchParams.get('slotIndex')
+  const fechaStr = searchParams.get('fecha')  // YYYY-MM-DD del slot visualizado
 
   if (!workshopId || slotIndexStr === null) {
     return NextResponse.json({ error: 'Faltan parámetros: workshopId, slotIndex' }, { status: 400 })
@@ -54,14 +55,29 @@ export async function GET(req: NextRequest) {
     activo: true,
   }).select('_id studentId estado dependentNombreSnapshot').lean<BookingLean[]>()
 
-  // [FIX] Enrollments puntuales y clasePrueba para este slot
-  interface EnrollmentLean { _id: Types.ObjectId; studentId: Types.ObjectId; estado: string; esClasePrueba?: boolean }
-  const enrollments = await Enrollment.find({
+  // [FIX] Enrollments puntuales y clasePrueba para este slot.
+  // Si el enrollment tiene slotFecha: solo mostrar si coincide con la fecha del slot visualizado.
+  // Si no tiene slotFecha (registros legacy): mostrar siempre (backward compat).
+  interface EnrollmentLean { _id: Types.ObjectId; studentId: Types.ObjectId; estado: string; esClasePrueba?: boolean; slotFecha?: Date }
+  const enrollmentFilter: Record<string, unknown> = {
     workshopId,
     slotIndex,
     estado: { $nin: ['cancelado'] },
     activo: true,
-  }).select('_id studentId estado esClasePrueba').lean<EnrollmentLean[]>()
+  }
+  if (fechaStr) {
+    // fecha concreta = solo enrollments para ese día O enrollments sin fecha (legacy)
+    const inicioDelDia = new Date(fechaStr + 'T00:00:00Z')
+    const finDelDia    = new Date(fechaStr + 'T23:59:59Z')
+    enrollmentFilter['$or'] = [
+      { slotFecha: { $gte: inicioDelDia, $lte: finDelDia } },
+      { slotFecha: { $exists: false } },
+      { slotFecha: null },
+    ]
+  }
+  const enrollments = await Enrollment.find(enrollmentFilter)
+    .select('_id studentId estado esClasePrueba slotFecha')
+    .lean<EnrollmentLean[]>()
 
   const totalRegistros = bookings.length + enrollments.length
   if (totalRegistros === 0) return NextResponse.json({ data: [] })

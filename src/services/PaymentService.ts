@@ -32,6 +32,7 @@ export const PaymentService = {
     esClasePrueba = false,
     dependentNombre?: string,
     dependentFechaNacimiento?: string,
+    slotFecha?: string,         // YYYY-MM-DD concreto elegido en SlotCalendarPicker
   ): Promise<CreatePaymentResult> {
     const workshop = await WorkshopService.getById(workshopId)
     if (!workshop) throw new Error('Taller no encontrado')
@@ -72,7 +73,7 @@ export const PaymentService = {
     // Si es clase de prueba, usar reservarPrueba en lugar de create
     let enrollment
     if (esClasePrueba) {
-      enrollment = await EnrollmentService.reservarPrueba(workshopId, studentId, slotIndex ?? null)
+      enrollment = await EnrollmentService.reservarPrueba(workshopId, studentId, slotIndex ?? null, slotFecha)
     } else {
       // Crear enrollment pendiente. Si usarCredito=true, EnrollmentService.create descuenta crédito
       enrollment = await EnrollmentService.create({

@@ -33,6 +33,9 @@ export async function POST(req: NextRequest) {
     const { workshopId, slotIndex } = body
     if (!workshopId) return NextResponse.json({ error: 'workshopId es requerido' }, { status: 400 })
 
+    // Fecha concreta elegida en SlotCalendarPicker (YYYY-MM-DD)
+    const slotFecha: string | undefined = typeof body.fecha === 'string' && body.fecha ? body.fecha : undefined
+
     // Datos opcionales de dependiente (apoderado inscribiendo a hijo/a)
     const dependentNombre: string | undefined =
       typeof body.dependentNombre === 'string' && body.dependentNombre.trim()
@@ -137,6 +140,7 @@ export async function POST(req: NextRequest) {
       esClasePrueba,
       dependentNombre,
       dependentFechaNacimiento,
+      slotFecha,
     )
 
     return NextResponse.json(result)

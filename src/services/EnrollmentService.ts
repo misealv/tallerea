@@ -313,6 +313,7 @@ export const EnrollmentService = {
     workshopId: string,
     studentId: string,
     slotIndex: number | null,
+    slotFecha?: string,   // YYYY-MM-DD elegido en SlotCalendarPicker
   ): Promise<IEnrollment> {
     await dbConnect()
 
@@ -389,6 +390,9 @@ export const EnrollmentService = {
         workshopId,
         studentId,
         slotIndex,
+        // Guardar la fecha concreta elegida en el picker para que el calendario
+        // la ubique en el día correcto (no en todos los lunes/martes del mes)
+        ...(slotFecha ? { slotFecha: new Date(slotFecha + 'T12:00:00Z') } : {}),
         monto: precio,
         creditoAplicado: 0,
         esClasePrueba: true,

@@ -282,25 +282,34 @@ export async function GET(req: NextRequest) {
 
     // [FIX] También contar Enrollments puntuales y clasePrueba por slot
     // (Booking solo existe para suscripciones recurrentes; Enrollment cubre puntual y prueba)
-    interface EnrollmentSlotLean { workshopId: Types.ObjectId; slotIndex: number | null }
+    interface EnrollmentSlotLean { workshopId: Types.ObjectId; slotIndex: number | null; slotFecha?: Date }
     const allEnrollments = workshopIdsWithSlots.length > 0
       ? await Enrollment.find({
           workshopId: { $in: workshopIdsWithSlots },
           estado: { $nin: ['cancelado'] },
           slotIndex: { $ne: null },
           activo: true,
-        }).select('workshopId slotIndex').lean<EnrollmentSlotLean[]>()
+        }).select('workshopId slotIndex slotFecha').lean<EnrollmentSlotLean[]>()
       : []
 
-    // Indexar bookings + enrollments por workshopId+slotIndex
+    // Indexar bookings por workshopId+slotIndex (recurrentes: cuentan para todas las ocurrencias)
     const bookingsByKey = new Map<string, number>()
     for (const b of allBookings) {
       const key = `${String(b.workshopId)}:${b.slotIndex}`
       bookingsByKey.set(key, (bookingsByKey.get(key) ?? 0) + 1)
     }
+    // Indexar enrollments:
+    // - Con slotFecha: clave workshops:slotIdx:YYYY-MM-DD → solo cuenta en esa fecha concreta
+    // - Sin slotFecha (registros legacy): clave workshops:slotIdx → cuenta en cualquier ocurrencia
     for (const e of allEnrollments) {
-      const key = `${String(e.workshopId)}:${e.slotIndex}`
-      bookingsByKey.set(key, (bookingsByKey.get(key) ?? 0) + 1)
+      if (e.slotFecha) {
+        const dateYMD = new Date(e.slotFecha).toISOString().slice(0, 10)
+        const key = `${String(e.workshopId)}:${e.slotIndex}:${dateYMD}`
+        bookingsByKey.set(key, (bookingsByKey.get(key) ?? 0) + 1)
+      } else {
+        const key = `${String(e.workshopId)}:${e.slotIndex}`
+        bookingsByKey.set(key, (bookingsByKey.get(key) ?? 0) + 1)
+      }
     }
 
     const result = []
@@ -308,7 +317,10 @@ export async function GET(req: NextRequest) {
       const slotsInRange = workshopSlotsMap.get(String(w._id))
       if (!slotsInRange) continue
       for (const { slot: s, slotIdx: i, virtualFecha } of slotsInRange) {
-        const key = `${String(w._id)}:${i}`
+        const genericKey  = `${String(w._id)}:${i}`
+        const specificKey = `${String(w._id)}:${i}:${virtualFecha}`
+        // Suma: recurrentes (genericKey de Bookings) + enrollments con fecha concreta en este día + legacy sin fecha
+        const reservas = (bookingsByKey.get(genericKey) ?? 0) + (bookingsByKey.get(specificKey) ?? 0)
         result.push({
           workshopId: String(w._id),
           workshopTitulo: w.titulo,
@@ -318,7 +330,7 @@ export async function GET(req: NextRequest) {
           horaFin: s.horaFin,
           fecha: virtualFecha,
           cancelado: s.cancelado,
-          reservas: bookingsByKey.get(key) ?? s.reservas,
+          reservas: reservas || s.reservas,
           cupo: w.cupoPorSesion,
         })
       }
