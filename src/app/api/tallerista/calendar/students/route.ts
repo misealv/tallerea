@@ -9,6 +9,7 @@ import Enrollment from '@/models/Enrollment'
 import User from '@/models/User'
 import { sendSesionCancelada } from '@/lib/resend'
 import { SubscriptionService } from '@/services/SubscriptionService'
+import { CreditService } from '@/services/CreditService'
 import { Types } from 'mongoose'
 
 export const dynamic = 'force-dynamic'
@@ -101,6 +102,7 @@ export async function GET(req: NextRequest) {
 }
 
 // PATCH /api/tallerista/calendar/students — cancelar reserva de un alumno
+// Soporta bookings recurrentes (bookingId normal) y enrollments puntual/prueba (bookingId = "e:<id>")
 export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
@@ -125,7 +127,63 @@ export async function PATCH(req: NextRequest) {
   const workshop = await Workshop.findOne({ _id: workshopId, ownerId: session.user.id, activo: true })
   if (!workshop) return NextResponse.json({ error: 'Taller no encontrado' }, { status: 404 })
 
-  // Cancelar el booking
+  // ── Rama: cancelar enrollment puntual / clase de prueba (bookingId = "e:<id>") ──────────
+  if (bookingId.startsWith('e:')) {
+    const enrollmentId = bookingId.slice(2)
+    const enrollment = await Enrollment.findOneAndUpdate(
+      { _id: enrollmentId, workshopId, slotIndex, estado: { $ne: 'cancelado' }, activo: true },
+      { estado: 'cancelado' },
+      { new: true }
+    )
+    if (!enrollment) return NextResponse.json({ error: 'Inscripción no encontrada o ya cancelada' }, { status: 404 })
+
+    // Restaurar cupo del slot según modeloAcceso
+    if (slotIndex >= 0 && slotIndex < workshop.slots.length) {
+      if (workshop.modeloAcceso === 'recurrente') {
+        await Workshop.updateOne({ _id: workshopId }, { $inc: { [`slots.${slotIndex}.reservas`]: -1 } })
+      } else {
+        const maxCupo = workshop.slots[slotIndex]?.cupoMax ?? workshop.cupoPorSesion
+        await Workshop.updateOne(
+          { _id: workshopId, [`slots.${slotIndex}.cupoDisponible`]: { $lt: maxCupo } },
+          { $inc: { [`slots.${slotIndex}.cupoDisponible`]: 1 } }
+        )
+      }
+    }
+
+    // [FINANCE RISK] Devolver crédito si se había aplicado o si el alumno pagó (reembolso)
+    if (enrollment.creditoAplicado > 0) {
+      await CreditService.otorgar({
+        userId:       String(enrollment.studentId),
+        monto:        enrollment.creditoAplicado,
+        origenTipo:   'reembolso',
+        enrollmentId: enrollmentId,
+        motivo:       'Devolución por cancelación de clase de prueba por el tallerista',
+      }).catch(() => null)
+    }
+
+    // Notificar al alumno
+    try {
+      const student = await User.findById(enrollment.studentId).select('name email').lean<{ name: string; email: string }>()
+      if (student) {
+        const slotData = workshop.slots[slotIndex] as { fecha?: Date; horaInicio: string; horaFin: string }
+        const slotFecha = slotData?.fecha
+          ? new Date(slotData.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+          : 'próxima sesión'
+        await sendSesionCancelada({
+          studentEmail: student.email,
+          studentName:  student.name,
+          workshopTitle: workshop.titulo,
+          fecha:         slotFecha,
+          horaInicio:    slotData?.horaInicio ?? '',
+          horaFin:       slotData?.horaFin ?? '',
+        })
+      }
+    } catch { /* error de email no bloquea */ }
+
+    return NextResponse.json({ ok: true })
+  }
+
+  // ── Rama: cancelar booking recurrente ────────────────────────────────────────────────────
   const booking = await Booking.findOneAndUpdate(
     { _id: bookingId, workshopId, slotIndex, estado: { $ne: 'cancelada' } },
     { estado: 'cancelada', canceladaEn: new Date(), canceladaRazon: 'tallerista' },

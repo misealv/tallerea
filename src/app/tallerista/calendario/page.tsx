@@ -390,13 +390,22 @@ export default function CalendarioTallerista() {
                   <p className="text-xs text-gray-400 text-center py-3">Sin datos</p>
                 ) : (
                   <ul className="space-y-1 max-h-52 overflow-y-auto">
-                    {inscritos.map((insc) => (
+                    {inscritos.map((insc) => {
+                      const esPrueba = insc.bookingId.startsWith('e:') && insc.estado?.includes('prueba')
+                      return (
                       <li key={insc.bookingId} className="flex items-center gap-2.5 text-xs bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2">
                         <div className="w-7 h-7 rounded-full bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 flex items-center justify-center text-[11px] font-bold shrink-0">
                           {insc.name?.charAt(0)?.toUpperCase() ?? '?'}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="font-medium text-gray-800 dark:text-gray-200 truncate">{insc.name}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-medium text-gray-800 dark:text-gray-200 truncate">{insc.name}</p>
+                            {esPrueba && (
+                              <span className="shrink-0 text-[9px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full">
+                                Prueba
+                              </span>
+                            )}
+                          </div>
                           {insc.dependentNombre && (
                             <p className="text-[10px] text-violet-500 dark:text-violet-400 truncate">apoderado: {insc.email}</p>
                           )}
@@ -404,19 +413,17 @@ export default function CalendarioTallerista() {
                             <p className="text-gray-400 truncate">{insc.email}</p>
                           )}
                         </div>
-                        {/* Solo bookings (no enrollments puntuales/prueba) admiten anulación desde el calendario */}
-                        {!insc.bookingId.startsWith('e:') && (
-                          <button
-                            onClick={() => cancelarReserva(insc)}
-                            disabled={cancelingBookingId === insc.bookingId}
-                            title="Anular reserva"
-                            className="shrink-0 text-[10px] font-medium px-2 py-1 rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 disabled:opacity-40 transition"
-                          >
-                            {cancelingBookingId === insc.bookingId ? '…' : 'Anular'}
-                          </button>
-                        )}
+                        <button
+                          onClick={() => cancelarReserva(insc)}
+                          disabled={cancelingBookingId === insc.bookingId}
+                          title="Anular reserva"
+                          className="shrink-0 text-[10px] font-medium px-2 py-1 rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 disabled:opacity-40 transition"
+                        >
+                          {cancelingBookingId === insc.bookingId ? '…' : 'Anular'}
+                        </button>
                       </li>
-                    ))}
+                      )
+                    })}
                   </ul>
                 )}
               </div>

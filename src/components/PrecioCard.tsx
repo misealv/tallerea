@@ -139,30 +139,11 @@ export default function PrecioCard({
   }
 
   // ── Clase de prueba ──────────────────────────────────────────────────
-  async function handleClasePrueba() {
-    // Sin sesión → inscribirse como invitado (soporta name+email)
-    if (!session?.user) {
-      router.push(`/talleres/${workshopSlug}/inscribirse?clasePrueba=true`)
-      return
-    }
-    setLoading(true)
-    setError('')
-    try {
-      const res = await fetch('/api/payments/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workshopId, esClasePrueba: true }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error || 'Error')
-        return
-      }
-      if (data.free || !data.initPoint) { router.push('/alumno?pago=ok'); return }
-      window.location.href = data.initPoint
-    } finally {
-      setLoading(false)
-    }
+  // Siempre redirigir a /inscribirse para que el alumno seleccione el slot.
+  // Esto garantiza que el slotIndex llegue al backend, se descuente el cupo
+  // y el calendario del tallerista se actualice correctamente.
+  function handleClasePrueba() {
+    router.push(`/talleres/${workshopSlug}/inscribirse?clasePrueba=true`)
   }
 
   // ── Render precio ────────────────────────────────────────────────────
