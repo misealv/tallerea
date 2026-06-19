@@ -46,6 +46,12 @@ export async function POST(req: NextRequest) {
         ? body.dependentFechaNacimiento
         : undefined
 
+    // Paquete (plan) elegido para talleres recurrentes con modalidadPrecio 'paquetes'
+    const paqueteId: string | undefined =
+      typeof body.paqueteId === 'string' && body.paqueteId.trim()
+        ? body.paqueteId.trim()
+        : undefined
+
     // [RUTEO] Talleres recurrentes usan flujo de Subscription, no Enrollment
     const workshop = await WorkshopService.getById(workshopId)
     if (!workshop) return NextResponse.json({ error: 'Taller no encontrado' }, { status: 404 })
@@ -83,7 +89,7 @@ export async function POST(req: NextRequest) {
         workshopId,
         recurrenteStudentId,
         recurrenteStudentEmail,
-        undefined, // paqueteId
+        paqueteId,
         dependentNombre,
         dependentFechaNacimiento,
       )

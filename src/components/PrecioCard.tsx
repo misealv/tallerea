@@ -58,7 +58,6 @@ export default function PrecioCard({
   const [montoVoluntario, setMontoVoluntario] = useState<string>(String(sugerido))
 
   const { data: session } = useSession()
-  const isGuest = !session?.user
 
   // Consultar si el alumno autenticado ya compró este taller
   const [accessStatus, setAccessStatus] = useState<{
@@ -91,52 +90,6 @@ export default function PrecioCard({
   }, [session?.user, workshopId])
 
   const yaInscrito = accessStatus.enrolled || accessStatus.subscribed
-
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [guestName, setGuestName] = useState('')
-  const [guestEmail, setGuestEmail] = useState('')
-
-  // ── Checkout suscripción (recurrente) ────────────────────────────────
-  async function handleSubscribir() {
-    // Invitado: validar campos antes de continuar
-    if (isGuest) {
-      if (!guestName.trim() || !guestEmail.trim()) {
-        setError('Ingresa tu nombre y email para continuar')
-        return
-      }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail.trim())) {
-        setError('Email inválido')
-        return
-      }
-    }
-    setLoading(true)
-    setError('')
-    try {
-      const body: Record<string, unknown> = { workshopId }
-      if (modalidadPrecio === 'paquetes' && paqueteSeleccionado) {
-        body.paqueteId = paqueteSeleccionado
-      }
-      if (isGuest) {
-        body.name = guestName.trim()
-        body.email = guestEmail.trim()
-      }
-      const res = await fetch('/api/subscriptions/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error || 'Error al suscribirse')
-        return
-      }
-      if (data.free) { router.push(isGuest ? '/?pago=ok&revisa=email' : '/alumno?pago=ok'); return }
-      if (data.initPoint) { window.location.href = data.initPoint; return }
-    } finally {
-      setLoading(false)
-    }
-  }
 
   // ── Clase de prueba ──────────────────────────────────────────────────
   // Siempre redirigir a /inscribirse para que el alumno seleccione el slot.
@@ -259,18 +212,27 @@ export default function PrecioCard({
     }
 
     if (modeloAcceso === 'recurrente') {
-      const disabled = loading || (modalidadPrecio === 'paquetes' && !paqueteSeleccionado)
-      const label = modalidadPrecio === 'gratuito'
-        ? 'Inscribirse gratis'
-        : loading ? 'Procesando…' : 'Suscribirme'
+      const sinPaquete = modalidadPrecio === 'paquetes' && !paqueteSeleccionado
+      const label = modalidadPrecio === 'gratuito' ? 'Inscribirse gratis' : 'Suscribirme'
+      // Redirige a /inscribirse para elegir alumno (hijo/a), horario y confirmar.
+      // El paquete elegido viaja por query param y se reenvía como paqueteId.
+      const href = modalidadPrecio === 'paquetes' && paqueteSeleccionado
+        ? `/talleres/${workshopSlug}/inscribirse?paquete=${paqueteSeleccionado}`
+        : `/talleres/${workshopSlug}/inscribirse`
+      if (sinPaquete) {
+        return (
+          <div className="w-full text-center bg-gray-300 text-white py-3 rounded-lg font-semibold cursor-not-allowed">
+            {label}
+          </div>
+        )
+      }
       return (
-        <button
-          onClick={handleSubscribir}
-          disabled={disabled}
-          className="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+        <Link
+          href={href}
+          className="block w-full text-center bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
         >
           {label}
-        </button>
+        </Link>
       )
     }
 
@@ -331,38 +293,6 @@ export default function PrecioCard({
     <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-20 space-y-4">
       {renderPrecio()}
       {renderPlanInfo()}
-      {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded">{error}</p>}
-      {/* Formulario de invitado para suscripciones recurrentes */}
-      {modeloAcceso === 'recurrente' && isGuest && (
-        <div className="space-y-2 border-t pt-4">
-          <p className="text-sm font-medium text-gray-700">Tus datos</p>
-          <p className="text-xs text-gray-500">
-            Recibirás un enlace mágico al correo para acceder a tus clases tras el pago.
-          </p>
-          <input
-            type="text"
-            placeholder="Nombre completo"
-            value={guestName}
-            onChange={e => setGuestName(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-            autoComplete="name"
-          />
-          <input
-            type="email"
-            placeholder="tu@email.cl"
-            value={guestEmail}
-            onChange={e => setGuestEmail(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-            autoComplete="email"
-          />
-          <p className="text-xs text-gray-400">
-            ¿Ya tienes cuenta?{' '}
-            <a href={`/login?callbackUrl=/talleres/${workshopSlug}`} className="text-purple-600 hover:underline">
-              Inicia sesión
-            </a>
-          </p>
-        </div>
-      )}
 
       {renderCTA()}
 
@@ -370,8 +300,7 @@ export default function PrecioCard({
       {clasePrueba?.habilitada && (
         <button
           onClick={handleClasePrueba}
-          disabled={loading}
-          className="w-full border border-purple-300 text-purple-700 py-2.5 rounded-lg text-sm font-medium hover:bg-purple-50 disabled:opacity-50 transition-colors"
+          className="w-full border border-purple-300 text-purple-700 py-2.5 rounded-lg text-sm font-medium hover:bg-purple-50 transition-colors"
         >
           {clasePrueba.precio === 0
             ? 'Asistir a clase de prueba gratuita'

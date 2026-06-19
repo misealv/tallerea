@@ -17,6 +17,15 @@ interface Slot {
   fecha?: string | Date
 }
 
+interface Paquete {
+  _id: string
+  nombre: string
+  precio: number
+  sesionesIncluidas: number
+  duracionDias: number
+  activo: boolean
+}
+
 interface Workshop {
   _id: string
   titulo: string
@@ -29,6 +38,8 @@ interface Workshop {
   fechaInicio: string
   slots: Slot[]
   modeloAcceso?: 'puntual' | 'recurrente'
+  modalidadPrecio?: 'gratuito' | 'fijo' | 'voluntario' | 'paquetes'
+  paquetes?: Paquete[]
   clasePrueba?: {
     habilitada: boolean
     precio: number
@@ -60,6 +71,10 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
   const esClasePrueba = typeof window !== 'undefined'
     ? new URL(window.location.href).searchParams.get('clasePrueba') === 'true'
     : false
+  // Paquete (plan) elegido en PrecioCard para talleres recurrentes
+  const paqueteIdParam = typeof window !== 'undefined'
+    ? (new URL(window.location.href).searchParams.get('paquete') || undefined)
+    : undefined
 
   useEffect(() => {
     if (!slug) return
@@ -128,6 +143,7 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
           slotIndex: hasSlots ? resolvedSlotIdx : null,
           ...(resolvedFecha ? { fecha: resolvedFecha } : {}),
           ...(esClasePrueba ? { esClasePrueba: true } : {}),
+          ...(paqueteIdParam ? { paqueteId: paqueteIdParam } : {}),
           ...(montoVoluntarioParam !== undefined ? { montoVoluntario: montoVoluntarioParam } : {}),
           ...(isGuest ? { name: guestName.trim(), email: guestEmail.trim() } : {}),
           ...(paraQuien === 'otro' && dependentNombre.trim()
@@ -185,11 +201,14 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
       : `${slotPuntual.horaInicio} hrs`
     : null
 
+  const paqueteSel = paqueteIdParam
+    ? (workshop.paquetes ?? []).find(p => p._id === paqueteIdParam && p.activo)
+    : undefined
   const precio = esClasePrueba
     ? (workshop.clasePrueba?.precio ?? 0)
-    : workshop.precioPublico
+    : (paqueteSel ? paqueteSel.precio : workshop.precioPublico)
   const precioLabel = precio === 0
-    ? (esClasePrueba ? 'Gratis' : 'Gratis')
+    ? 'Gratis'
     : `$${precio.toLocaleString('es-CL')}`
 
   return (
@@ -208,6 +227,18 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
         </div>
 
         <div className="p-6 space-y-5">
+
+          {/* Plan elegido — recurrente con paquetes */}
+          {paqueteSel && (
+            <div className="flex items-start gap-3 bg-purple-50 border border-purple-200 rounded-xl p-4">
+              <div className="text-2xl leading-none mt-0.5">🎟️</div>
+              <div>
+                <p className="text-xs text-purple-600 font-semibold uppercase tracking-wide mb-0.5">Plan elegido</p>
+                <p className="text-sm font-semibold text-gray-800">{paqueteSel.nombre}</p>
+                <p className="text-sm text-purple-700 font-medium mt-0.5">{paqueteSel.sesionesIncluidas} sesiones · {paqueteSel.duracionDias} días</p>
+              </div>
+            </div>
+          )}
 
           {/* Fecha y hora — puntual */}
           {esPuntual && fechaLabel && (
