@@ -192,6 +192,70 @@ export const EnrollmentService = {
     return doc
   },
 
+  // Marca asistencia de una inscripción. Si es una clase de prueba que pasa a
+  // asistio=true (transición), dispara el email de agradecimiento con magic link
+  // para traer al alumno/apoderado a la plataforma y que vea los planes.
+  async markAttendance(id: string, asistio: boolean): Promise<IEnrollment | null> {
+    await dbConnect()
+    const prev = await Enrollment.findOne({ _id: id, activo: true })
+      .select('asistio esClasePrueba studentId workshopId')
+      .lean<{ asistio?: boolean | null; esClasePrueba?: boolean; studentId: mongoose.Types.ObjectId; workshopId: mongoose.Types.ObjectId }>()
+    if (!prev) throw new Error(`Enrollment ${id} no encontrado`)
+
+    const updated = await Enrollment.findOneAndUpdate(
+      { _id: id, activo: true },
+      { asistio },
+      { new: true, runValidators: true }
+    )
+    if (!updated) throw new Error(`Enrollment ${id} no encontrado`)
+
+    // Solo gatillar al pasar a asistió=true (no en cada toggle ni al desmarcar)
+    const transicionoAAsistio = prev.asistio !== true && asistio === true
+    if (transicionoAAsistio && prev.esClasePrueba) {
+      await this._sendPruebaAgradecimiento(prev.studentId, prev.workshopId).catch((err) => {
+        // No bloquear el marcado de asistencia por un fallo de email
+        console.error('[EnrollmentService] Error enviando agradecimiento de prueba:', err)
+      })
+    }
+    return updated
+  },
+
+  // Envía el email de agradecimiento de clase de prueba (magic link si es invitado).
+  async _sendPruebaAgradecimiento(
+    studentId: mongoose.Types.ObjectId,
+    workshopId: mongoose.Types.ObjectId,
+  ): Promise<void> {
+    const [student, workshopDoc] = await Promise.all([
+      User.findById(studentId).select('name email password').lean<{ _id: mongoose.Types.ObjectId; name: string; email: string; password?: string }>(),
+      Workshop.findById(workshopId).select('titulo slug ownerId').lean<{ titulo: string; slug: string; ownerId: mongoose.Types.ObjectId }>(),
+    ])
+    if (!student?.email || !workshopDoc?.slug) return
+
+    const owner = await User.findById(workshopDoc.ownerId).select('name').lean<{ name: string }>()
+
+    // Magic link solo si es invitado (sin password): así puede activar su cuenta
+    let magicUrl: string | undefined
+    if (!student.password) {
+      try {
+        const { issueMagicLink } = await import('@/lib/issueMagicLink')
+        const result = await issueMagicLink(String(student._id))
+        magicUrl = result.magicUrl
+      } catch {
+        // Sin magic link el email igual sale, con CTA a la página del taller
+      }
+    }
+
+    const { sendClasePruebaAgradecimiento } = await import('@/lib/resend')
+    await sendClasePruebaAgradecimiento({
+      studentName: student.name,
+      studentEmail: student.email,
+      workshopTitle: workshopDoc.titulo,
+      workshopSlug: workshopDoc.slug,
+      profesorNombre: owner?.name ?? 'tu tallerista',
+      magicUrl,
+    })
+  },
+
   async cancel(id: string): Promise<void> {
     await dbConnect()
     const enrollment = await Enrollment.findOne({ _id: id, activo: true })

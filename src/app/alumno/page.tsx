@@ -570,6 +570,34 @@ export default async function AlumnoDashboard() {
       )}
 
 
+      {/* Banner: hiciste una prueba → elige un plan e inscríbete al taller completo */}
+      {clasesPrueba.length > 0 && (
+        <section className="space-y-3">
+          {clasesPrueba.map(cp => (
+            <div
+              key={`banner-${cp.enrollmentId}`}
+              className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl px-5 py-5 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+            >
+              <div className="min-w-0">
+                <p className="text-purple-200 text-xs font-semibold uppercase tracking-wide mb-1">🌱 Hiciste tu clase de prueba</p>
+                <p className="font-bold text-base leading-tight">{cp.titulo}</p>
+                <p className="text-purple-100 text-sm mt-1">Da el siguiente paso: elige un plan e inscríbete en el taller completo.</p>
+              </div>
+              <Link
+                href={`/talleres/${cp.slug}`}
+                className="inline-flex items-center justify-center gap-2 bg-white text-purple-700 font-bold text-sm px-5 py-2.5 rounded-xl hover:bg-purple-50 active:bg-purple-100 transition-colors shadow-md shrink-0"
+              >
+                Ver los planes
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                </svg>
+              </Link>
+            </div>
+          ))}
+        </section>
+      )}
+
+
       {/* Mis talleres: suscripciones + puntuales + clases de prueba (resumen) */}
       {(subscriptions.length > 0 || clasesPrueba.length > 0 || puntualSessions.length > 0) && (
         <section>

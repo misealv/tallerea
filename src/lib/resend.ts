@@ -175,6 +175,58 @@ export async function sendMagicLink({ email, magicUrl }: { email: string; magicU
   })
 }
 
+interface ClasePruebaAgradecimientoInput {
+  studentName: string
+  studentEmail: string
+  workshopTitle: string
+  workshopSlug: string
+  profesorNombre: string
+  // Si el alumno es invitado (sin password), magic link para activar su cuenta.
+  // Si ya tiene cuenta, se omite y el CTA lleva a la página del taller.
+  magicUrl?: string
+}
+
+// Agradecimiento tras asistir a la clase de prueba.
+// Se dispara cuando el tallerista marca asistio=true en la inscripción de prueba.
+// Objetivo: traer al apoderado/alumno a la plataforma (puede no haber entrado nunca)
+// y que vea los planes para inscribirse en el taller completo.
+export async function sendClasePruebaAgradecimiento({
+  studentName,
+  studentEmail,
+  workshopTitle,
+  workshopSlug,
+  profesorNombre,
+  magicUrl,
+}: ClasePruebaAgradecimientoInput) {
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+  const ctaHref = magicUrl ?? `${baseUrl}/talleres/${workshopSlug}`
+  const ctaLabel = magicUrl ? 'Activar mi cuenta y ver los planes' : 'Ver los planes del taller'
+  const primerNombre = (studentName || '').trim().split(/\s+/)[0] || 'Hola'
+
+  if (!process.env.RESEND_API_KEY) {
+    console.log('[clase-prueba-agradecimiento]', studentEmail, ctaHref)
+    return
+  }
+  const resend = getResend()
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: studentEmail,
+    subject: `¡Gracias por tu clase de prueba en ${workshopTitle}! 🎵`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7c3aed;">¡Gracias por venir, ${primerNombre}!</h2>
+        <p>Esperamos que hayas disfrutado tu clase de prueba de <strong>${workshopTitle}</strong> con ${profesorNombre}.</p>
+        <p>Si quieres continuar, el siguiente paso es elegir un <strong>plan de clases</strong> e inscribirte en el taller completo desde tu panel.</p>
+        <a href="${ctaHref}" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; margin: 16px 0; font-size: 16px;">
+          ${ctaLabel}
+        </a>
+        ${magicUrl ? '<p style="color: #6b7280; font-size: 14px;">Este enlace activa tu cuenta y es válido por <strong>48 horas</strong>. Desde tu panel podrás elegir el plan y reservar tus clases.</p>' : ''}
+        <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
+      </div>
+    `,
+  })
+}
+
 // ─── Emails para flujo tallerista ────────────────────────────────────────────
 
 export async function sendTallerSolicitudAdmin({

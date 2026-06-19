@@ -60,7 +60,7 @@ export async function PUT(
         return NextResponse.json({ error: 'Solo el tallerista puede marcar asistencia' }, { status: 403 })
       }
     }
-    const updated = await EnrollmentService.update(params.id, { asistio: body.asistio })
+    const updated = await EnrollmentService.markAttendance(params.id, body.asistio)
     return NextResponse.json(updated)
   }
 
