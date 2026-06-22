@@ -63,6 +63,8 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
   const [paraQuien, setParaQuien] = useState<'yo' | 'otro'>('yo')
   const [dependentNombre, setDependentNombre] = useState('')
   const [dependentFechaNacimiento, setDependentFechaNacimiento] = useState('')
+  // Pruebas ya reservadas en este taller (solo cuando esClasePrueba y hay sesión)
+  const [pruebasActivas, setPruebasActivas] = useState<string[]>([])
 
   // Params desde PrecioCard
   const montoVoluntarioParam = typeof window !== 'undefined'
@@ -88,6 +90,19 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
       })
       .catch(() => setLoading(false))
   }, [slug])
+
+  // Cargar pruebas ya reservadas para mostrar aviso al apoderado
+  useEffect(() => {
+    const esPrueba = typeof window !== 'undefined'
+      && new URL(window.location.href).searchParams.get('clasePrueba') === 'true'
+    if (!esPrueba || status !== 'authenticated' || !workshop) return
+    fetch(`/api/enrollments/pruebas-activas?workshopId=${workshop._id}`)
+      .then(r => r.json())
+      .then((data: { pruebas: { nombre: string }[] }) => {
+        setPruebasActivas((data.pruebas ?? []).map((p: { nombre: string }) => p.nombre))
+      })
+      .catch(() => null)
+  }, [workshop, status])
 
   // Sin redirect forzado a /login — el alumno puede comprar como invitado y recibir magic link tras pago
 
@@ -280,6 +295,23 @@ export default function InscribirsePage({ params }: { params: { slug: string } }
               <p className="text-xs text-gray-400">1 sesión · sin compromiso de continuidad</p>
             )}
           </div>
+
+          {/* Aviso de prueba ya reservada — guía al apoderado a reservar para otro hijo */}
+          {esClasePrueba && pruebasActivas.length > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+              <p className="text-sm font-semibold text-green-800 mb-1">
+                ✓ {pruebasActivas.length === 1 ? 'Clase de prueba ya reservada' : 'Clases de prueba ya reservadas'}
+              </p>
+              <p className="text-sm text-green-700">
+                {pruebasActivas.map((n, i) => (
+                  <span key={i}><strong>{n}</strong>{i < pruebasActivas.length - 1 ? ', ' : ''}</span>
+                ))}
+              </p>
+              <p className="text-xs text-green-600 mt-1">
+                Para reservar una prueba para otra persona, elige «Mi hijo/a u otra persona» e ingresa el nombre a continuación.
+              </p>
+            </div>
+          )}
 
           {/* ¿Para quién? */}
           <div className="space-y-3 border-t border-gray-100 pt-4">
