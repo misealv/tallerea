@@ -388,6 +388,12 @@ export const PaymentService = {
       subscription.clasesPrepagadas.fechaPago = new Date()
       subscription.clasesPrepagadas.metodoPago = 'mercadopago'
     }
+    // [FIADO] Si la sub tenía deuda a confianza, el pago MP la salda.
+    if (subscription.pagoFiado && !subscription.pagoFiado.saldado) {
+      subscription.pagoFiado.saldado = true
+      subscription.pagoFiado.saldadoEn = new Date()
+      subscription.pagoFiado.metodoPagoFinal = 'mercadopago'
+    }
     await subscription.save()
 
     // Audit log

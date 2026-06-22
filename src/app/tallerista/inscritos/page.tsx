@@ -11,6 +11,7 @@ import ReservarClaseModal from './ReservarClaseModal'
 import EditarSuscripcionModal from './EditarSuscripcionModal'
 import ConfirmarPagoModal from './ConfirmarPagoModal'
 import RenovarExternoModal from './RenovarExternoModal'
+import SaldarDeudaModal from './SaldarDeudaModal'
 import { getSubViewInfo } from '@/lib/subscriptionView'
 
 export const dynamic = 'force-dynamic'
@@ -43,6 +44,7 @@ interface SubLean {
   createdAt: Date
   dependentNombreSnapshot?: string
   clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }
+  pagoFiado?: { montoAdeudado: number; fechaCompromiso?: Date; saldado: boolean; saldadoEn?: Date; metodoPagoFinal?: string; nota?: string }
 }
 
 const ESTADO_COLOR: Record<string, string> = {
@@ -88,7 +90,7 @@ export default async function InscritosGlobalPage() {
     Subscription.find({ workshopId: { $in: workshopIds }, activo: true })
       .populate('studentId', '_id name email')
       .populate('workshopId', '_id titulo')
-      .select('studentId workshopId estado sesionesUsadas sesionesTotales sesionesDisponibles fechaVencimiento monto precioSnapshot precioEspecial notaPrecioEspecial createdAt dependentNombreSnapshot clasesPrepagadas')
+      .select('studentId workshopId estado sesionesUsadas sesionesTotales sesionesDisponibles fechaVencimiento monto precioSnapshot precioEspecial notaPrecioEspecial createdAt dependentNombreSnapshot clasesPrepagadas pagoFiado')
       .sort({ createdAt: -1 })
       .lean<SubLean[]>(),
   ])
@@ -263,12 +265,26 @@ export default async function InscritosGlobalPage() {
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[s.estado] ?? 'bg-gray-100 text-gray-500'}`}>
                             {s.estado === 'pendiente_pago' ? 'pend. pago' : s.estado}
                           </span>
+                          {s.pagoFiado && !s.pagoFiado.saldado && (
+                            <span className="ml-1 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium"
+                              title={s.pagoFiado.fechaCompromiso ? `Pagar antes del ${new Date(s.pagoFiado.fechaCompromiso).toLocaleDateString('es-CL')}` : 'Pago a confianza'}>
+                              🤝 debe ${s.pagoFiado.montoAdeudado.toLocaleString('es-CL')}
+                            </span>
+                          )}
                           <p className="text-xs text-gray-400 mt-1">{vi.vigenciaDateStr}</p>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <div className="flex items-center gap-2 flex-wrap">
                             <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Taller</Link>
                             <Link href={`/tallerista/inscritos/${String(student._id)}/reservas`} className="text-xs text-gray-500 hover:underline">Reservas</Link>
+                            {s.pagoFiado && !s.pagoFiado.saldado && (
+                              <SaldarDeudaModal
+                                subscriptionId={String(s._id)}
+                                studentName={student.name}
+                                workshopTitle={workshop.titulo}
+                                montoAdeudado={s.pagoFiado.montoAdeudado}
+                              />
+                            )}
                             {s.estado === 'pendiente_pago' && (
                               <ConfirmarPagoModal
                                 subscriptionId={String(s._id)}
@@ -349,11 +365,22 @@ export default async function InscritosGlobalPage() {
                         <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">★ especial</span>
                       )}
                       <span>Vigente hasta {vi.vigenciaDateStr}</span>
+                      {s.pagoFiado && !s.pagoFiado.saldado && (
+                        <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">🤝 debe ${s.pagoFiado.montoAdeudado.toLocaleString('es-CL')}</span>
+                      )}
                     </div>
                     {/* Fila 4: acciones */}
                     <div className="flex items-center gap-2 pt-1 border-t border-gray-100 flex-wrap">
                       <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Ver taller</Link>
                       <Link href={`/tallerista/inscritos/${String(student._id)}/reservas`} className="text-xs text-gray-500 hover:underline">Ver reservas</Link>
+                      {s.pagoFiado && !s.pagoFiado.saldado && (
+                        <SaldarDeudaModal
+                          subscriptionId={String(s._id)}
+                          studentName={student.name}
+                          workshopTitle={workshop.titulo}
+                          montoAdeudado={s.pagoFiado.montoAdeudado}
+                        />
+                      )}
                       {s.estado === 'pendiente_pago' && (
                         <ConfirmarPagoModal
                           subscriptionId={String(s._id)}

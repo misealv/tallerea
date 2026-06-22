@@ -11,6 +11,16 @@ export interface IClasesPrepagadas {
   caducaEn?: Date;  // fecha hasta la que son válidas las clases prepagadas
 }
 
+export interface IPagoFiado {
+  montoAdeudado: number;          // CLP enteros — saldo que el alumno debe
+  fechaCompromiso?: Date;         // fecha esperada de pago
+  autorizadoPor: Types.ObjectId;  // tallerista que autorizó la confianza
+  nota?: string;
+  saldado: boolean;
+  saldadoEn?: Date;
+  metodoPagoFinal?: 'transferencia' | 'efectivo' | 'mercadopago';
+}
+
 export interface ISubscription extends Document {
   workshopId: Types.ObjectId;
   studentId: Types.ObjectId;
@@ -42,6 +52,8 @@ export interface ISubscription extends Document {
   mpInitPoint?: string;
   mpInitPointCreatedAt?: Date;
   clasesPrepagadas?: IClasesPrepagadas;
+  // [FIADO] Activación a confianza: acceso inmediato con pago pendiente
+  pagoFiado?: IPagoFiado;
   reviewEmailEnviadoEn?: Date;
   createdAt: Date;
 }
@@ -87,6 +99,17 @@ const SubscriptionSchema = new Schema<ISubscription>({
     creadoPor:       { type: Schema.Types.ObjectId, ref: 'User' },
     caducaEn:        { type: Date },  // opcional: fecha límite de validez
   },
+  // [FIADO] Venta a confianza: la sub queda 'activa' (acceso inmediato) con deuda registrada.
+  // No genera PaymentBreakdown hasta saldar; la liquidación nunca incluye deuda sin saldar.
+  pagoFiado: {
+    montoAdeudado:   { type: Number, min: 1 },
+    fechaCompromiso: { type: Date },
+    autorizadoPor:   { type: Schema.Types.ObjectId, ref: 'User' },
+    nota:            { type: String, maxlength: 500 },
+    saldado:         { type: Boolean, default: false },
+    saldadoEn:       { type: Date },
+    metodoPagoFinal: { type: String, enum: ['transferencia', 'efectivo', 'mercadopago'] },
+  },
   reviewEmailEnviadoEn: { type: Date },
 }, { timestamps: true });
 
@@ -127,6 +150,19 @@ SubscriptionSchema.pre('save', function (next) {
     }
     if (this.clasesPrepagadas.caducaEn && fechaPago && this.clasesPrepagadas.caducaEn <= fechaPago) {
       return next(new Error('[PREPAGADO] caducaEn debe ser posterior a fechaPago'))
+    }
+  }
+  // [FIADO] Validación de venta a confianza. Verificamos 'montoAdeudado' (sin default)
+  // para evitar falsos positivos con el subdoc inicializado por Mongoose ({ saldado: false }).
+  if (this.pagoFiado?.montoAdeudado) {
+    if (!Number.isInteger(this.pagoFiado.montoAdeudado) || this.pagoFiado.montoAdeudado < 1) {
+      return next(new Error('[FIADO] montoAdeudado debe ser un entero CLP ≥ 1'))
+    }
+    if (!this.pagoFiado.autorizadoPor) {
+      return next(new Error('[FIADO] autorizadoPor es obligatorio'))
+    }
+    if (this.pagoFiado.saldado && !this.pagoFiado.saldadoEn) {
+      this.pagoFiado.saldadoEn = new Date()
     }
   }
   next()

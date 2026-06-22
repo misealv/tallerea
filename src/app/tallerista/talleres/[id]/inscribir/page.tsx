@@ -96,6 +96,13 @@ export default function InscribirAlumnoPage() {
   const [linkError, setLinkError]           = useState('')
   const [linkResultados, setLinkResultados] = useState<{ nombre: string; url: string }[]>([])
 
+  // --- Estado para el modo "Activar a confianza" (pago pendiente, acceso inmediato) ---
+  const [showConfianzaForm, setShowConfianzaForm] = useState(false)
+  const [confianzaDeps, setConfianzaDeps]         = useState([{ nombre: '', clases: '8', monto: '', fechaCompromiso: '' }])
+  const [confianzaProcesando, setConfianzaProcesando] = useState(false)
+  const [confianzaError, setConfianzaError]       = useState('')
+  const [confianzaResultados, setConfianzaResultados] = useState<{ nombre: string; ok: boolean; error?: string }[]>([])
+
   useEffect(() => {
     fetch(`/api/tallerista/inscripciones-manuales/workshop-info?id=${workshopId}`)
       .then(r => r.json())
@@ -484,6 +491,126 @@ export default function InscribirAlumnoPage() {
                 }}
                 className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors">
                 {linkGenerando ? 'Generando links…' : `Generar ${linkDeps.length === 1 ? 'link' : `${linkDeps.length} links`} de MercadoPago`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ---- Sección "Activar a confianza" (acceso inmediato, pago pendiente) ---- */}
+      {isRecurrente && (
+        <div className="mt-4">
+          <button type="button" onClick={() => { setShowConfianzaForm(v => !v); setConfianzaError(''); setConfianzaResultados([]) }}
+            className="w-full rounded-lg border border-amber-400 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-700 hover:bg-amber-100 transition-colors">
+            {showConfianzaForm ? '▲ Cerrar' : '🤝 Activar a confianza (acceso ya, paga después)'}
+          </button>
+
+          {showConfianzaForm && (
+            <div className="mt-4 bg-white rounded-xl border border-amber-200 p-5 shadow-sm space-y-4">
+              <p className="text-xs text-gray-500">
+                El alumno queda <b>activo de inmediato</b> y puede reservar clases. Queda registrada una deuda
+                que marcarás como pagada desde <b>Inscritos</b> cuando recibas el pago.
+              </p>
+
+              {confianzaDeps.map((cd, idx) => (
+                <div key={idx} className="grid grid-cols-2 gap-2 items-end">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Nombre del menor *</label>
+                    <input type="text" value={cd.nombre} required
+                      onChange={e => setConfianzaDeps(prev => prev.map((d, i) => i === idx ? { ...d, nombre: e.target.value } : d))}
+                      placeholder="Ej: Facundo"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Monto adeudado (CLP) *</label>
+                    <input type="number" min={1} step={1} value={cd.monto}
+                      onChange={e => setConfianzaDeps(prev => prev.map((d, i) => i === idx ? { ...d, monto: e.target.value } : d))}
+                      placeholder="Ej: 60000"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">N° de clases del paquete *</label>
+                    <input type="number" min={1} step={1} value={cd.clases}
+                      onChange={e => setConfianzaDeps(prev => prev.map((d, i) => i === idx ? { ...d, clases: e.target.value } : d))}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Pagará el (opcional)</label>
+                    <div className="flex gap-1">
+                      <input type="date" value={cd.fechaCompromiso}
+                        onChange={e => setConfianzaDeps(prev => prev.map((d, i) => i === idx ? { ...d, fechaCompromiso: e.target.value } : d))}
+                        className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                      {confianzaDeps.length > 1 && (
+                        <button type="button" onClick={() => setConfianzaDeps(prev => prev.filter((_, i) => i !== idx))}
+                          className="px-2 text-red-400 hover:text-red-600 text-lg leading-none">×</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {confianzaDeps.length < 10 && (
+                <button type="button"
+                  onClick={() => setConfianzaDeps(prev => [...prev, { nombre: '', clases: '8', monto: '', fechaCompromiso: '' }])}
+                  className="text-sm text-amber-600 hover:underline">
+                  + Agregar otro menor
+                </button>
+              )}
+
+              {confianzaError && <p className="text-sm text-red-600">{confianzaError}</p>}
+
+              {confianzaResultados.length > 0 && (
+                <div className="space-y-1">
+                  {confianzaResultados.map((r, i) => (
+                    <p key={i} className={`text-sm ${r.ok ? 'text-emerald-700' : 'text-red-600'}`}>
+                      {r.ok ? '✓' : '✗'} {r.nombre}{r.error ? ` — ${r.error}` : ' — activado a confianza'}
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              <button type="button" disabled={confianzaProcesando || !email.trim() || !nombre.trim()}
+                onClick={async () => {
+                  setConfianzaError('')
+                  setConfianzaResultados([])
+                  if (!email.trim() || !nombre.trim()) { setConfianzaError('Completa email y nombre del apoderado arriba primero'); return }
+                  for (const cd of confianzaDeps) {
+                    if (!cd.nombre.trim()) { setConfianzaError('Todos los menores necesitan nombre'); return }
+                    if (!cd.monto || Number(cd.monto) <= 0) { setConfianzaError('El monto adeudado debe ser mayor a 0'); return }
+                    if (!cd.clases || Number(cd.clases) < 1) { setConfianzaError('Clases debe ser >= 1'); return }
+                  }
+                  setConfianzaProcesando(true)
+                  const resultados: { nombre: string; ok: boolean; error?: string }[] = []
+                  for (const cd of confianzaDeps) {
+                    try {
+                      const res = await fetch('/api/tallerista/subscriptions/activar-confianza', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          workshopId,
+                          studentEmail:    email.trim().toLowerCase(),
+                          studentNombre:   nombre.trim(),
+                          dependentNombre: cd.nombre.trim(),
+                          cantidadClases:  Number(cd.clases),
+                          montoAdeudado:   Number(cd.monto),
+                          fechaCompromiso: cd.fechaCompromiso || undefined,
+                          nota:            nota.trim() || undefined,
+                        }),
+                      })
+                      const data = await res.json()
+                      resultados.push({ nombre: cd.nombre.trim(), ok: res.ok, error: res.ok ? undefined : (data.error ?? 'Error') })
+                    } catch {
+                      resultados.push({ nombre: cd.nombre.trim(), ok: false, error: 'Error de red' })
+                    }
+                  }
+                  setConfianzaResultados(resultados)
+                  setConfianzaProcesando(false)
+                  if (resultados.every(r => r.ok)) {
+                    setTimeout(() => router.push(`/tallerista/talleres/${workshopId}/inscritos`), 2000)
+                  }
+                }}
+                className="w-full rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50 transition-colors">
+                {confianzaProcesando ? 'Activando…' : `Activar ${confianzaDeps.length === 1 ? '1 menor' : `${confianzaDeps.length} menores`} a confianza`}
               </button>
             </div>
           )}

@@ -1077,6 +1077,227 @@ export const SubscriptionService = {
   },
 
   /**
+   * [FIADO] Activa una suscripción "a confianza": el alumno obtiene acceso
+   * inmediato (estado 'activa') con una deuda registrada en pagoFiado.
+   * NO genera PaymentBreakdown — la comisión de Tallerea se cobra solo si se
+   * salda por MercadoPago. La liquidación nunca incluye deuda sin saldar
+   * (no hay breakdown), así que nunca se paga dinero que no entró.
+   *
+   * Reutiliza al apoderado existente por email (no duplica contacto) y al
+   * dependiente por nombre. Caso de uso: tallerista inscribe a un alumno
+   * conocido que pagará en unos días.
+   */
+  async activarAConfianza(input: {
+    ownerId: string
+    workshopId: string
+    studentEmail: string
+    studentNombre: string
+    dependentNombre?: string
+    dependentFechaNacimiento?: Date
+    dependentNotas?: string
+    cantidadClases?: number       // override de sesiones; si se omite usa workshop.plan
+    montoAdeudado: number          // CLP entero — lo que el alumno debe
+    fechaCompromiso?: Date         // fecha esperada de pago
+    nota?: string
+    isAdmin?: boolean
+  }): Promise<ISubscription> {
+    await dbConnect()
+
+    // Validar workshop y ownership (admin puede inscribir en cualquier taller)
+    const workshop = await Workshop.findOne({ _id: input.workshopId, activo: true })
+    if (!workshop) throw new Error('Taller no encontrado')
+    const ownerIdStr = String(workshop.ownerId ?? workshop.accountId ?? '')
+    if (!input.isAdmin && ownerIdStr !== input.ownerId) {
+      throw new Error('No tienes permiso sobre este taller')
+    }
+    if (workshop.modeloAcceso !== 'recurrente') {
+      throw new Error('activarAConfianza es solo para talleres recurrentes')
+    }
+
+    // [FINANCE RISK] montoAdeudado debe ser entero CLP positivo
+    if (!Number.isInteger(input.montoAdeudado) || input.montoAdeudado < 1) {
+      throw new Error('[FIADO] montoAdeudado debe ser un entero CLP ≥ 1')
+    }
+    if (input.cantidadClases != null && (!Number.isInteger(input.cantidadClases) || input.cantidadClases < 1)) {
+      throw new Error('[FIADO] cantidadClases debe ser un entero ≥ 1')
+    }
+
+    // Encontrar o crear User titular (reutiliza por email — NO duplica contacto)
+    const emailNorm = input.studentEmail.toLowerCase().trim()
+    let studentUser = await User.findOne({ email: emailNorm })
+    const isNewUser = !studentUser
+    if (!studentUser) {
+      studentUser = await new User({
+        name: input.studentNombre.trim(),
+        email: emailNorm,
+        role: 'user',
+        activo: true,
+        dependents: [],
+        creditoDisponible: 0,
+      }).save()
+    }
+    const studentId = String(studentUser._id)
+
+    // Manejar dependiente (reutiliza por nombre — NO duplica)
+    let dependentId: string | undefined
+    let dependentNombreSnapshot: string | undefined
+    if (input.dependentNombre?.trim()) {
+      const nombre = input.dependentNombre.trim()
+      const existing = studentUser.dependents.find(
+        (d: IDependent) => d.activo && d.nombre.toLowerCase() === nombre.toLowerCase()
+      )
+      if (existing) {
+        dependentId = String(existing._id)
+        dependentNombreSnapshot = existing.nombre
+      } else {
+        const { Types } = await import('mongoose')
+        studentUser.dependents.push({
+          _id: new Types.ObjectId(),
+          nombre,
+          fechaNacimiento: input.dependentFechaNacimiento,
+          notas: input.dependentNotas?.trim(),
+          activo: true,
+          createdAt: new Date(),
+        })
+        await studentUser.save()
+        const added = studentUser.dependents[studentUser.dependents.length - 1]
+        dependentId = String(added._id)
+        dependentNombreSnapshot = added.nombre
+      }
+    }
+
+    // Dedup: no permitir 2 subs activas para mismo taller+titular+dependiente
+    const dupFilter: Record<string, unknown> = {
+      workshopId: input.workshopId,
+      studentId,
+      estado: 'activa',
+      activo: true,
+    }
+    if (dependentId) dupFilter.dependentId = dependentId
+    else dupFilter.dependentId = { $exists: false }
+    const dup = await Subscription.findOne(dupFilter)
+    if (dup) throw new Error('El alumno ya tiene una suscripción activa en este taller')
+
+    // Sesiones y vencimiento
+    const ahora = new Date()
+    const sesiones = input.cantidadClases ?? workshop.plan?.sesionesIncluidas ?? 999
+    let fechaVencimiento: Date
+    if (input.cantidadClases != null || !workshop.plan) {
+      fechaVencimiento = new Date(ahora)
+      fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1)
+    } else {
+      fechaVencimiento = calcularVencimiento(workshop.plan.vigencia, ahora)
+    }
+
+    const subscription = await new Subscription({
+      workshopId: input.workshopId,
+      studentId,
+      estado: 'activa',
+      sesionesTotales: sesiones,
+      sesionesUsadas: 0,
+      sesionesDisponibles: sesiones,
+      fechaCompra: ahora,
+      fechaVencimiento,
+      // [FINANCE RISK] pagoRef omitido (igual que createManual): sin pago MP aún.
+      monto: input.montoAdeudado,
+      autoRenovar: false,
+      origenInscripcion: 'manual',
+      inscritoPor: input.ownerId,
+      precioEspecial: false,
+      ...(dependentId ? { dependentId, dependentNombreSnapshot } : {}),
+      pagoFiado: {
+        montoAdeudado: input.montoAdeudado,
+        fechaCompromiso: input.fechaCompromiso,
+        autorizadoPor: new mongoose.Types.ObjectId(input.ownerId),
+        nota: input.nota?.trim(),
+        saldado: false,
+      },
+      activo: true,
+    }).save()
+
+    // Magic link para que el alumno acceda (fire-and-forget si falla)
+    if (isNewUser || !studentUser.password) {
+      try {
+        const { issueMagicLink } = await import('@/lib/issueMagicLink')
+        const { sendMagicLink } = await import('@/lib/resend')
+        const { magicUrl } = await issueMagicLink(studentId)
+        await sendMagicLink({ email: emailNorm, magicUrl })
+      } catch {
+        // No bloquear la inscripción por fallo de email
+      }
+    }
+
+    return subscription.toObject() as ISubscription
+  },
+
+  /**
+   * [FIADO] Salda una deuda a confianza. El tallerista elige el método al momento:
+   *  - 'transferencia' | 'efectivo' → el alumno le pagó directo. NO genera
+   *    PaymentBreakdown ni comisión de Tallerea. Solo marca la deuda saldada.
+   *  - 'mercadopago' → genera link de pago. El webhook handleApprovedSubscription
+   *    crea el PaymentBreakdown (con comisión) y marca la deuda saldada al confirmar.
+   *
+   * Devuelve { saldado:true } si se saldó al instante (pago directo), o
+   * { saldado:false, initPoint } con el link MP que debe abrir/enviar el alumno.
+   */
+  async saldarDeuda(input: {
+    subscriptionId: string
+    ownerId: string
+    metodoPagoFinal: 'transferencia' | 'efectivo' | 'mercadopago'
+    isAdmin?: boolean
+  }): Promise<{ saldado: boolean; initPoint?: string }> {
+    await dbConnect()
+
+    const sub = await Subscription.findById(input.subscriptionId)
+    if (!sub) throw new Error('Suscripción no encontrada')
+
+    // Ownership (admin puede saldar cualquier deuda)
+    const workshop = await Workshop.findById(sub.workshopId)
+    if (!workshop) throw new Error('Taller no encontrado')
+    const ownerIdStr = String(workshop.ownerId ?? workshop.accountId ?? '')
+    if (!input.isAdmin && ownerIdStr !== input.ownerId) {
+      throw new Error('No tienes permiso sobre esta suscripción')
+    }
+
+    // Debe existir deuda a confianza pendiente
+    if (!sub.pagoFiado?.montoAdeudado) {
+      throw new Error('[FIADO] Esta suscripción no tiene deuda a confianza registrada')
+    }
+    if (sub.pagoFiado.saldado) {
+      throw new Error('[FIADO] Esta deuda ya fue saldada')
+    }
+
+    // Rama A: pago directo al tallerista → sin PaymentBreakdown, Tallerea no cobra comisión.
+    // Coherente con createManual: el dinero no pasó por la plataforma.
+    if (input.metodoPagoFinal === 'transferencia' || input.metodoPagoFinal === 'efectivo') {
+      sub.pagoFiado.saldado = true
+      sub.pagoFiado.saldadoEn = new Date()
+      sub.pagoFiado.metodoPagoFinal = input.metodoPagoFinal
+      await sub.save()
+      return { saldado: true }
+    }
+
+    // Rama B: pago online por MercadoPago → genera link. El webhook crea el
+    // PaymentBreakdown (con comisión) y marca pagoFiado.saldado al confirmar.
+    const student = await User.findById(sub.studentId).select('email').lean<{ email: string }>()
+    if (!student?.email) throw new Error('Alumno sin email para generar link de pago')
+
+    const preference = await createPaymentPreference({
+      externalRef: `sub:${String(sub._id)}`,
+      workshopTitle: `${workshop.titulo} — Pago pendiente`,
+      amount: sub.pagoFiado.montoAdeudado,
+      payerEmail: student.email,
+    })
+    const initPoint = preference.init_point ?? ''
+    if (initPoint) {
+      sub.mpInitPoint = initPoint
+      sub.mpInitPointCreatedAt = new Date()
+      await sub.save()
+    }
+    return { saldado: false, initPoint }
+  },
+
+  /**
    * [LINK PAGO] Crea una suscripción en estado 'pendiente_pago' con clasesPrepagadas
    * y precio especial ya configurados, luego genera una preferencia MercadoPago.
    * El webhook handleApprovedSubscription la activa sin cambios adicionales.
