@@ -73,7 +73,7 @@ export const PaymentService = {
     // Si es clase de prueba, usar reservarPrueba en lugar de create
     let enrollment
     if (esClasePrueba) {
-      enrollment = await EnrollmentService.reservarPrueba(workshopId, studentId, slotIndex ?? null, slotFecha)
+      enrollment = await EnrollmentService.reservarPrueba(workshopId, studentId, slotIndex ?? null, slotFecha, dependentNombre, dependentFechaNacimiento)
     } else {
       // Crear enrollment pendiente. Si usarCredito=true, EnrollmentService.create descuenta crédito
       enrollment = await EnrollmentService.create({

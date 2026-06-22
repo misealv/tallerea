@@ -48,6 +48,31 @@ export const EnrollmentService = {
     return this.getAll({ workshopId }, page, limit)
   },
 
+  // Resuelve (o crea) el dependiente del apoderado por nombre. Reutilizado por
+  // create y reservarPrueba para que el apoderado pueda inscribir a varios hijos.
+  async _resolveDependent(
+    studentId: string,
+    dependentNombre?: string,
+    dependentFechaNacimiento?: string,
+  ): Promise<{ id?: mongoose.Types.ObjectId; snapshot?: string }> {
+    if (!dependentNombre?.trim()) return {}
+    const nombre = dependentNombre.trim()
+    const parentUser = await User.findById(studentId).select('dependents')
+    if (!parentUser) return {}
+    const existing = parentUser.dependents.find(
+      (d: IDependent) => d.activo && d.nombre.toLowerCase() === nombre.toLowerCase()
+    )
+    if (existing) return { id: existing._id, snapshot: existing.nombre }
+    parentUser.dependents.push({
+      nombre,
+      fechaNacimiento: dependentFechaNacimiento ? new Date(dependentFechaNacimiento) : undefined,
+      activo: true,
+    })
+    await parentUser.save()
+    const added = parentUser.dependents[parentUser.dependents.length - 1]
+    return { id: added._id, snapshot: added.nombre }
+  },
+
   async create(data: {
     workshopId: string
     studentId: string
@@ -96,31 +121,8 @@ export const EnrollmentService = {
     if (existing) throw new Error('Ya estás inscrito en este horario')
 
     // Upsert del dependiente antes de la transacción (distinto documento, no necesita ser atómico)
-    let resolvedDependentId: mongoose.Types.ObjectId | undefined
-    let resolvedDependentSnapshot: string | undefined
-    if (data.dependentNombre?.trim()) {
-      const nombre = data.dependentNombre.trim()
-      const parentUser = await User.findById(data.studentId).select('dependents')
-      if (parentUser) {
-        const existing = parentUser.dependents.find(
-          (d: IDependent) => d.activo && d.nombre.toLowerCase() === nombre.toLowerCase()
-        )
-        if (existing) {
-          resolvedDependentId = existing._id
-          resolvedDependentSnapshot = existing.nombre
-        } else {
-          parentUser.dependents.push({
-            nombre,
-            fechaNacimiento: data.dependentFechaNacimiento ? new Date(data.dependentFechaNacimiento) : undefined,
-            activo: true,
-          })
-          await parentUser.save()
-          const added = parentUser.dependents[parentUser.dependents.length - 1]
-          resolvedDependentId = added._id
-          resolvedDependentSnapshot = added.nombre
-        }
-      }
-    }
+    const { id: resolvedDependentId, snapshot: resolvedDependentSnapshot } =
+      await this._resolveDependent(data.studentId, data.dependentNombre, data.dependentFechaNacimiento)
 
     // Transacción: crear enrollment + decrementar cupo + opcionalmente usar crédito
     const session = await mongoose.startSession()
@@ -378,6 +380,8 @@ export const EnrollmentService = {
     studentId: string,
     slotIndex: number | null,
     slotFecha?: string,   // YYYY-MM-DD elegido en SlotCalendarPicker
+    dependentNombre?: string,
+    dependentFechaNacimiento?: string,
   ): Promise<IEnrollment> {
     await dbConnect()
 
@@ -388,14 +392,27 @@ export const EnrollmentService = {
     if (!workshop) throw new Error('Taller no encontrado')
     if (!workshop.clasePrueba?.habilitada) throw new Error('Este taller no ofrece clase de prueba')
 
-    // [PREGUNTA 2] Validar 1 prueba por alumno por taller (excluye canceladas)
+    // Resolver dependiente: el apoderado puede pedir una prueba por cada hijo/a.
+    // La regla es 1 prueba por (alumno, dependiente), no 1 por alumno.
+    const { id: resolvedDependentId, snapshot: resolvedDependentSnapshot } =
+      await this._resolveDependent(studentId, dependentNombre, dependentFechaNacimiento)
+
+    // Validar 1 prueba por (alumno, dependiente) por taller (excluye canceladas).
+    // dependentId null/ausente representa al apoderado mismo (paraQuien='yo').
     const yaTuvo = await Enrollment.countDocuments({
       workshopId,
       studentId,
+      dependentId: resolvedDependentId ?? null,
       esClasePrueba: true,
       estado: { $ne: 'cancelado' },
     })
-    if (yaTuvo > 0) throw new Error('Ya usaste tu clase de prueba en este taller')
+    if (yaTuvo > 0) {
+      throw new Error(
+        resolvedDependentId
+          ? `Ya reservaste la clase de prueba para ${resolvedDependentSnapshot} en este taller`
+          : 'Ya usaste tu clase de prueba en este taller'
+      )
+    }
 
     const precio = workshop.clasePrueba.precio ?? 0
 
@@ -462,6 +479,11 @@ export const EnrollmentService = {
         esClasePrueba: true,
         estado: precio === 0 ? 'pagado' : 'pendiente',
         activo: true,
+        // Dependiente (apoderado reservando prueba para hijo/a)
+        ...(resolvedDependentId && {
+          dependentId:             resolvedDependentId,
+          dependentNombreSnapshot: resolvedDependentSnapshot,
+        }),
       }], { session })
 
       await session.commitTransaction()
