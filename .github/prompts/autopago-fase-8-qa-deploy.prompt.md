@@ -10,9 +10,11 @@ Aplica el skill `pago-automatico-mp`. Requiere todas las fases anteriores cerrad
 ## Tareas
 1. Pruebas con cuentas y tarjetas de prueba de MP:
    - Autorización del mandato, primer cobro, cobro recurrente, rechazo, cambio de precio especial, pausa, cancelación.
+   - Banco de sesiones (Fase 7.5): acumulación con tope, vigencia rodante, gracia al cancelar, caducidad por cron, límite de reservas simultáneas.
 2. Checklist financiero por escenario: cuadratura, idempotencia, `FinanceAuditLog`, sin doble cobro.
+   - Verificar que el rollover NO toca `PaymentBreakdown`/`Liquidation`/crédito (solo derecho de asistencia).
 3. Gate técnico: `npx tsc --noEmit` + `npm run build` + `npm test` (o `vitest`) en verde.
-4. Verificar `SiteConfig` con los nuevos campos presente en la base.
+4. Verificar `SiteConfig` con los nuevos campos presente en la base (incentivos Fase 7 + banco de sesiones Fase 7.5).
 5. Deploy gradual: habilitar el auto-pago para **un taller piloto** primero.
 
 ## Reglas
