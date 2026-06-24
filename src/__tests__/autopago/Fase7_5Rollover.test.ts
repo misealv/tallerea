@@ -55,7 +55,6 @@ import User from '@/models/User'
 import Workshop from '@/models/Workshop'
 import Subscription from '@/models/Subscription'
 import Booking from '@/models/Booking'
-import PaymentBreakdown from '@/models/PaymentBreakdown'
 
 let mongo: MongoMemoryReplSet
 
