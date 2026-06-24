@@ -9,6 +9,7 @@ interface Slot {
   cupoMax?: number
   cupoDisponible?: number
   reservas?: number
+  fecha?: string | Date  // slots expandidos (un slot por fecha concreta)
 }
 
 interface Props {
@@ -59,6 +60,27 @@ interface Ocurrencia {
 
 function generarOcurrencias(slots: Slot[], fechaInicio: string, semanas = 8): Ocurrencia[] {
   const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
+
+  // Modo expandido: taller con un slot concreto por cada fecha (array de cientos de entradas).
+  // En este caso NO se reproyecta por día de semana: cada slot ya tiene su fecha definitiva
+  // y su slotIndex es el índice real en workshop.slots. Reproyectar causaba que el índice
+  // de la primera semana (ej: 2) se asignara a fechas futuras, dejando el slotIndex incorrecto.
+  const esExpandido = slots.some(s => s.fecha)
+  if (esExpandido) {
+    const result: Ocurrencia[] = []
+    for (let i = 0; i < slots.length; i++) {
+      const slot = slots[i]
+      if (!slot.fecha) continue
+      // Extraer YYYY-MM-DD en UTC para evitar off-by-one por timezone/DST
+      const ymd = new Date(slot.fecha).toISOString().slice(0, 10)
+      const fecha = toLocal(ymd)  // parsear como mediodia local → sin desfase
+      if (fecha < hoy) continue  // omitir fechas pasadas
+      result.push({ slotIndex: i, slot, fecha, fechaISO: toISODate(fecha) })
+    }
+    return result.sort((a, b) => a.fecha.getTime() - b.fecha.getTime())
+  }
+
+  // Modo plantilla: slots con día de semana → proyectar a N semanas futuras
   const inicio = toLocal(fechaInicio)
   const desde = inicio > hoy ? inicio : hoy
   const result: Ocurrencia[] = []
