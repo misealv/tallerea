@@ -115,4 +115,35 @@ export const SiteConfigService = {
       maxReservasSimultaneas: workshopPolitica?.maxReservasSimultaneas ?? config.maxReservasSimultaneas ?? 4,
     }
   },
+
+  /**
+   * [BANCO DE SESIONES] Calcula el nuevo saldo de sesiones respetando el tope de acumulación.
+   * Helper síncrono y puro — recibe la política ya resuelta por resolverPoliticaRollover.
+   * Llamar en TODOS los flujos que acreditan sesiones (autopago y manuales).
+   *
+   * @param saldoActual       sesionesDisponibles actuales de la suscripción
+   * @param sesionesAAcreditar  sesiones que se van a sumar en este ciclo/recarga
+   * @param sesionesBaseCiclo   sesiones del plan mensual (base para calcular el tope)
+   * @param politica          política resuelta (rolloverActivo, rolloverSoloAutopago, topeAcumulacionFactor)
+   * @param pagoAutomatico    true si la suscripción tiene mandato activo
+   */
+  aplicarTopeAcumulacion(
+    saldoActual: number,
+    sesionesAAcreditar: number,
+    sesionesBaseCiclo: number,
+    politica: { rolloverActivo: boolean; rolloverSoloAutopago: boolean; topeAcumulacionFactor: number },
+    pagoAutomatico: boolean,
+  ): { nuevoSaldo: number; sesionesDescartadas: number } {
+    const aplicaTope = politica.rolloverActivo && (!politica.rolloverSoloAutopago || pagoAutomatico)
+    let nuevoSaldo = saldoActual + sesionesAAcreditar
+    let sesionesDescartadas = 0
+    if (aplicaTope) {
+      const topeEfectivo = sesionesBaseCiclo * politica.topeAcumulacionFactor
+      if (nuevoSaldo > topeEfectivo) {
+        sesionesDescartadas = nuevoSaldo - topeEfectivo
+        nuevoSaldo = topeEfectivo
+      }
+    }
+    return { nuevoSaldo, sesionesDescartadas }
+  },
 }

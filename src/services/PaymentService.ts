@@ -526,12 +526,14 @@ export const PaymentService = {
     }
 
     const workshop = await Workshop.findById(subscription.workshopId)
-      .select('ownerId precioModalidad paquetes')
+      .select('ownerId precioModalidad paquetes plan politica')
       .lean<{
         _id: mongoose.Types.ObjectId
         ownerId: mongoose.Types.ObjectId
         precioModalidad?: 'neto' | 'bruto'
         paquetes?: { _id: mongoose.Types.ObjectId; nombre: string; precio: number; sesionesIncluidas: number; duracionDias: number; activo: boolean }[]
+        plan?: { sesionesIncluidas: number }
+        politica?: { rolloverActivo?: boolean; topeAcumulacionFactor?: number; mesesGraciaAlCancelar?: number; maxReservasSimultaneas?: number }
       }>()
     if (!workshop) throw new Error('Taller no encontrado al acreditar recarga')
 
@@ -565,18 +567,47 @@ export const PaymentService = {
       throw err
     }
 
-    // Sumar saldo a la suscripción
-    const sesionesExtra = paquete.sesionesIncluidas
-    subscription.sesionesTotales += sesionesExtra
-    subscription.sesionesDisponibles += sesionesExtra
+    // [BANCO DE SESIONES] Aplicar tope de acumulación (H2) — aplica a todos los flujos de pago
+    const sesionesBaseCiclo = workshop.plan?.sesionesIncluidas ?? 4
+    const politicaRolloverR = await SiteConfigService.resolverPoliticaRollover(workshop.politica)
+    const topeResultR = SiteConfigService.aplicarTopeAcumulacion(
+      subscription.sesionesDisponibles,
+      paquete.sesionesIncluidas,
+      sesionesBaseCiclo,
+      politicaRolloverR,
+      subscription.pagoAutomatico ?? false,
+    )
+    subscription.sesionesTotales += (paquete.sesionesIncluidas - topeResultR.sesionesDescartadas)
+    subscription.sesionesDisponibles = topeResultR.nuevoSaldo
 
     // Extender vencimiento: desde el mayor entre fechaVencimiento actual y hoy
     if (paquete.duracionDias && paquete.duracionDias > 0) {
       const base = subscription.fechaVencimiento > new Date() ? subscription.fechaVencimiento : new Date()
       subscription.fechaVencimiento = new Date(base.getTime() + paquete.duracionDias * 24 * 60 * 60 * 1000)
     }
-
+    // [H3] Limpiar ventana de gracia si el alumno renueva manualmente
+    if (subscription.saldoEnGracia) subscription.saldoEnGracia = false
     await subscription.save()
+
+    // [BANCO DE SESIONES] Notificar al alumno si se descartaron sesiones por tope
+    if (topeResultR.sesionesDescartadas > 0) {
+      try {
+        const { sendTopeSesionesAlcanzado } = await import('@/lib/resend')
+        const [student, workshopFull] = await Promise.all([
+          User.findById(subscription.studentId).select('name email').lean<{ name: string; email: string }>(),
+          Workshop.findById(subscription.workshopId).select('titulo').lean<{ titulo: string }>(),
+        ])
+        if (student && workshopFull) {
+          await sendTopeSesionesAlcanzado({
+            studentName: student.name,
+            studentEmail: student.email,
+            workshopTitle: workshopFull.titulo,
+            sesionesDescartadas: topeResultR.sesionesDescartadas,
+            topeAcumulacion: sesionesBaseCiclo * politicaRolloverR.topeAcumulacionFactor,
+          }).catch(() => { /* no bloquear */ })
+        }
+      } catch { /* no bloquear flujo */ }
+    }
 
     // Audit log
     try {
@@ -616,8 +647,8 @@ export const PaymentService = {
     if (!monto || monto <= 0) return
 
     const workshop = await Workshop.findById(subscription.workshopId)
-      .select('ownerId precioModalidad')
-      .lean<{ _id: mongoose.Types.ObjectId; ownerId: mongoose.Types.ObjectId; precioModalidad?: 'neto' | 'bruto' }>()
+      .select('ownerId precioModalidad plan politica')
+      .lean<{ _id: mongoose.Types.ObjectId; ownerId: mongoose.Types.ObjectId; precioModalidad?: 'neto' | 'bruto'; plan?: { sesionesIncluidas: number }; politica?: { rolloverActivo?: boolean; topeAcumulacionFactor?: number; mesesGraciaAlCancelar?: number; maxReservasSimultaneas?: number } }>()
     if (!workshop) throw new Error('Taller no encontrado al acreditar renovación prepagada')
 
     // [CUADRATURA] Crear PaymentBreakdown — inmutable, idempotente por mercadoPagoId
@@ -647,9 +678,18 @@ export const PaymentService = {
       throw err
     }
 
-    // Sumar saldo y extender vencimiento 30 días desde hoy o desde vencimiento actual
-    subscription.sesionesTotales += cantidad
-    subscription.sesionesDisponibles += cantidad
+    // [BANCO DE SESIONES] Aplicar tope de acumulación (H2)
+    const sesionesBasePRN = workshop.plan?.sesionesIncluidas ?? cantidad
+    const politicaRolloverPRN = await SiteConfigService.resolverPoliticaRollover(workshop.politica)
+    const topeResultPRN = SiteConfigService.aplicarTopeAcumulacion(
+      subscription.sesionesDisponibles,
+      cantidad,
+      sesionesBasePRN,
+      politicaRolloverPRN,
+      subscription.pagoAutomatico ?? false,
+    )
+    subscription.sesionesTotales += (cantidad - topeResultPRN.sesionesDescartadas)
+    subscription.sesionesDisponibles = topeResultPRN.nuevoSaldo
     const base = subscription.fechaVencimiento > new Date() ? subscription.fechaVencimiento : new Date()
     subscription.fechaVencimiento = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000)
     // Actualizar fechaPago del lote prepagado al momento de este pago
@@ -657,7 +697,29 @@ export const PaymentService = {
       subscription.clasesPrepagadas.fechaPago = new Date()
       subscription.clasesPrepagadas.metodoPago = 'mercadopago'
     }
+    // [H3] Limpiar ventana de gracia si el alumno renueva manualmente
+    if (subscription.saldoEnGracia) subscription.saldoEnGracia = false
     await subscription.save()
+
+    // [BANCO DE SESIONES] Notificar al alumno si se descartaron sesiones por tope
+    if (topeResultPRN.sesionesDescartadas > 0) {
+      try {
+        const { sendTopeSesionesAlcanzado } = await import('@/lib/resend')
+        const [student, workshopFull] = await Promise.all([
+          User.findById(subscription.studentId).select('name email').lean<{ name: string; email: string }>(),
+          Workshop.findById(subscription.workshopId).select('titulo').lean<{ titulo: string }>(),
+        ])
+        if (student && workshopFull) {
+          await sendTopeSesionesAlcanzado({
+            studentName: student.name,
+            studentEmail: student.email,
+            workshopTitle: workshopFull.titulo,
+            sesionesDescartadas: topeResultPRN.sesionesDescartadas,
+            topeAcumulacion: sesionesBasePRN * politicaRolloverPRN.topeAcumulacionFactor,
+          }).catch(() => { /* no bloquear */ })
+        }
+      } catch { /* no bloquear flujo */ }
+    }
 
     // Audit log
     try {
@@ -749,21 +811,17 @@ export const PaymentService = {
         }], { session })
         newBreakdownId = breakdown._id as mongoose.Types.ObjectId
 
-        // [BANCO DE SESIONES] Tope de acumulación: saldo + nuevas sesiones ≤ factor × sesionesACiclo
-        // Solo aplica si rolloverActivo y (rolloverSoloAutopago → sub.pagoAutomatico)
-        const aplicaTope = politicaRollover.rolloverActivo &&
-          (!politicaRollover.rolloverSoloAutopago || subscription.pagoAutomatico)
-        const saldoActual = subscription.sesionesDisponibles
-        let nuevoSaldo = saldoActual + sesionesACiclo
-        if (aplicaTope) {
-          const topeEfectivo = sesionesACiclo * politicaRollover.topeAcumulacionFactor
-          if (nuevoSaldo > topeEfectivo) {
-            sesionesDescartadas = nuevoSaldo - topeEfectivo
-            nuevoSaldo = topeEfectivo
-          }
-        }
+        // [BANCO DE SESIONES] Tope de acumulación delegado al helper reutilizable
+        const topeResult = SiteConfigService.aplicarTopeAcumulacion(
+          subscription.sesionesDisponibles,
+          sesionesACiclo,  // sesionesAAcreditar == sesionesBaseCiclo en autopago
+          sesionesACiclo,
+          politicaRollover,
+          subscription.pagoAutomatico ?? false,
+        )
+        sesionesDescartadas = topeResult.sesionesDescartadas
         subscription.sesionesTotales += (sesionesACiclo - sesionesDescartadas)
-        subscription.sesionesDisponibles = nuevoSaldo
+        subscription.sesionesDisponibles = topeResult.nuevoSaldo
 
         // Extender fechaVencimiento 1 mes desde el vencimiento vigente (o desde hoy si ya venció)
         const base = subscription.fechaVencimiento > new Date()
