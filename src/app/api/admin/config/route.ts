@@ -1,9 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { z } from 'zod'
 import { SiteConfigService } from '@/services/SiteConfigService'
+import type { ISiteConfig } from '@/models/SiteConfig'
 
 export const dynamic = 'force-dynamic'
+
+// Esquema de validación completo para el PUT — todos los campos son opcionales
+const ConfigUpdateSchema = z.object({
+  comisionPct:              z.number().int().min(0).max(100).optional(),
+  liquidacionMinimaDefault: z.number().int().min(0).optional(),
+  cuotaPorTalleristaMB:     z.number().int().min(100).max(102400).optional(),
+  // [PAGO AUTOMÁTICO]
+  descuentoPagoAutomaticoPct:    z.number().int().min(0).max(100).optional(),
+  avisoPreCobroDias:             z.number().int().min(0).max(30).optional(),
+  maxIntentosCobroFallido:       z.number().int().min(1).max(10).optional(),
+  // [INCENTIVOS] Fase 7
+  incentivoAutopagoActivo:        z.boolean().optional(),
+  descuentoPagoAutomaticoActivo:  z.boolean().optional(),
+  incentivoAutopagoCopyCheckout:  z.string().min(1).max(300).optional(),
+  incentivoAutopagoCopyEmail:     z.string().min(1).max(300).optional(),
+  autopagoPreseleccionado:        z.boolean().optional(),
+}).strict()
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -24,60 +43,23 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
 
+  let body: unknown
   try {
-    const body = await req.json()
-    const updates: Record<string, number> = {}
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Body JSON inválido' }, { status: 400 })
+  }
 
-    if (body.comisionPct !== undefined) {
-      const pct = Number(body.comisionPct)
-      if (!Number.isInteger(pct) || pct < 0 || pct > 100) {
-        return NextResponse.json({ error: 'Comisión debe ser entero entre 0 y 100' }, { status: 400 })
-      }
-      updates.comisionPct = pct
-    }
+  const parsed = ConfigUpdateSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? 'Input inválido' },
+      { status: 400 }
+    )
+  }
 
-    if (body.liquidacionMinimaDefault !== undefined) {
-      const min = Number(body.liquidacionMinimaDefault)
-      if (!Number.isInteger(min) || min < 0) {
-        return NextResponse.json({ error: 'Liquidación mínima debe ser entero positivo' }, { status: 400 })
-      }
-      updates.liquidacionMinimaDefault = min
-    }
-
-    if (body.cuotaPorTalleristaMB !== undefined) {
-      const mb = Number(body.cuotaPorTalleristaMB)
-      if (!Number.isInteger(mb) || mb < 100 || mb > 102400) {
-        return NextResponse.json({ error: 'Cuota debe ser entero entre 100 MB y 100 GB (102400)' }, { status: 400 })
-      }
-      updates.cuotaPorTalleristaMB = mb
-    }
-
-    // [PAGO AUTOMÁTICO] Validación de campos nuevos
-    if (body.descuentoPagoAutomaticoPct !== undefined) {
-      const pct = Number(body.descuentoPagoAutomaticoPct)
-      if (!Number.isInteger(pct) || pct < 0 || pct > 100) {
-        return NextResponse.json({ error: 'Descuento auto-pago debe ser entero entre 0 y 100' }, { status: 400 })
-      }
-      updates.descuentoPagoAutomaticoPct = pct
-    }
-
-    if (body.avisoPreCobroDias !== undefined) {
-      const dias = Number(body.avisoPreCobroDias)
-      if (!Number.isInteger(dias) || dias < 0 || dias > 30) {
-        return NextResponse.json({ error: 'Aviso pre-cobro debe ser entero entre 0 y 30 días' }, { status: 400 })
-      }
-      updates.avisoPreCobroDias = dias
-    }
-
-    if (body.maxIntentosCobroFallido !== undefined) {
-      const max = Number(body.maxIntentosCobroFallido)
-      if (!Number.isInteger(max) || max < 1 || max > 10) {
-        return NextResponse.json({ error: 'Máximo intentos debe ser entero entre 1 y 10' }, { status: 400 })
-      }
-      updates.maxIntentosCobroFallido = max
-    }
-
-    const config = await SiteConfigService.update(updates)
+  try {
+    const config = await SiteConfigService.update(parsed.data as Partial<ISiteConfig>)
     return NextResponse.json(config)
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error interno'

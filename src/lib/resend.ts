@@ -642,14 +642,17 @@ export async function sendSubscriptionRenovar({
   initPoint,
   precioAcordado,
   clasesCantidad,
+  nudgeAutopago,
 }: {
   email: string
   name: string
   workshopTitulo: string
   workshopSlug: string
-  initPoint?: string        // si viene, usar link MP directo al precio acordado
+  initPoint?: string
   precioAcordado?: number
   clasesCantidad?: number
+  /** Texto del nudge de auto-pago interpolado desde SiteConfig (null = no mostrar) */
+  nudgeAutopago?: string | null
 }) {
   if (!process.env.RESEND_API_KEY) return
 
@@ -662,6 +665,9 @@ export async function sendSubscriptionRenovar({
     : `<p>Tu período de suscripción a <strong>${workshopTitulo}</strong> terminó. Para seguir asistiendo, elige el paquete que mejor se ajuste a ti.</p>`
   const precioText = precioAcordado
     ? `<p style="color: #7c3aed; font-weight: 600;">Precio acordado: $${precioAcordado.toLocaleString('es-CL')} CLP${clasesCantidad ? ` · ${clasesCantidad} clases` : ''}</p>`
+    : ''
+  const nudgeHtml = nudgeAutopago
+    ? `<div style="margin:16px 0;padding:12px 16px;background:#f5f3ff;border-left:4px solid #7c3aed;border-radius:6px;font-size:14px;color:#5b21b6;">${nudgeAutopago}</div>`
     : ''
 
   await resend.emails.send({
@@ -677,6 +683,7 @@ export async function sendSubscriptionRenovar({
         <a href="${linkUrl}" style="display: inline-block; background: #7c3aed; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; margin: 16px 0;">
           ${linkLabel}
         </a>
+        ${nudgeHtml}
         <p style="color: #6b7280; font-size: 14px;">Si ya no quieres renovar, simplemente ignora este correo.</p>
         <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">— Tallerea.cl</p>
       </div>

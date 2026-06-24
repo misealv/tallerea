@@ -782,6 +782,8 @@ export const SubscriptionService = {
     }
 
     if (sub.autoRenovar) {
+      // Leer nudge de auto-pago desde SiteConfig (null si incentivo inactivo)
+      const nudgeAutopago = await SiteConfigService.getCopyIncentivo('email').catch(() => null)
       await sendSubscriptionRenovar({
         email: student.email,
         name: student.name,
@@ -790,6 +792,7 @@ export const SubscriptionService = {
         initPoint: renewalInitPoint,
         precioAcordado: renewalInitPoint ? sub.precioSnapshot : undefined,
         clasesCantidad: sub.clasesPrepagadas?.cantidad,
+        nudgeAutopago,
       }).catch(() => null)
     } else {
       await sendSubscriptionVencida({
@@ -1602,6 +1605,10 @@ export const SubscriptionService = {
       throw new Error('[FINANCE RISK] El monto de la suscripción debe ser un entero CLP > 0')
     }
 
+    // [FINANCE RISK] Aplicar descuento de incentivo si está activo (sale del margen de Tallerea)
+    const { SiteConfigService } = await import('@/services/SiteConfigService')
+    const { montoFinal, descuentoCLP, descuentoPct } = await SiteConfigService.calcularMontoConDescuento(monto)
+
     // Validar largo de cardLast4
     if (!/^\d{4}$/.test(cardLast4)) throw new Error('cardLast4 debe tener exactamente 4 dígitos')
 
@@ -1611,7 +1618,7 @@ export const SubscriptionService = {
       workshopTitle: workshop.titulo,
       payerEmail: alumno.email,
       cardTokenId,
-      transactionAmount: monto,
+      transactionAmount: montoFinal,  // [FINANCE RISK] monto ya descontado
     })
 
     // Persistir mandato en la suscripción
@@ -1619,6 +1626,11 @@ export const SubscriptionService = {
     sub.mpPreapprovalId = result.id
     sub.mpPreapprovalStatus = result.status as ISubscription['mpPreapprovalStatus']
     sub.cardLast4 = cardLast4
+    // Guardar snapshot del descuento aplicado (informativo, no entra en cuadratura)
+    if (descuentoPct > 0) {
+      sub.set('descuentoAutopagoPct', descuentoPct)
+      sub.set('descuentoAutopagoCLP', descuentoCLP)
+    }
     await sub.save()
 
     return sub.toObject() as ISubscription
