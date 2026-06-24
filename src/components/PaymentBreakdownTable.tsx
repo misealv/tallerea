@@ -13,6 +13,8 @@ interface Breakdown {
   comisionMP: number
   tipo: 'pago' | 'reembolso' | 'ajuste'
   estado: 'pendiente' | 'cobrado' | 'liquidado' | 'reembolsado'
+  // [INMUTABLE] Campo calculado por la API: true si el breakdown aparece en Liquidation.breakdowns[]
+  isLiquidated?: boolean
   createdAt: string
 }
 
@@ -123,7 +125,10 @@ export default function PaymentBreakdownTable({ ownerId, showOwner = false }: Pr
                   <span className={`text-xs px-2 py-0.5 rounded-full ${TIPO_BADGE[b.tipo] || ''}`}>{b.tipo}</span>
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${ESTADO_BADGE[b.estado] || ''}`}>{b.estado}</span>
+                  {/* [INMUTABLE] isLiquidated viene de la API (cruce con Liquidation.breakdowns[]) */}
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${b.isLiquidated ? ESTADO_BADGE.liquidado : ESTADO_BADGE[b.estado] || ''}`}>
+                    {b.isLiquidated ? 'liquidado' : b.estado}
+                  </span>
                 </td>
               </tr>
             ))}
@@ -149,7 +154,9 @@ export default function PaymentBreakdownTable({ ownerId, showOwner = false }: Pr
                     <span className="text-gray-400">{new Date(b.createdAt).toLocaleDateString('es-CL')}</span>
                     <span className="text-gray-500">Bruto ${b.montoBruto.toLocaleString('es-CL')} · Fee ${b.feeTallerea.toLocaleString('es-CL')}</span>
                     <span className={`px-1.5 py-0.5 rounded-full ${TIPO_BADGE[b.tipo] || ''}`}>{b.tipo}</span>
-                    <span className={`px-1.5 py-0.5 rounded-full ${ESTADO_BADGE[b.estado] || ''}`}>{b.estado}</span>
+                    <span className={`px-1.5 py-0.5 rounded-full ${b.isLiquidated ? ESTADO_BADGE.liquidado : ESTADO_BADGE[b.estado] || ''}`}>
+                      {b.isLiquidated ? 'liquidado' : b.estado}
+                    </span>
                   </div>
                 </div>
               ))}

@@ -21,7 +21,13 @@ export default function ManualPaymentForm({ workshops, onSuccess }: ManualPaymen
   const [studentEmail, setStudentEmail] = useState('')
   const [monto,      setMonto]      = useState('')
   const [metodoPago, setMetodoPago] = useState<'transferencia' | 'efectivo' | 'otro'>('transferencia')
-  const [fecha,      setFecha]      = useState(new Date().toISOString().slice(0, 10))
+  // [TIMEZONE] Extrae YYYY-MM-DD del reloj local para evitar que a las 23h en Chile
+  // toISOString() devuelva "mañana" (UTC) como fecha por defecto del formulario.
+  const localToday = () => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  const [fecha,      setFecha]      = useState(localToday())
   const [notas,      setNotas]      = useState('')
 
   const [comprobanteUrl, setComprobanteUrl] = useState('')
@@ -116,7 +122,7 @@ export default function ManualPaymentForm({ workshops, onSuccess }: ManualPaymen
       setSuccess(true)
       // Reset form
       setStudentId(''); setStudentEmail(''); setMonto(''); setNotas(''); setComprobanteUrl('')
-      setFecha(new Date().toISOString().slice(0, 10))
+      setFecha(localToday())
       if (fileRef.current) fileRef.current.value = ''
       onSuccess?.()
       // Refrescar el Server Component para mostrar el nuevo registro

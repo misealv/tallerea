@@ -1,4 +1,5 @@
 import dbConnect from '@/lib/db'
+import mongoose from 'mongoose'
 import Liquidation, { ILiquidation } from '@/models/Liquidation'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
 import User from '@/models/User'
@@ -61,13 +62,21 @@ export const LiquidationService = {
   ): Promise<ILiquidation> {
     await dbConnect()
 
+    // [INMUTABLE] Fuente de verdad: Liquidation.breakdowns[].
+    // En vez de marcar el breakdown con liquidationId (mutación prohibida), consultamos
+    // todos los IDs ya incluidos en liquidaciones previas de este owner y los excluimos.
+    const existingLiquidations = await Liquidation.find({ ownerId })
+      .select('breakdowns')
+      .lean<{ breakdowns: mongoose.Types.ObjectId[] }[]>()
+    const alreadyLiquidatedIds = existingLiquidations.flatMap(l => l.breakdowns)
+
     // Pagos del período + ajustes compensatorios pendientes sin restricción de fecha.
     // Los ajustes se crean con fechaCobro = now(), no con la fecha del pago original,
     // por lo que no se filtran por rango para evitar que queden fuera del período.
     const breakdownFilter: Record<string, unknown> = {
       ownerId,
       estado: 'cobrado',
-      liquidationId: { $exists: false },
+      _id: { $nin: alreadyLiquidatedIds }, // [INMUTABLE] excluir ya liquidados sin mutar el breakdown
       $or: [
         { tipo: { $in: ['pago', 'reembolso'] }, fechaCobro: { $gte: desde, $lte: hasta } },
         { tipo: 'ajuste' },
@@ -115,11 +124,8 @@ export const LiquidationService = {
       estado: 'pendiente',
     }).save()
 
-    // Marcar breakdowns como liquidados
-    await PaymentBreakdown.updateMany(
-      { _id: { $in: breakdowns.map(b => b._id) } },
-      { estado: 'liquidado', liquidationId: liquidation._id }
-    )
+    // [INMUTABLE] Los breakdowns NO se modifican. Liquidation.breakdowns[] es la única fuente
+    // de verdad del vínculo. Eliminado: PaymentBreakdown.updateMany({ estado:'liquidado', liquidationId })
 
     // Audit log
     await FinanceService.log(

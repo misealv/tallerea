@@ -52,6 +52,31 @@ export async function PUT(req: NextRequest) {
       updates.cuotaPorTalleristaMB = mb
     }
 
+    // [PAGO AUTOMÁTICO] Validación de campos nuevos
+    if (body.descuentoPagoAutomaticoPct !== undefined) {
+      const pct = Number(body.descuentoPagoAutomaticoPct)
+      if (!Number.isInteger(pct) || pct < 0 || pct > 100) {
+        return NextResponse.json({ error: 'Descuento auto-pago debe ser entero entre 0 y 100' }, { status: 400 })
+      }
+      updates.descuentoPagoAutomaticoPct = pct
+    }
+
+    if (body.avisoPreCobroDias !== undefined) {
+      const dias = Number(body.avisoPreCobroDias)
+      if (!Number.isInteger(dias) || dias < 0 || dias > 30) {
+        return NextResponse.json({ error: 'Aviso pre-cobro debe ser entero entre 0 y 30 días' }, { status: 400 })
+      }
+      updates.avisoPreCobroDias = dias
+    }
+
+    if (body.maxIntentosCobroFallido !== undefined) {
+      const max = Number(body.maxIntentosCobroFallido)
+      if (!Number.isInteger(max) || max < 1 || max > 10) {
+        return NextResponse.json({ error: 'Máximo intentos debe ser entero entre 1 y 10' }, { status: 400 })
+      }
+      updates.maxIntentosCobroFallido = max
+    }
+
     const config = await SiteConfigService.update(updates)
     return NextResponse.json(config)
   } catch (error: unknown) {

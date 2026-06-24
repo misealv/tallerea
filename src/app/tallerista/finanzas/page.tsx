@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import dbConnect from '@/lib/db'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
+import Liquidation from '@/models/Liquidation'
 import ManualPaymentRecord from '@/models/ManualPaymentRecord'
 import Workshop from '@/models/Workshop'
 import { Types } from 'mongoose'
@@ -60,7 +61,7 @@ export default async function FinanzasPage() {
   const workshops = await Workshop.find({ ownerId, activo: true }).select('_id titulo').lean<WorkshopOption[]>()
   const workshopIds = workshops.map(w => w._id)
 
-  const [breakdowns, manualRecords] = await Promise.all([
+  const [breakdowns, manualRecords, liquidaciones] = await Promise.all([
     PaymentBreakdown.find({ ownerId, tipo: { $in: ['pago', 'ajuste'] } })
       .populate('workshopId', 'titulo')
       .sort({ createdAt: -1 })
@@ -72,11 +73,25 @@ export default async function FinanzasPage() {
       .sort({ fecha: -1 })
       .limit(100)
       .lean<ManualRecordLean[]>(),
+    // [INMUTABLE] Los breakdowns ya no se marcan estado:'liquidado';
+    // la fuente de verdad es Liquidation.breakdowns[]
+    Liquidation.find({ ownerId }).select('breakdowns').lean<{ breakdowns: Types.ObjectId[] }[]>(),
   ])
 
+  // Conjunto de IDs de breakdowns ya incluidos en alguna liquidación
+  const liquidadosIds = new Set(
+    liquidaciones.flatMap(l => l.breakdowns.map(id => String(id)))
+  )
+
   // Totales checkout (PaymentBreakdown)
-  const cobrados = breakdowns.filter(b => b.estado === 'cobrado' || b.estado === 'liquidado')
-  const porLiquidar = breakdowns.filter(b => b.estado === 'cobrado')
+  // cobrados = todos con pago confirmado (incluye los ya liquidados para el total histórico)
+  const cobrados = breakdowns.filter(b =>
+    b.estado === 'cobrado' || b.estado === 'liquidado' || liquidadosIds.has(String(b._id))
+  )
+  // porLiquidar = cobrados que aún no pertenecen a ninguna liquidación
+  const porLiquidar = breakdowns.filter(b =>
+    b.estado === 'cobrado' && !liquidadosIds.has(String(b._id))
+  )
   const totalBruto = cobrados.reduce((s, b) => s + b.montoBruto, 0)
   const totalProfesor = cobrados.reduce((s, b) => s + b.montoProfesor, 0)
   const pendienteLiquidar = porLiquidar.reduce((s, b) => s + b.montoProfesor, 0)

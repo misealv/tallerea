@@ -19,6 +19,8 @@ interface LiquidationData {
   estado: string
   fechaPago?: string
   periodo: { desde: string; hasta: string }
+  // [INMUTABLE] breakdowns[] es la fuente de verdad del vínculo liquidación ↔ breakdown
+  breakdowns?: string[]
 }
 
 interface FinanceSummaryProps {
@@ -57,7 +59,14 @@ export default function FinanceSummary({ accountId }: FinanceSummaryProps) {
   const totalBruto = breakdowns.reduce((s, b) => s + b.montoBruto, 0)
   const totalFee = breakdowns.reduce((s, b) => s + b.feeTallerea, 0)
   const totalProfesor = breakdowns.reduce((s, b) => s + b.montoProfesor, 0)
-  const cobrados = breakdowns.filter(b => b.estado === 'cobrado')
+  // [INMUTABLE] Los breakdowns ya liquidados ya no tienen estado:'liquidado';
+  // se detectan cruzando contra Liquidation.breakdowns[]
+  const liquidadosIds = new Set(
+    liquidations.flatMap(l => l.breakdowns ?? [])
+  )
+  const cobrados = breakdowns.filter(b =>
+    b.estado === 'cobrado' && !liquidadosIds.has(b._id)
+  )
   const pendienteLiquidar = cobrados.reduce((s, b) => s + b.montoProfesor, 0)
 
   const estadoBadge: Record<string, string> = {

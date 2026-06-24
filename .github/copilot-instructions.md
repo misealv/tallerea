@@ -10,7 +10,7 @@
 
 ## Regla de Memoria (4GB RAM)
 
-1. **Máximo 150 líneas de código por respuesta.**
+1. **Máximo 250 líneas de código por respuesta.**
 2. Si una tarea requiere más, dividir en pasos numerados `[PASO 1/N] → [PASO 2/N] → ...`
 3. Esperar confirmación explícita entre pasos.
 4. **NUNCA** generar múltiples archivos en la misma respuesta.

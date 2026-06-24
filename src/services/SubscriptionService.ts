@@ -322,14 +322,28 @@ export const SubscriptionService = {
       if (!Number.isInteger(data.precioSnapshot) || data.precioSnapshot < 0) {
         throw new Error('[FINANCE] precioSnapshot debe ser entero CLP >= 0')
       }
+      const precioAnterior = sub.precioSnapshot
+      const precioChanged = precioAnterior !== data.precioSnapshot
       // Si cambia el precio, invalidar cache mpInitPoint
-      if (sub.precioSnapshot !== data.precioSnapshot) {
+      if (precioChanged) {
         sub.mpInitPoint = undefined
         sub.mpInitPointCreatedAt = undefined
       }
       sub.precioSnapshot = data.precioSnapshot
       sub.monto = data.precioSnapshot
       sub.precioEspecial = true
+
+      // [FINANCE RISK] Si hay mandato activo y el precio cambió, sincronizar en MP.
+      // Error no bloqueante: loggeamos y continuamos — el cobro del próximo ciclo
+      // usará el monto que ya tiene MP hasta que el usuario reactive el mandato.
+      if (precioChanged && sub.pagoAutomatico && sub.mpPreapprovalId) {
+        try {
+          const { updatePreapproval } = await import('@/lib/mercadopago')
+          await updatePreapproval(sub.mpPreapprovalId, data.precioSnapshot)
+        } catch (err) {
+          console.warn(`[AUTOPAGO] updatePreapproval falló para sub ${subscriptionId}:`, err)
+        }
+      }
     }
     if (data.fechaVencimiento !== undefined) {
       sub.fechaVencimiento = data.fechaVencimiento
@@ -653,6 +667,11 @@ export const SubscriptionService = {
   async cerrarCiclo(sub: ISubscription): Promise<void> {
     await dbConnect()
 
+    // [CICLO] Mandato de auto-pago activo → MP cobra directamente.
+    // No enviar email de cobro manual. Si el mandato falló o fue cancelado
+    // (mpPreapprovalStatus ≠ 'authorized'), la sub sigue el flujo manual normal.
+    if (sub.pagoAutomatico && sub.mpPreapprovalStatus === 'authorized') return
+
     const now = new Date()
 
     // [CICLO] Operaciones de escritura envueltas en transacción
@@ -814,6 +833,9 @@ export const SubscriptionService = {
         // [FIX 2026-06] Migrado de clasesPrepagadas.consumidas < cantidad → sesionesDisponibles > 0
         // para alinear con hasPrepaidBalance() tras refactor Modelo A puro (19-may-2026).
         // El contador clasesPrepagadas.consumidas quedó obsoleto; la fuente de verdad es sesionesDisponibles.
+        // [CICLO] Omitir subs con mandato de auto-pago activo — MP cobra directamente vía preapproval.
+        // Cuando el auto-pago falle/cancele, mpPreapprovalStatus dejará de ser 'authorized'
+        // y la sub volverá a entrar en este lote.
         $nor: [
           {
             $and: [
@@ -828,6 +850,7 @@ export const SubscriptionService = {
               },
             ],
           },
+          { pagoAutomatico: true, mpPreapprovalStatus: 'authorized' },
         ],
       }
       if (excluidos.length > 0) query._id = { $nin: excluidos }
@@ -1542,6 +1565,93 @@ export const SubscriptionService = {
     }
 
     await sub.save()
+    return sub.toObject() as ISubscription
+  },
+
+  // ─────────────────────────────────────────────────────────────────
+  // Pago automático — mandato preapproval
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Activa el pago automático para una suscripción recurrente.
+   * Crea el preapproval en MP con el cardToken del Brick (nunca llega al backend la tarjeta real).
+   * La validación de ownership (sub.studentId === session.user.id) se hace en el controller.
+   */
+  async activarPagoAutomatico(
+    subscriptionId: string,
+    cardTokenId: string,
+    cardLast4: string,
+  ): Promise<ISubscription> {
+    await dbConnect()
+    const sub = await Subscription.findById(subscriptionId)
+    if (!sub) throw new Error('Suscripción no encontrada')
+    if (sub.estado !== 'activa') throw new Error('Solo se puede activar auto-pago en suscripciones activas')
+    if (sub.pagoAutomatico) throw new Error('El pago automático ya está activo en esta suscripción')
+    if (!sub.workshopId) throw new Error('Suscripción sin taller asociado')
+
+    // Obtener título del taller y email del alumno para el payload MP
+    const [workshop, alumno] = await Promise.all([
+      Workshop.findById(sub.workshopId).select('titulo').lean<{ titulo: string }>(),
+      User.findById(sub.studentId).select('email').lean<{ email: string }>(),
+    ])
+    if (!workshop) throw new Error('Taller no encontrado')
+    if (!alumno?.email) throw new Error('Email del alumno no disponible')
+
+    const monto = sub.precioSnapshot ?? sub.monto
+    if (!Number.isInteger(monto) || monto <= 0) {
+      throw new Error('[FINANCE RISK] El monto de la suscripción debe ser un entero CLP > 0')
+    }
+
+    // Validar largo de cardLast4
+    if (!/^\d{4}$/.test(cardLast4)) throw new Error('cardLast4 debe tener exactamente 4 dígitos')
+
+    const { createPreapproval } = await import('@/lib/mercadopago')
+    const result = await createPreapproval({
+      subscriptionId: String(sub._id),
+      workshopTitle: workshop.titulo,
+      payerEmail: alumno.email,
+      cardTokenId,
+      transactionAmount: monto,
+    })
+
+    // Persistir mandato en la suscripción
+    sub.pagoAutomatico = true
+    sub.mpPreapprovalId = result.id
+    sub.mpPreapprovalStatus = result.status as ISubscription['mpPreapprovalStatus']
+    sub.cardLast4 = cardLast4
+    await sub.save()
+
+    return sub.toObject() as ISubscription
+  },
+
+  /**
+   * Desactiva el pago automático: cancela el preapproval en MP y limpia los flags.
+   * La sub sigue activa; el próximo ciclo usará el flujo manual de email-link.
+   */
+  async desactivarPagoAutomatico(subscriptionId: string): Promise<ISubscription> {
+    await dbConnect()
+    const sub = await Subscription.findById(subscriptionId)
+    if (!sub) throw new Error('Suscripción no encontrada')
+    if (!sub.pagoAutomatico || !sub.mpPreapprovalId) {
+      throw new Error('Esta suscripción no tiene pago automático activo')
+    }
+
+    const { cancelPreapproval } = await import('@/lib/mercadopago')
+    // Intentar cancelar en MP; si ya estaba cancelado (404/400) igualmente limpiamos localmente
+    try {
+      await cancelPreapproval(sub.mpPreapprovalId)
+    } catch (err) {
+      // Registrar pero no bloquear: si MP ya lo canceló, queremos limpiar igual
+      console.warn(`[AUTOPAGO] cancelPreapproval warning para sub ${subscriptionId}:`, err)
+    }
+
+    sub.pagoAutomatico = false
+    sub.mpPreapprovalId = undefined
+    sub.mpPreapprovalStatus = undefined
+    sub.cardLast4 = undefined
+    sub.intentosCobroFallidos = 0
+    await sub.save()
+
     return sub.toObject() as ISubscription
   },
 }

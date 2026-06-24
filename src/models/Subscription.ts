@@ -55,6 +55,13 @@ export interface ISubscription extends Document {
   // [FIADO] Activación a confianza: acceso inmediato con pago pendiente
   pagoFiado?: IPagoFiado;
   reviewEmailEnviadoEn?: Date;
+  // [PAGO AUTOMÁTICO] Mandato preapproval de MercadoPago
+  pagoAutomatico: boolean;
+  mpPreapprovalId?: string;          // id del preapproval en MP
+  mpPreapprovalStatus?: 'authorized' | 'paused' | 'cancelled' | 'pending';
+  cardLast4?: string;                // últimos 4 dígitos (informativo, no sensible)
+  ultimoCobroAutomaticoEn?: Date;
+  intentosCobroFallidos: number;     // contador de cobros fallidos; se resetea al cobrar OK
   createdAt: Date;
 }
 
@@ -111,6 +118,13 @@ const SubscriptionSchema = new Schema<ISubscription>({
     metodoPagoFinal: { type: String, enum: ['transferencia', 'efectivo', 'mercadopago'] },
   },
   reviewEmailEnviadoEn: { type: Date },
+  // [PAGO AUTOMÁTICO] Mandato preapproval de MercadoPago
+  pagoAutomatico:            { type: Boolean, default: false },
+  mpPreapprovalId:           { type: String },
+  mpPreapprovalStatus:       { type: String, enum: ['authorized', 'paused', 'cancelled', 'pending'] },
+  cardLast4:                 { type: String, maxlength: 4 },
+  ultimoCobroAutomaticoEn:   { type: Date },
+  intentosCobroFallidos:     { type: Number, default: 0, min: 0 },
 }, { timestamps: true });
 
 // Validaciones de inscripción manual
@@ -191,6 +205,12 @@ SubscriptionSchema.index(
 SubscriptionSchema.index(
   { pagoRef: 1 },
   { unique: true, sparse: true }
+);
+
+// [IDEMPOTENCIA] Un solo preapproval activo por suscripción. Sparse permite nulos.
+SubscriptionSchema.index(
+  { mpPreapprovalId: 1 },
+  { unique: true, sparse: true, name: 'mpPreapprovalId_unique_sparse' }
 );
 
 export default mongoose.models.Subscription || mongoose.model<ISubscription>('Subscription', SubscriptionSchema);

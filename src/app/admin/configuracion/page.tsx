@@ -8,10 +8,17 @@ interface Config {
   comisionPct: number
   liquidacionMinimaDefault: number
   cuotaPorTalleristaMB: number
+  // [PAGO AUTOMÁTICO]
+  descuentoPagoAutomaticoPct: number
+  avisoPreCobroDias: number
+  maxIntentosCobroFallido: number
 }
 
 export default function AdminConfiguracionPage() {
-  const [config, setConfig] = useState<Config>({ comisionPct: 15, liquidacionMinimaDefault: 5000, cuotaPorTalleristaMB: 1024 })
+  const [config, setConfig] = useState<Config>({
+    comisionPct: 15, liquidacionMinimaDefault: 5000, cuotaPorTalleristaMB: 1024,
+    descuentoPagoAutomaticoPct: 5, avisoPreCobroDias: 3, maxIntentosCobroFallido: 3,
+  })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
@@ -22,6 +29,9 @@ export default function AdminConfiguracionPage() {
         comisionPct: data.comisionPct,
         liquidacionMinimaDefault: data.liquidacionMinimaDefault,
         cuotaPorTalleristaMB: data.cuotaPorTalleristaMB ?? 1024,
+        descuentoPagoAutomaticoPct: data.descuentoPagoAutomaticoPct ?? 5,
+        avisoPreCobroDias: data.avisoPreCobroDias ?? 3,
+        maxIntentosCobroFallido: data.maxIntentosCobroFallido ?? 3,
       })
       setLoading(false)
     })
@@ -92,6 +102,47 @@ export default function AdminConfiguracionPage() {
             {saving ? 'Guardando...' : 'Guardar cambios'}
           </button>
           {msg && <span className={`text-sm ${msg.includes('Error') ? 'text-red-600' : 'text-green-600'}`}>{msg}</span>}
+        </div>
+      </section>
+
+      {/* Sección: Pago Automático */}
+      <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+        <h2 className="text-base font-semibold text-gray-800">Pago automático (preapproval MP)</h2>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Descuento por activar pago automático (%)
+          </label>
+          <input type="number" min="0" max="100" value={config.descuentoPagoAutomaticoPct}
+            onChange={(e) => setConfig(prev => ({ ...prev, descuentoPagoAutomaticoPct: Number(e.target.value) }))}
+            className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
+          <p className="text-xs text-gray-400 mt-1">
+            % de descuento que recibe el alumno al domiciliar el pago. 0 = sin descuento.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Días de aviso antes del cobro
+          </label>
+          <input type="number" min="0" max="30" value={config.avisoPreCobroDias}
+            onChange={(e) => setConfig(prev => ({ ...prev, avisoPreCobroDias: Number(e.target.value) }))}
+            className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
+          <p className="text-xs text-gray-400 mt-1">
+            Días de antelación con los que se envía el email "Te cobraremos $X el día Y".
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Intentos fallidos antes de degradar a manual
+          </label>
+          <input type="number" min="1" max="10" value={config.maxIntentosCobroFallido}
+            onChange={(e) => setConfig(prev => ({ ...prev, maxIntentosCobroFallido: Number(e.target.value) }))}
+            className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
+          <p className="text-xs text-gray-400 mt-1">
+            Tras N cobros fallidos la suscripción pasa a pendiente_pago y se notifica al alumno.
+          </p>
         </div>
       </section>
     </div>

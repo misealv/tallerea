@@ -156,17 +156,22 @@ export const EnrollmentService = {
       }], { session })
 
       if (workshop.slots && workshop.slots.length > 0 && slotIndex !== null) {
-        await Workshop.findByIdAndUpdate(
-          data.workshopId,
+        // [RACE] Guard atómico: el filtro $gte:1 garantiza que si dos requests concurrentes
+        // pasan el check previo, solo uno decrementa. El segundo recibe null → error.
+        const slotUpdated = await Workshop.findOneAndUpdate(
+          { _id: data.workshopId, [`slots.${slotIndex}.cupoDisponible`]: { $gte: 1 } },
           { $inc: { [`slots.${slotIndex}.cupoDisponible`]: -1 } },
           { session }
         )
+        if (!slotUpdated) throw new Error('No hay cupos disponibles en este horario')
       } else {
-        await Workshop.findByIdAndUpdate(
-          data.workshopId,
+        // [RACE] Guard atómico equivalente para cupo global del workshop
+        const workshopUpdated = await Workshop.findOneAndUpdate(
+          { _id: data.workshopId, activo: true, cupoDisponible: { $gte: 1 } },
           { $inc: { cupoDisponible: -1 } },
           { session }
         )
+        if (!workshopUpdated) throw new Error('No hay cupos disponibles')
       }
 
       // Al cancelar un enrollment con crédito aplicado, devolvemos el crédito al alumno

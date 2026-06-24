@@ -1,4 +1,5 @@
 import dbConnect from '@/lib/db'
+import mongoose from 'mongoose'
 import FinanceAuditLog from '@/models/FinanceAuditLog'
 import type { AuditAction } from '@/models/FinanceAuditLog'
 
@@ -51,5 +52,27 @@ export const FinanceService = {
       userId,
       metadata,
     }).save()
+  },
+
+  // Audit log dentro de una transacción Mongoose — llamar desde dentro de withTransaction()
+  async logWithSession(
+    session: mongoose.ClientSession,
+    accion: AuditAction,
+    entidadTipo: 'PaymentBreakdown' | 'Liquidation',
+    entidadId: string,
+    montoNuevo: number,
+    userId: string,
+    montoAnterior = 0,
+    metadata?: Record<string, unknown>
+  ): Promise<void> {
+    await FinanceAuditLog.create([{
+      accion,
+      entidadTipo,
+      entidadId,
+      montoAnterior,
+      montoNuevo,
+      userId,
+      metadata,
+    }], { session })
   },
 }

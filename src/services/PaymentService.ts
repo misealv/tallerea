@@ -6,8 +6,10 @@ import { FinanceService } from '@/services/FinanceService'
 import { createPaymentPreference } from '@/lib/mercadopago'
 import { sendEnrollmentConfirmation, sendClasePruebaProfesor } from '@/lib/resend'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
+import Enrollment from '@/models/Enrollment'
 import User from '@/models/User'
 import Subscription from '@/models/Subscription'
+import type { ISubscription } from '@/models/Subscription'
 import Workshop from '@/models/Workshop'
 import { SiteConfigService } from '@/services/SiteConfigService'
 
@@ -206,21 +208,64 @@ export const PaymentService = {
     // [IDEMPOTENCIA] Verificar estado actual antes de mutar
     const current = await EnrollmentService.getById(enrollmentId)
     if (!current) return {}
-    // Si ya fue procesado exactamente con este paymentId → idempotente, no re-emitir magic link
+    // Si ya fue procesado exactamente con este paymentId → idempotente
     if (current.estado === 'pagado' && current.pagoRef === String(paymentId)) return {}
+    // [IDEMPOTENCIA] Guard por mercadoPagoId único en breakdown
+    const existingBreakdown = await PaymentBreakdown.findOne({ mercadoPagoId: String(paymentId) }).lean<{ _id: mongoose.Types.ObjectId }>()
+    if (existingBreakdown && current.estado === 'pagado') return {}
 
-    await EnrollmentService.update(enrollmentId, {
-      estado: 'pagado',
-      pagoRef: String(paymentId),
-    })
+    // Pre-calcular desglose fuera de la transacción (no requiere DB write)
+    const workshopForBreakdown = current.workshopId as unknown as {
+      _id: string; titulo: string; slug: string; ownerId: string; precio: number; precioModalidad: string
+    }
+    const feePct = await SiteConfigService.getComisionPct()
+    const desglose = FinanceService.calcularDesglose(current.monto, feePct)
 
-    // Crear PaymentBreakdown (idempotente, captura E11000)
+    // Escrituras atómicas: enrollment + breakdown + audit log en la misma transacción
+    const session = await mongoose.startSession()
+    let createdBreakdownId: string | undefined
     try {
-      await this._createBreakdownForEnrollment(enrollmentId, String(paymentId))
-    } catch (err) {
-      // Logueamos pero no bloqueamos: el enrollment ya quedó pagado, el breakdown
-      // puede recrearse con un script de reconciliación si falla acá.
-      console.error('[handleApprovedPayment] breakdown error:', err instanceof Error ? err.message : err)
+      await session.withTransaction(async () => {
+        // Marcar enrollment como pagado
+        await Enrollment.updateOne(
+          { _id: enrollmentId },
+          { estado: 'pagado', pagoRef: String(paymentId) },
+          { session }
+        )
+
+        // [IDEMPOTENCIA] Solo crear breakdown si no existe (E11000 = ya existe, continuar)
+        if (!existingBreakdown) {
+          const [breakdown] = await PaymentBreakdown.create([{
+            enrollmentId,
+            workshopId:      workshopForBreakdown._id,
+            ownerId:         workshopForBreakdown.ownerId,
+            studentId:       current.studentId,
+            montoBruto:      desglose.montoBruto,
+            comisionMP:      0,
+            feeTallerea:     desglose.feeTallerea,
+            montoProfesor:   desglose.montoProfesor,
+            creditoAplicado: current.creditoAplicado ?? 0,
+            porcentajeFee:   feePct,
+            precioModalidad: workshopForBreakdown.precioModalidad ?? 'bruto',
+            tipo:            'pago',
+            estado:          'cobrado',
+            mercadoPagoId:   String(paymentId),
+            fechaCobro:      new Date(),
+          }], { session })
+          createdBreakdownId = String(breakdown._id)
+
+          await FinanceService.logWithSession(
+            session,
+            'pago_recibido',
+            'PaymentBreakdown',
+            createdBreakdownId,
+            current.monto,
+            String(current.studentId)
+          )
+        }
+      })
+    } finally {
+      await session.endSession()
     }
 
     const enrollment = await EnrollmentService.getById(enrollmentId)
@@ -330,21 +375,37 @@ export const PaymentService = {
     const subscription = await Subscription.findById(subscriptionId)
     if (!subscription) return
 
-    // [IDEMPOTENCIA] Si ya está activa con este pagoRef, no reprocesar
+    // [IDEMPOTENCIA] Guard primario: mismo paymentId ya procesado para esta sub
     if (subscription.estado === 'activa' && subscription.pagoRef === String(paymentId)) return
+    // [IDEMPOTENCIA] Guard secundario: ya existe breakdown con este mercadoPagoId
+    const existingBreakdown = await PaymentBreakdown.findOne({ mercadoPagoId: String(paymentId) })
+      .lean<{ _id: mongoose.Types.ObjectId }>()
+    if (existingBreakdown) {
+      // Pago ya procesado (race o retry); asegurar que la sub quede activa y retornar
+      if (subscription.estado !== 'activa' || subscription.pagoRef !== String(paymentId)) {
+        subscription.pagoRef = String(paymentId)
+        subscription.estado = 'activa'
+        subscription.paymentBreakdownId = existingBreakdown._id
+        await subscription.save()
+      }
+      return
+    }
 
-    // [CUADRATURA] Crear PaymentBreakdown si aún no existe (idempotencia por mercadoPagoId)
-    if (!subscription.paymentBreakdownId) {
-      const workshop = await Workshop.findById(subscription.workshopId).select('ownerId precioModalidad').lean<{
-        _id: mongoose.Types.ObjectId; ownerId: mongoose.Types.ObjectId; precioModalidad?: 'neto' | 'bruto'
-      }>()
-      if (!workshop) throw new Error('Taller no encontrado al confirmar suscripción')
+    const workshop = await Workshop.findById(subscription.workshopId)
+      .select('ownerId precioModalidad')
+      .lean<{ _id: mongoose.Types.ObjectId; ownerId: mongoose.Types.ObjectId; precioModalidad?: 'neto' | 'bruto' }>()
+    if (!workshop) throw new Error('Taller no encontrado al confirmar suscripción')
 
-      const feePct = await SiteConfigService.getComisionPct()
-      const desglose = FinanceService.calcularDesglose(subscription.monto, feePct)
+    const feePct = await SiteConfigService.getComisionPct()
+    const desglose = FinanceService.calcularDesglose(subscription.monto, feePct)
 
-      try {
-        const breakdown = await new PaymentBreakdown({
+    // [CICLO][INMUTABLE] Crear SIEMPRE un nuevo PaymentBreakdown por ciclo.
+    // No reutilizar ni mutar el breakdown de ciclos anteriores.
+    const session = await mongoose.startSession()
+    let newBreakdownId: mongoose.Types.ObjectId | undefined
+    try {
+      await session.withTransaction(async () => {
+        const [breakdown] = await PaymentBreakdown.create([{
           subscriptionId: subscription._id,
           workshopId: subscription.workshopId,
           ownerId: workshop.ownerId,
@@ -359,54 +420,38 @@ export const PaymentService = {
           estado: 'cobrado',
           mercadoPagoId: String(paymentId),
           fechaCobro: new Date(),
-        }).save()
-        subscription.paymentBreakdownId = breakdown._id as mongoose.Types.ObjectId
-      } catch (err: unknown) {
-        // E11000 mercadoPagoId duplicado → ya existe breakdown para este pago, recuperarlo
-        const code = (err as { code?: number })?.code
-        if (code === 11000) {
-          const existing = await PaymentBreakdown.findOne({ mercadoPagoId: String(paymentId) }).lean<{ _id: mongoose.Types.ObjectId }>()
-          if (existing) subscription.paymentBreakdownId = existing._id
-        } else {
-          throw err
+        }], { session })
+        newBreakdownId = breakdown._id as mongoose.Types.ObjectId
+
+        // Activar suscripción dentro de la misma transacción
+        subscription.paymentBreakdownId = newBreakdownId
+        subscription.pagoRef = String(paymentId)
+        subscription.estado = 'activa'
+        // [PREPAGADO] Si la sub se creó en pendiente_pago con clasesPrepagadas sin
+        // fechaPago/metodoPago (link MP), completarlos ahora que MP confirmó el pago.
+        if (subscription.clasesPrepagadas?.cantidad && !subscription.clasesPrepagadas.fechaPago) {
+          subscription.clasesPrepagadas.fechaPago = new Date()
+          subscription.clasesPrepagadas.metodoPago = 'mercadopago'
         }
-      }
-    } else {
-      // Ya había breakdown vinculado (renovación con breakdown previo) — actualizar a cobrado
-      await PaymentBreakdown.updateOne(
-        { _id: subscription.paymentBreakdownId, estado: 'pendiente' },
-        { estado: 'cobrado', mercadoPagoId: String(paymentId), fechaCobro: new Date() }
-      )
-    }
+        // [FIADO] Si la sub tenía deuda a confianza, el pago MP la salda.
+        if (subscription.pagoFiado && !subscription.pagoFiado.saldado) {
+          subscription.pagoFiado.saldado = true
+          subscription.pagoFiado.saldadoEn = new Date()
+          subscription.pagoFiado.metodoPagoFinal = 'mercadopago'
+        }
+        await subscription.save({ session })
 
-    // Activar suscripción
-    subscription.pagoRef = String(paymentId)
-    subscription.estado = 'activa'
-    // [PREPAGADO] Si la sub se creó en pendiente_pago con clasesPrepagadas sin
-    // fechaPago/metodoPago (link MP), completarlos ahora que MP confirmó el pago.
-    if (subscription.clasesPrepagadas?.cantidad && !subscription.clasesPrepagadas.fechaPago) {
-      subscription.clasesPrepagadas.fechaPago = new Date()
-      subscription.clasesPrepagadas.metodoPago = 'mercadopago'
-    }
-    // [FIADO] Si la sub tenía deuda a confianza, el pago MP la salda.
-    if (subscription.pagoFiado && !subscription.pagoFiado.saldado) {
-      subscription.pagoFiado.saldado = true
-      subscription.pagoFiado.saldadoEn = new Date()
-      subscription.pagoFiado.metodoPagoFinal = 'mercadopago'
-    }
-    await subscription.save()
-
-    // Audit log
-    try {
-      await FinanceService.log(
-        'pago_recibido',
-        'PaymentBreakdown',
-        String(subscription.paymentBreakdownId ?? subscription._id),
-        subscription.monto,
-        String(subscription.studentId)
-      )
-    } catch {
-      // No bloquear flujo por fallo de audit
+        await FinanceService.logWithSession(
+          session,
+          'pago_recibido',
+          'PaymentBreakdown',
+          String(newBreakdownId),
+          subscription.monto,
+          String(subscription.studentId)
+        )
+      })
+    } finally {
+      await session.endSession()
     }
 
     // Email al alumno + notificación al tallerista
@@ -624,5 +669,147 @@ export const PaymentService = {
     } catch {
       // No bloquear flujo
     }
+  },
+
+  // ─────────────────────────────────────────────────────────────────
+  // Pago automático — cobro recurrente vía preapproval
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * [FINANCE RISK] Acredita un cobro recurrente de preapproval.
+   * Invocado desde el webhook `subscription_authorized_payment`.
+   *
+   * @param subscriptionId - _id de Subscription (extraído de external_reference = "pa:<id>")
+   * @param authorizedPaymentId - ID único del cobro (clave de idempotencia en mercadoPagoId)
+   * @param transactionAmount - CLP entero cobrado por MP en este ciclo
+   * @param comisionMP - monto de la fee MP (informativo, NO entra en la ecuación)
+   */
+  async handleAuthorizedRecurringPayment(
+    subscriptionId: string,
+    authorizedPaymentId: string,
+    transactionAmount: number,
+    comisionMP: number,
+  ): Promise<void> {
+    await dbConnect()
+
+    // [IDEMPOTENCIA] Guard por mercadoPagoId único en PaymentBreakdown
+    const existing = await PaymentBreakdown.findOne({ mercadoPagoId: String(authorizedPaymentId) })
+      .lean<{ _id: mongoose.Types.ObjectId }>()
+    if (existing) return
+
+    const subscription = await Subscription.findById(subscriptionId)
+    if (!subscription) return  // sub no encontrada: no reintentar
+
+    const workshop = await Workshop.findById(subscription.workshopId)
+      .select('ownerId precioModalidad plan')
+      .lean<{
+        _id: mongoose.Types.ObjectId
+        ownerId: mongoose.Types.ObjectId
+        precioModalidad?: 'neto' | 'bruto'
+        plan?: { sesionesIncluidas: number; vigencia: string }
+      }>()
+    if (!workshop) throw new Error(`[AUTOPAGO] Taller no encontrado para sub ${subscriptionId}`)
+
+    // [CUADRATURA] Calcular desglose con el monto real cobrado por MP
+    const feePct = await SiteConfigService.getComisionPct()
+    const desglose = FinanceService.calcularDesglose(transactionAmount, feePct)
+
+    // Sesiones a sumar: del plan del taller, o 4 como tope de seguridad
+    const sesionesACiclo = workshop.plan?.sesionesIncluidas ?? 4
+
+    const session = await mongoose.startSession()
+    let newBreakdownId: mongoose.Types.ObjectId | undefined
+    try {
+      await session.withTransaction(async () => {
+        // [INMUTABLE] Crear nuevo PaymentBreakdown por ciclo
+        const [breakdown] = await PaymentBreakdown.create([{
+          subscriptionId:  subscription._id,
+          workshopId:      subscription.workshopId,
+          ownerId:         workshop.ownerId,
+          studentId:       subscription.studentId,
+          montoBruto:      desglose.montoBruto,
+          comisionMP,          // informativo; no entra en montoBruto = montoProfesor + feeTallerea
+          feeTallerea:     desglose.feeTallerea,
+          montoProfesor:   desglose.montoProfesor,
+          porcentajeFee:   feePct,
+          precioModalidad: workshop.precioModalidad ?? 'bruto',
+          tipo:            'pago',
+          estado:          'cobrado',
+          mercadoPagoId:   String(authorizedPaymentId),
+          fechaCobro:      new Date(),
+        }], { session })
+        newBreakdownId = breakdown._id as mongoose.Types.ObjectId
+
+        // Acreditar sesiones del ciclo
+        subscription.sesionesTotales += sesionesACiclo
+        subscription.sesionesDisponibles += sesionesACiclo
+
+        // Extender fechaVencimiento 1 mes desde el vencimiento vigente (o desde hoy si ya venció)
+        const base = subscription.fechaVencimiento > new Date()
+          ? subscription.fechaVencimiento
+          : new Date()
+        const nuevaFecha = new Date(base)
+        nuevaFecha.setMonth(nuevaFecha.getMonth() + 1)
+        subscription.fechaVencimiento = nuevaFecha
+
+        // Actualizar campos del mandato
+        subscription.ultimoCobroAutomaticoEn = new Date()
+        subscription.intentosCobroFallidos = 0
+        subscription.pagoRef = String(authorizedPaymentId)
+        subscription.estado = 'activa'
+
+        await subscription.save({ session })
+
+        // [AUDIT] FinanceAuditLog append-only
+        await FinanceService.logWithSession(
+          session,
+          'pago_recibido',
+          'PaymentBreakdown',
+          String(newBreakdownId),
+          transactionAmount,
+          String(subscription.studentId),
+          undefined,
+          { via: 'preapproval', authorizedPaymentId }
+        )
+      })
+    } catch (err: unknown) {
+      const code = (err as { code?: number })?.code
+      // E11000 = race condition entre retries del webhook; ya procesado
+      if (code === 11000) return
+      throw err
+    } finally {
+      await session.endSession()
+    }
+  },
+
+  /**
+   * Sincroniza el estado del mandato preapproval desde MP hacia la Subscription.
+   * Invocado desde el webhook `subscription_preapproval`.
+   * Si MP cancela el mandato (tarjeta vencida, etc.) → limpia pagoAutomatico.
+   */
+  async handlePreapprovalStatusUpdate(preapprovalId: string): Promise<void> {
+    await dbConnect()
+
+    const sub = await Subscription.findOne({ mpPreapprovalId: preapprovalId })
+    if (!sub) return  // puede ser un mandato de otro sistema; no es error
+
+    // Obtener estado actual desde MP
+    const { getPreapproval } = await import('@/lib/mercadopago')
+    const preapproval = await getPreapproval(preapprovalId)
+
+    const newStatus = preapproval.status as ISubscription['mpPreapprovalStatus']
+    if (sub.mpPreapprovalStatus === newStatus) return  // sin cambio
+
+    sub.mpPreapprovalStatus = newStatus
+
+    // Si MP lo canceló, limpiar el mandato localmente para que el alumno pueda re-activar
+    if (newStatus === 'cancelled') {
+      sub.pagoAutomatico = false
+      sub.mpPreapprovalId = undefined
+      sub.mpPreapprovalStatus = undefined
+      sub.cardLast4 = undefined
+    }
+
+    await sub.save()
   },
 }

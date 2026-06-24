@@ -37,7 +37,13 @@ export async function POST(req: NextRequest) {
     if (original.tipo === 'reembolso') {
       return NextResponse.json({ error: 'Este registro ya es un reembolso' }, { status: 400 })
     }
-    if (original.estado === 'reembolsado') {
+    // [INMUTABLE] Detectar doble reembolso via existencia del breakdown de reembolso que referencia al original.
+    // No se usa original.estado === 'reembolsado' porque eso requería mutar el breakdown original.
+    const yaReembolsado = await PaymentBreakdown.findOne({
+      tipo: 'reembolso',
+      referenciaOriginalId: original._id,
+    }).lean()
+    if (yaReembolsado) {
       return NextResponse.json({ error: 'Esta transacción ya fue reembolsada' }, { status: 400 })
     }
 
@@ -45,7 +51,8 @@ export async function POST(req: NextRequest) {
     const comisionPct = await SiteConfigService.getComisionPct()
     const { feeTallerea, montoProfesor } = FinanceService.calcularDesglose(original.montoBruto, comisionPct)
 
-    // [INMUTABLE] Crear nuevo breakdown tipo:'reembolso' con montos negativos
+    // [INMUTABLE] Crear nuevo breakdown tipo:'reembolso' con montos negativos + referencia al original.
+    // El breakdown original queda intacto — su inmutabilidad se preserva.
     const reembolso = await new PaymentBreakdown({
       workshopId: original.workshopId,
       ownerId: original.ownerId,
@@ -61,10 +68,10 @@ export async function POST(req: NextRequest) {
       tipo: 'reembolso',
       estado: 'cobrado',
       fechaCobro: new Date(),
+      referenciaOriginalId: original._id, // [INMUTABLE] vínculo append-only; no se modifica el original
     }).save()
 
-    // Marcar original como reembolsado
-    await PaymentBreakdown.findByIdAndUpdate(breakdownId, { estado: 'reembolsado' })
+    // [INMUTABLE] NO se modifica el breakdown original (eliminado: findByIdAndUpdate estado:'reembolsado')
 
     // [FINANCE RISK] Audit log
     await FinanceService.log(

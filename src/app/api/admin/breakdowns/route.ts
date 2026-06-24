@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import dbConnect from '@/lib/db'
 import PaymentBreakdown from '@/models/PaymentBreakdown'
+import Liquidation from '@/models/Liquidation'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,7 +52,21 @@ export async function GET(req: NextRequest) {
       PaymentBreakdown.countDocuments(query),
     ])
 
-    return NextResponse.json({ data, total, page, limit })
+    // [INMUTABLE] Los breakdowns post-fix nunca reciben estado:'liquidado'.
+    // Enriquecer la respuesta con isLiquidated consultando Liquidation.breakdowns[].
+    const breakdownIds = data.map((b) => b._id)
+    const liquidacionesConEstos = await Liquidation.find({
+      breakdowns: { $in: breakdownIds },
+    }).select('breakdowns').lean<{ breakdowns: unknown[] }[]>()
+    const liquidadosSet = new Set<string>(
+      liquidacionesConEstos.flatMap((l) => (l.breakdowns as unknown[]).map(String))
+    )
+    const enriched = data.map((b) => ({
+      ...b,
+      isLiquidated: (b as { estado?: string }).estado === 'liquidado' || liquidadosSet.has(String(b._id)),
+    }))
+
+    return NextResponse.json({ data: enriched, total, page, limit })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error interno'
     return NextResponse.json({ error: message }, { status: 500 })

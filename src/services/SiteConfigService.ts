@@ -6,6 +6,10 @@ const DEFAULTS = {
   comisionPct: 15,
   liquidacionMinimaDefault: 5000,
   cuotaPorTalleristaMB: 1024,
+  // [PAGO AUTOMÁTICO] Acordado Fase 0 — 2026-06-24
+  descuentoPagoAutomaticoPct: 5,
+  avisoPreCobroDias: 3,
+  maxIntentosCobroFallido: 3,
 }
 
 export const SiteConfigService = {
@@ -20,7 +24,10 @@ export const SiteConfigService = {
     return config
   },
 
-  async update(data: Partial<Pick<ISiteConfig, 'comisionPct' | 'liquidacionMinimaDefault' | 'cuotaPorTalleristaMB'>>): Promise<ISiteConfig> {
+  async update(data: Partial<Pick<ISiteConfig,
+    'comisionPct' | 'liquidacionMinimaDefault' | 'cuotaPorTalleristaMB' |
+    'descuentoPagoAutomaticoPct' | 'avisoPreCobroDias' | 'maxIntentosCobroFallido'
+  >>): Promise<ISiteConfig> {
     await connectDB()
     const config = await SiteConfig.findOneAndUpdate(
       { singleton: true },

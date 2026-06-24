@@ -44,8 +44,15 @@ function addDays(date: Date, n: number): Date {
   return d
 }
 
+// [TIMEZONE] Extrae YYYY-MM-DD de las partes locales del Date para evitar desfase UTC en Chile.
+// NO usar toISOString() aquí: convertiría a UTC y en horario de invierno (UTC-4) podría
+// retroceder un día si la hora local es < 4am (poco probable con el anchor de mediodía,
+// pero incorrecto por principio — siempre usar partes locales para fechas de slots).
 function toDateStr(d: Date): string {
-  return d.toISOString().split('T')[0]
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 function generateInstances(patterns: SlotData[], fechaInicio: string, semanas: number): ScheduledSlot[] {

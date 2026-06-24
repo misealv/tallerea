@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
-import { paymentClient } from '@/lib/mercadopago'
+import { paymentClient, getAuthorizedPayment } from '@/lib/mercadopago'
 import { PaymentService } from '@/services/PaymentService'
 
 export const dynamic = 'force-dynamic'
@@ -39,7 +39,63 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
 
-    // Procesar notificaciones de pago: created y updated (pagos diferidos: transferencia, etc.)
+    // ─────────────────────────────────────────────────────────────────
+    // [PAGO AUTOMÁTICO] subscription_preapproval — sincroniza estado del mandato
+    // ─────────────────────────────────────────────────────────────────
+    if (body.type === 'subscription_preapproval') {
+      const preapprovalId = body.data?.id
+      if (preapprovalId) {
+        await PaymentService.handlePreapprovalStatusUpdate(String(preapprovalId))
+      }
+      return NextResponse.json({ ok: true })
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // [PAGO AUTOMÁTICO] subscription_authorized_payment — cobro recurrente
+    // ─────────────────────────────────────────────────────────────────
+    if (body.type === 'subscription_authorized_payment') {
+      const authorizedPaymentId = body.data?.id
+      if (!authorizedPaymentId) return NextResponse.json({ ok: true })
+
+      const ap = await getAuthorizedPayment(String(authorizedPaymentId))
+      if (ap.status !== 'processed') return NextResponse.json({ ok: true })
+
+      // Resolver subscriptionId: primero external_reference del preapproval (prefijo "pa:"),
+      // si no está propagado al authorized_payment, buscamos por mpPreapprovalId en BD.
+      let subscriptionId: string | undefined
+
+      const apAny = ap as unknown as Record<string, unknown>
+      const extRef = typeof apAny['external_reference'] === 'string'
+        ? (apAny['external_reference'] as string)
+        : undefined
+      if (extRef?.startsWith('pa:')) {
+        subscriptionId = extRef.slice(3)
+      } else if (ap.preapproval_id) {
+        const { default: Subscription } = await import('@/models/Subscription')
+        const sub = await Subscription.findOne({ mpPreapprovalId: ap.preapproval_id })
+          .select('_id').lean<{ _id: { toString(): string } }>()
+        subscriptionId = sub?._id?.toString()
+      }
+
+      if (!subscriptionId) return NextResponse.json({ ok: true })
+
+      // comisionMP = suma de fee_details (informativo; no entra en la ecuación financiera)
+      const comisionMP = (ap.fee_details ?? [])
+        .reduce((sum, f) => sum + (f.amount ?? 0), 0)
+
+      await PaymentService.handleAuthorizedRecurringPayment(
+        subscriptionId,
+        String(authorizedPaymentId),
+        ap.transaction_amount,
+        Math.round(comisionMP),
+      )
+
+      return NextResponse.json({ ok: true })
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Pagos únicos (checkout pro / payment.created / payment.updated)
+    // ─────────────────────────────────────────────────────────────────
     const isPayment = body.type === 'payment'
     const isPaymentAction = body.action === 'payment.created' || body.action === 'payment.updated'
     if (!isPayment && !isPaymentAction) {

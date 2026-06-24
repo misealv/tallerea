@@ -1,5 +1,13 @@
 'use client'
 
+import { useState } from 'react'
+import dynamic from 'next/dynamic'
+
+// Carga diferida: el Brick de MP solo se carga cuando el usuario abre el formulario
+const AutopagoActivarForm = dynamic(() => import('./AutopagoActivarForm'), {
+  loading: () => <p className="text-sm text-gray-400">Cargando formulario...</p>,
+})
+
 interface SubscriptionCardProps {
   subscription: {
     _id: string
@@ -10,8 +18,14 @@ interface SubscriptionCardProps {
     sesionesDisponibles: number
     fechaVencimiento: string
     monto: number
+    precioSnapshot?: number
+    // [PAGO AUTOMÁTICO] Estado del mandato
+    pagoAutomatico?: boolean
+    mpPreapprovalStatus?: 'authorized' | 'paused' | 'cancelled' | 'pending'
+    cardLast4?: string
     clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: string }
   }
+  descuentoPagoAutomaticoPct?: number   // viene de SiteConfig, se pasa desde la página
   onCancel: (id: string) => void
   onRenew: (id: string) => void
 }
@@ -22,7 +36,15 @@ const estadoConfig: Record<string, { bg: string; label: string }> = {
   cancelada: { bg: 'bg-red-100 text-red-600', label: 'Cancelada' },
 }
 
-export default function SubscriptionCard({ subscription: sub, onCancel, onRenew }: SubscriptionCardProps) {
+export default function SubscriptionCard({ subscription: sub, descuentoPagoAutomaticoPct = 0, onCancel, onRenew }: SubscriptionCardProps) {
+  const [showBrick, setShowBrick] = useState(false)
+  const [autopago, setAutopago] = useState({
+    activo: sub.pagoAutomatico ?? false,
+    cardLast4: sub.cardLast4,
+    status: sub.mpPreapprovalStatus,
+  })
+  const [desactivando, setDesactivando] = useState(false)
+
   const ws = sub.workshopId
   const pct = sub.sesionesTotales > 0
     ? Math.round((sub.sesionesUsadas / sub.sesionesTotales) * 100)
@@ -63,8 +85,65 @@ export default function SubscriptionCard({ subscription: sub, onCancel, onRenew 
         </div>
       </div>
 
+      {/* [PAGO AUTOMÁTICO] Sección de estado y activación */}
+      {sub.estado === 'activa' && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          {autopago.activo ? (
+            // Estado: mandato activo
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                  <span>●</span> Pago automático activo
+                </span>
+                {autopago.cardLast4 && (
+                  <p className="text-xs text-gray-400 mt-0.5">Tarjeta terminada en {autopago.cardLast4}</p>
+                )}
+              </div>
+              <button
+                onClick={async () => {
+                  setDesactivando(true)
+                  try {
+                    const res = await fetch(`/api/subscriptions/${sub._id}/autopago`, { method: 'DELETE' })
+                    if (res.ok) setAutopago({ activo: false, cardLast4: undefined, status: undefined })
+                  } finally {
+                    setDesactivando(false)
+                  }
+                }}
+                disabled={desactivando}
+                className="text-xs text-gray-500 hover:text-red-600 disabled:opacity-50"
+              >
+                {desactivando ? 'Desactivando...' : 'Desactivar'}
+              </button>
+            </div>
+          ) : showBrick ? (
+            // Formulario del Brick
+            <AutopagoActivarForm
+              subscriptionId={sub._id}
+              montoMensual={sub.precioSnapshot ?? sub.monto}
+              descuentoPct={descuentoPagoAutomaticoPct}
+              onSuccess={() => {
+                setAutopago({ activo: true, cardLast4: undefined, status: 'authorized' })
+                setShowBrick(false)
+              }}
+              onCancel={() => setShowBrick(false)}
+            />
+          ) : (
+            // Botón para abrir el formulario
+            <button
+              onClick={() => setShowBrick(true)}
+              className="w-full text-xs text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg py-2 px-3 font-medium transition"
+            >
+              ⚡ Activar pago automático
+              {descuentoPagoAutomaticoPct > 0 && (
+                <span className="ml-1 text-purple-500">({descuentoPagoAutomaticoPct}% desc.)</span>
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Info de vencimiento */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mt-3">
         <p className={`text-xs ${diasRestantes <= 7 ? 'text-orange-600 font-medium' : 'text-gray-500'}`}>
           {sub.estado === 'activa'
             ? diasRestantes > 0

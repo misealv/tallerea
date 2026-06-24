@@ -22,6 +22,8 @@ export interface IPaymentBreakdown extends Document {
   mercadoPagoId?: string;
   fechaCobro?: Date;
   liquidationId?: Types.ObjectId;
+  // [INMUTABLE] Solo en breakdowns tipo:'reembolso': apunta al breakdown original reembolsado
+  referenciaOriginalId?: Types.ObjectId;
   createdAt: Date;
 }
 
@@ -33,9 +35,11 @@ const PaymentBreakdownSchema = new Schema<IPaymentBreakdown>({
   studentId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   // Montos — enteros CLP
   montoBruto: { type: Number, required: true },
-  comisionMP: { type: Number, required: true, default: 0, min: 0 },
-  feeTallerea: { type: Number, required: true, min: 0 },
-  montoProfesor: { type: Number, required: true, min: 0 },
+  comisionMP: { type: Number, required: true, default: 0 },
+  // [INMUTABLE] min:0 eliminado aquí; los reembolsos usan montos negativos.
+  // La validación de no-negativo para tipo:'pago' se aplica en el pre-save hook.
+  feeTallerea: { type: Number, required: true },
+  montoProfesor: { type: Number, required: true },
   creditoAplicado: { type: Number, required: true, default: 0, min: 0 },
   // Porcentajes
   porcentajeFee: { type: Number, required: true, min: 0, max: 100 },
@@ -47,6 +51,8 @@ const PaymentBreakdownSchema = new Schema<IPaymentBreakdown>({
   mercadoPagoId: { type: String },
   fechaCobro: { type: Date },
   liquidationId: { type: Schema.Types.ObjectId, ref: 'Liquidation' },
+  // [INMUTABLE] Solo en tipo:'reembolso': referencia al breakdown original; fuente de verdad para detección de doble reembolso
+  referenciaOriginalId: { type: Schema.Types.ObjectId, ref: 'PaymentBreakdown' },
 }, { timestamps: true });
 
 // [CUADRATURA] Verificar ecuación fundamental antes de guardar
@@ -77,6 +83,8 @@ PaymentBreakdownSchema.index({ ownerId: 1, estado: 1 });
 PaymentBreakdownSchema.index({ studentId: 1 });
 PaymentBreakdownSchema.index({ liquidationId: 1 });
 PaymentBreakdownSchema.index({ estado: 1, fechaCobro: 1 });
+// [INMUTABLE] Índice sparse para lookup de reembolso por breakdown original (detectar doble reembolso)
+PaymentBreakdownSchema.index({ referenciaOriginalId: 1 }, { sparse: true });
 // [IDEMPOTENCIA] Garantiza que un mismo pago de MP no se registre dos veces.
 // Sparse: permite ajustes/reembolsos manuales sin mercadoPagoId.
 PaymentBreakdownSchema.index(

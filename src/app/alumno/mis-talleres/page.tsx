@@ -10,7 +10,9 @@ import User from '@/models/User'
 import Workshop from '@/models/Workshop'
 import Location from '@/models/Location'
 import TallerCard from '@/components/TallerCard'
+import SubscriptionCard from '@/components/SubscriptionCard'
 import { shouldHideTrial } from '@/lib/trialFilters'
+import { SiteConfigService } from '@/services/SiteConfigService'
 import { Types } from 'mongoose'
 
 export const dynamic = 'force-dynamic'
@@ -53,10 +55,15 @@ interface SubscriptionLean {
   estado: string
   sesionesDisponibles: number
   sesionesTotales: number
+  sesionesUsadas: number
   fechaVencimiento: Date
   monto: number
   precioEspecial?: boolean
   precioSnapshot?: number
+  // [PAGO AUTOMÁTICO]
+  pagoAutomatico?: boolean
+  mpPreapprovalStatus?: 'authorized' | 'paused' | 'cancelled' | 'pending'
+  cardLast4?: string
   clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }
 }
 
@@ -138,7 +145,7 @@ export default async function MisTalleresPage() {
   await dbConnect()
   const studentId = session.user.id
 
-  const [enrollments, subscriptions, upcomingBookings, allSubsHistorical] = await Promise.all([
+  const [enrollments, subscriptions, upcomingBookings, allSubsHistorical, siteConfig] = await Promise.all([
     Enrollment.find({ studentId, estado: 'pagado', activo: true })
       .populate('workshopId', 'titulo slug')
       .sort({ createdAt: -1 })
@@ -155,6 +162,7 @@ export default async function MisTalleresPage() {
       .select('workshopId')
       .populate('workshopId', 'slug')
       .lean<{ workshopId: { slug: string } | null }[]>(),
+    SiteConfigService.get(),
   ])
 
   const slugsConSubHistorica = new Set(
@@ -246,6 +254,27 @@ export default async function MisTalleresPage() {
                     precioRenovacion={precioRenovacion}
                     clasesPorCiclo={clasesPorCiclo}
                     proximaBooking={proxBooking && proxSlot ? { horaInicio: proxSlot.horaInicio, horaFin: proxSlot.horaFin, fecha: proxBooking.fecha } : null}
+                  />
+                  {/* [PAGO AUTOMÁTICO] Card de gestión del mandato */}
+                  <SubscriptionCard
+                    subscription={{
+                      _id: String(s._id),
+                      workshopId: { _id: String(wMedia._id), titulo: wMedia.titulo, slug: wMedia.slug },
+                      estado: 'activa',
+                      sesionesTotales: s.sesionesTotales,
+                      sesionesUsadas: s.sesionesUsadas ?? 0,
+                      sesionesDisponibles: s.sesionesDisponibles,
+                      fechaVencimiento: (s.fechaVencimiento as Date).toISOString(),
+                      monto: s.monto,
+                      precioSnapshot: s.precioSnapshot,
+                      pagoAutomatico: s.pagoAutomatico,
+                      mpPreapprovalStatus: s.mpPreapprovalStatus,
+                      cardLast4: s.cardLast4,
+                      clasesPrepagadas: prepaid ? { cantidad: prepaid.cantidad, consumidas: prepaid.consumidas, caducaEn: prepaid.caducaEn?.toISOString() } : undefined,
+                    }}
+                    descuentoPagoAutomaticoPct={siteConfig.descuentoPagoAutomaticoPct}
+                    onCancel={() => {/* manejado por TallerCard */}}
+                    onRenew={() => {/* manejado por TallerCard */}}
                   />
                   <Link href={`/alumno/mis-talleres/${String(wMedia._id)}/materiales`}
                     className="text-xs text-orange-600 hover:text-orange-800 font-medium ml-1 mt-0.5 inline-block">

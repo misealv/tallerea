@@ -43,8 +43,12 @@ export default function WeeklyCalendar({
 }: WeeklyCalendarProps) {
   const [expandedSlot, setExpandedSlot] = useState<number | null>(null)
 
-  // Filtrar solo slots futuros o de hoy
-  const today = new Date().toISOString().slice(0, 10)
+  // [TIMEZONE] Extrae YYYY-MM-DD del reloj local para evitar que a las 23h en Chile
+  // (UTC-3/UTC-4) toISOString() devuelva "mañana" como hoy, filtrando slots incorrectamente.
+  const today = (() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })()
 
   return (
     <div className="space-y-3">
