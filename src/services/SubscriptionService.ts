@@ -334,12 +334,16 @@ export const SubscriptionService = {
       sub.precioEspecial = true
 
       // [FINANCE RISK] Si hay mandato activo y el precio cambió, sincronizar en MP.
+      // Se aplica el mismo descuento de incentivo que se usó al activar el mandato,
+      // para que el alumno con autopago nunca pague el precio lleno inesperadamente.
       // Error no bloqueante: loggeamos y continuamos — el cobro del próximo ciclo
       // usará el monto que ya tiene MP hasta que el usuario reactive el mandato.
       if (precioChanged && sub.pagoAutomatico && sub.mpPreapprovalId) {
         try {
           const { updatePreapproval } = await import('@/lib/mercadopago')
-          await updatePreapproval(sub.mpPreapprovalId, data.precioSnapshot)
+          // [FINANCE RISK] Aplicar descuento de incentivo (igual que en activarPagoAutomatico)
+          const { montoFinal } = await SiteConfigService.calcularMontoConDescuento(data.precioSnapshot)
+          await updatePreapproval(sub.mpPreapprovalId, montoFinal)
         } catch (err) {
           console.warn(`[AUTOPAGO] updatePreapproval falló para sub ${subscriptionId}:`, err)
         }
