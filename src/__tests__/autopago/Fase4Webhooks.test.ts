@@ -33,12 +33,23 @@ import {
 // ─────────────────────────────────────────────────────────────────
 // Mock de SiteConfigService para fijar comisión al 10%
 // ─────────────────────────────────────────────────────────────────
-vi.mock('@/services/SiteConfigService', () => ({
-  SiteConfigService: {
-    get:              vi.fn().mockResolvedValue({ comisionPct: 10 }),
-    getComisionPct:   vi.fn().mockResolvedValue(10),
-  },
-}))
+vi.mock('@/services/SiteConfigService', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/services/SiteConfigService')>()
+  return {
+    SiteConfigService: {
+      ...original.SiteConfigService,  // preserva aplicarTopeAcumulacion (helper puro)
+      get:              vi.fn().mockResolvedValue({ comisionPct: 10 }),
+      getComisionPct:   vi.fn().mockResolvedValue(10),
+      resolverPoliticaRollover: vi.fn().mockResolvedValue({
+        rolloverActivo: true,
+        rolloverSoloAutopago: true,
+        topeAcumulacionFactor: 2,
+        mesesGraciaAlCancelar: 6,
+        maxReservasSimultaneas: 4,
+      }),
+    },
+  }
+})
 
 import { PaymentService } from '@/services/PaymentService'
 import User from '@/models/User'

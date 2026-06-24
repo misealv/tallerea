@@ -28,12 +28,23 @@ vi.mock('@/lib/resend', () => ({
   sendCobroFallidoMaxIntentos:  vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/services/SiteConfigService', () => ({
-  SiteConfigService: {
-    get:              vi.fn().mockResolvedValue({ comisionPct: 10, maxIntentosCobroFallido: 3 }),
-    getComisionPct:   vi.fn().mockResolvedValue(10),
-  },
-}))
+vi.mock('@/services/SiteConfigService', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/services/SiteConfigService')>()
+  return {
+    SiteConfigService: {
+      ...original.SiteConfigService,
+      get:              vi.fn().mockResolvedValue({ comisionPct: 10, maxIntentosCobroFallido: 3 }),
+      getComisionPct:   vi.fn().mockResolvedValue(10),
+      resolverPoliticaRollover: vi.fn().mockResolvedValue({
+        rolloverActivo: true,
+        rolloverSoloAutopago: true,
+        topeAcumulacionFactor: 2,
+        mesesGraciaAlCancelar: 6,
+        maxReservasSimultaneas: 4,
+      }),
+    },
+  }
+})
 
 import { PaymentService } from '@/services/PaymentService'
 import { SubscriptionService } from '@/services/SubscriptionService'
@@ -68,10 +79,13 @@ async function crearDatos(opts: { intentosPrevios?: number; sesionesDisponibles?
     titulo: 'Taller Cerámica',
     descripcion: 'Desc',
     slug: `ceramica-${Date.now()}`,
-    precio: 15000,
-    modeloAcceso: 'recurrente',
     estado: 'publicado',
-    capacidad: 10,
+    tipo: 'ceramica',
+    modalidad: 'presencial',
+    modeloAcceso: 'puntual',
+    modalidadPrecio: 'gratuito',
+    precio: 0,
+    fechaInicio: new Date(),
     activo: true,
     plan: { sesionesIncluidas: 4, vigencia: 'mensual' },
   })
