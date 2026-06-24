@@ -80,7 +80,20 @@ cardLast4?: string                   // informativo
 ultimoCobroAutomaticoEn?: Date
 intentosCobroFallidos: number        // default 0
 ```
-Config en `SiteConfig`: `descuentoPagoAutomaticoPct`, `avisoPreCobroDias`, `maxIntentosCobroFallido`.
+Config en `SiteConfig` (editable desde `/admin/configuracion`, NUNCA hardcoded):
+- `descuentoPagoAutomaticoPct` — % de descuento por domiciliar (0 = incentivo desactivado).
+- `avisoPreCobroDias` — días de antelación del email de aviso pre-cobro.
+- `maxIntentosCobroFallido` — intentos antes de degradar a manual.
+- `incentivoAutopagoActivo` — switch maestro on/off del nudge en checkout y emails.
+- `incentivoAutopagoCopyCheckout` / `incentivoAutopagoCopyEmail` — textos editables del nudge.
+- `autopagoPreseleccionado` — si la opción aparece marcada por defecto (siempre desmarcable).
+
+### Incentivos: regla inquebrantable
+Todo incentivo (descuento %, copy, flags de nudge) vive en `SiteConfig` y se lee
+vía `SiteConfigService`. El admin lo controla desde el panel sin redeploy. Prohibido
+literal alguno de descuento o copy de incentivo en services, components o API routes.
+El descuento sale del margen de Tallerea (`feeTallerea`), nunca del `montoProfesor`;
+verificar cuadratura del `PaymentBreakdown` con el monto ya descontado. `[FINANCE RISK]` `[CUADRATURA]`
 
 ## Archivos clave del repo
 - Modelo: [src/models/Subscription.ts](../../../src/models/Subscription.ts)
@@ -88,7 +101,7 @@ Config en `SiteConfig`: `descuentoPagoAutomaticoPct`, `avisoPreCobroDias`, `maxI
 - Pagos/webhook: [src/services/PaymentService.ts](../../../src/services/PaymentService.ts)
 - Lib MP: [src/lib/mercadopago.ts](../../../src/lib/mercadopago.ts)
 - Cron: `src/app/api/cron/vencer-suscripciones`
-- Config: [src/services/SiteConfigService.ts](../../../src/services/SiteConfigService.ts)
+- Config (incentivos): [src/services/SiteConfigService.ts](../../../src/services/SiteConfigService.ts), modelo [src/models/SiteConfig.ts](../../../src/models/SiteConfig.ts), panel `/admin/configuracion` + API `/api/admin/config`.
 
 ## Flags obligatorios en código
 `[FINANCE RISK]` `[CUADRATURA]` `[LIQUIDACION]` `[INMUTABLE]` `[IDEMPOTENCIA]` `[RACE]` `[CICLO]` `[TALLER ESTADO]` `[BREAKING CHANGE]`
