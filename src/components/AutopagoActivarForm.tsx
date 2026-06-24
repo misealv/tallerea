@@ -27,6 +27,8 @@ interface AutopagoActivarFormProps {
   subscriptionId: string
   montoMensual: number            // CLP entero — se muestra en el formulario
   descuentoPct?: number            // % de descuento por activar (informativo)
+  /** Si se pasa, usa PATCH en lugar de POST (para cambio de tarjeta) */
+  actionOverride?: 'cambiar-tarjeta'
   onSuccess: () => void            // callback al terminar con éxito
   onCancel: () => void             // callback para cerrar sin activar
 }
@@ -37,6 +39,7 @@ export default function AutopagoActivarForm({
   subscriptionId,
   montoMensual,
   descuentoPct = 0,
+  actionOverride,
   onSuccess,
   onCancel,
 }: AutopagoActivarFormProps) {
@@ -84,10 +87,15 @@ export default function AutopagoActivarForm({
     }
 
     try {
+      const method = actionOverride === 'cambiar-tarjeta' ? 'PATCH' : 'POST'
+      const body = actionOverride === 'cambiar-tarjeta'
+        ? JSON.stringify({ action: 'cambiar-tarjeta', cardTokenId, cardLast4: last4 })
+        : JSON.stringify({ cardTokenId, cardLast4: last4 })
+
       const res = await fetch(`/api/subscriptions/${subscriptionId}/autopago`, {
-        method: 'POST',
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cardTokenId, cardLast4: last4 }),
+        body,
       })
 
       const data = await res.json()

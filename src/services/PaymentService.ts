@@ -812,4 +812,85 @@ export const PaymentService = {
 
     await sub.save()
   },
+
+  /**
+   * [CICLO] Maneja un cobro recurrente rechazado por MP.
+   * - Incrementa intentosCobroFallidos.
+   * - Si alcanza maxIntentosCobroFallido: degrada a manual (limpia mandato, no corta acceso).
+   * - Envía email correspondiente al alumno.
+   */
+  async handleRejectedRecurringPayment(
+    subscriptionId: string,
+    authorizedPaymentId: string,
+  ): Promise<void> {
+    await dbConnect()
+
+    const sub = await Subscription.findById(subscriptionId)
+    if (!sub) return
+
+    const config = await SiteConfigService.get()
+    const maxIntentos = config.maxIntentosCobroFallido ?? 3
+    const nuevoContador = (sub.intentosCobroFallidos ?? 0) + 1
+    const debeDegradar = nuevoContador >= maxIntentos
+    const preapprovalIdCapturado = sub.mpPreapprovalId
+
+    const session = await mongoose.startSession()
+    try {
+      await session.withTransaction(async () => {
+        sub.intentosCobroFallidos = nuevoContador
+        if (debeDegradar) {
+          // Degradar ≠ cancelar: el alumno conserva acceso mientras tiene sesiones
+          sub.pagoAutomatico = false
+          sub.mpPreapprovalId = undefined
+          sub.mpPreapprovalStatus = undefined
+          sub.cardLast4 = undefined
+          if ((sub.sesionesDisponibles ?? 0) <= 0) {
+            sub.estado = 'pendiente_pago'
+          }
+        }
+        await sub.save({ session })
+      })
+    } finally {
+      await session.endSession()
+    }
+
+    // Cancelar preapproval en MP tras degradación (fuera de tx; no crítico)
+    if (debeDegradar && preapprovalIdCapturado) {
+      const { cancelPreapproval } = await import('@/lib/mercadopago')
+      cancelPreapproval(preapprovalIdCapturado).catch((err) =>
+        console.warn(`[AUTOPAGO] cancelPreapproval tras degradación sub=${subscriptionId}:`, err)
+      )
+    }
+
+    const [student, workshop] = await Promise.all([
+      User.findById(sub.studentId).select('name email').lean<{ name: string; email: string }>(),
+      Workshop.findById(sub.workshopId).select('titulo slug').lean<{ titulo: string; slug: string }>(),
+    ])
+    if (!student?.email || !workshop) return
+
+    const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+    const panelUrl = `${baseUrl}/alumno/suscripciones`
+
+    if (debeDegradar) {
+      const { sendCobroFallidoMaxIntentos } = await import('@/lib/resend')
+      await sendCobroFallidoMaxIntentos({
+        email: student.email, name: student.name,
+        workshopTitulo: workshop.titulo, workshopSlug: workshop.slug,
+        panelUrl,
+      }).catch(() => null)
+    } else {
+      const { sendCobroFallido } = await import('@/lib/resend')
+      await sendCobroFallido({
+        email: student.email, name: student.name,
+        workshopTitulo: workshop.titulo,
+        intentos: nuevoContador, maxIntentos,
+        panelUrl,
+      }).catch(() => null)
+    }
+
+    console.warn(
+      `[AUTOPAGO] cobro rechazado sub=${subscriptionId} authorizedPaymentId=${authorizedPaymentId}` +
+      ` intentos=${nuevoContador}/${maxIntentos} degradado=${debeDegradar}`
+    )
+  },
 }

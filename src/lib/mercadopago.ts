@@ -220,3 +220,39 @@ export async function getAuthorizedPayment(
 
   return res.json() as Promise<AuthorizedPaymentResponse>
 }
+
+/**
+ * Pausa el mandato en MercadoPago. MP no cobra hasta que se reactive.
+ */
+export async function pausePreapproval(
+  mpPreapprovalId: string
+): Promise<PreapprovalResponse> {
+  const res = await fetch(`https://api.mercadopago.com/preapproval/${mpPreapprovalId}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'paused' }),
+  })
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`[MP] pausePreapproval error ${res.status}: ${err}`)
+  }
+  return res.json() as Promise<PreapprovalResponse>
+}
+
+/**
+ * Reactiva un mandato pausado (status = 'authorized').
+ */
+export async function reactivatePreapproval(
+  mpPreapprovalId: string
+): Promise<PreapprovalResponse> {
+  const res = await fetch(`https://api.mercadopago.com/preapproval/${mpPreapprovalId}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'authorized' }),
+  })
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`[MP] reactivatePreapproval error ${res.status}: ${err}`)
+  }
+  return res.json() as Promise<PreapprovalResponse>
+}

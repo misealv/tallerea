@@ -1230,3 +1230,88 @@ export async function sendWorkshopAnnouncement(input: BulkAnnouncementInput): Pr
 function escapeHtml(s: string): string {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Pago automático — emails de ciclo de vida
+// ─────────────────────────────────────────────────────────────────
+
+/** Cobro mensual rechazado (intentos < maxIntentos): invita a actualizar la tarjeta. */
+export async function sendCobroFallido({
+  email, name, workshopTitulo, intentos, maxIntentos, panelUrl,
+}: {
+  email: string; name: string; workshopTitulo: string
+  intentos: number; maxIntentos: number; panelUrl: string
+}) {
+  if (!process.env.RESEND_API_KEY) return
+  const resend = getResend()
+  const restantes = maxIntentos - intentos
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: email,
+    subject: `⚠️ No pudimos cobrar tu mensualidad — ${workshopTitulo}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+        <h2 style="color:#dc2626;">⚠️ Problema con tu pago automático</h2>
+        <p>Hola ${escapeHtml(name)},</p>
+        <p>Intentamos cobrar tu mensualidad de <strong>${escapeHtml(workshopTitulo)}</strong> pero la tarjeta fue rechazada.</p>
+        <p>Este es el intento <strong>${intentos} de ${maxIntentos}</strong>. Te quedan <strong>${restantes} intento${restantes !== 1 ? 's' : ''}</strong> antes de que desactivemos el cobro automático.</p>
+        <p>Actualiza tu tarjeta en tu panel para que el próximo cobro sea exitoso:</p>
+        <a href="${panelUrl}" style="display:inline-block;background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;margin:16px 0;">Actualizar tarjeta</a>
+        <p style="color:#9ca3af;font-size:12px;margin-top:32px;">— Tallerea.cl</p>
+      </div>`,
+  })
+}
+
+/** Cobro rechazado y se agotaron los intentos: informa degradación + ofrece pago manual. */
+export async function sendCobroFallidoMaxIntentos({
+  email, name, workshopTitulo, workshopSlug, panelUrl,
+}: {
+  email: string; name: string; workshopTitulo: string; workshopSlug: string; panelUrl: string
+}) {
+  if (!process.env.RESEND_API_KEY) return
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: email,
+    subject: `Tu cobro automático fue desactivado — ${workshopTitulo}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+        <h2 style="color:#dc2626;">Tu cobro automático fue desactivado</h2>
+        <p>Hola ${escapeHtml(name)},</p>
+        <p>Después de varios intentos fallidos, desactivamos el cobro automático de <strong>${escapeHtml(workshopTitulo)}</strong>.</p>
+        <p><strong>No perdiste tu lugar.</strong> Tu suscripción sigue activa mientras tengas sesiones disponibles.</p>
+        <p>Para continuar asistiendo al próximo ciclo, renueva manualmente o reactiva el pago automático con una tarjeta válida:</p>
+        <div style="margin:16px 0;">
+          <a href="${baseUrl}/talleres/${escapeHtml(workshopSlug)}" style="display:inline-block;background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;margin-right:12px;">Ver taller</a>
+          <a href="${panelUrl}" style="display:inline-block;background:#f3f4f6;color:#374151;padding:12px 28px;border-radius:8px;text-decoration:none;">Mi panel</a>
+        </div>
+        <p style="color:#9ca3af;font-size:12px;margin-top:32px;">— Tallerea.cl</p>
+      </div>`,
+  })
+}
+
+/** Aviso pre-cobro: N días antes del próximo cargo automático. */
+export async function sendAvisoPreCobro({
+  email, name, workshopTitulo, fechaCobro, monto, panelUrl,
+}: {
+  email: string; name: string; workshopTitulo: string
+  fechaCobro: string; monto: number; panelUrl: string
+}) {
+  if (!process.env.RESEND_API_KEY) return
+  const resend = getResend()
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: email,
+    subject: `Recordatorio: cobro automático el ${fechaCobro} — ${workshopTitulo}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+        <h2 style="color:#7c3aed;">Aviso de cobro próximo</h2>
+        <p>Hola ${escapeHtml(name)},</p>
+        <p>El <strong>${escapeHtml(fechaCobro)}</strong> realizaremos el cobro automático de <strong>$${monto.toLocaleString('es-CL')}</strong> por <strong>${escapeHtml(workshopTitulo)}</strong>.</p>
+        <p>Si necesitas actualizar tu tarjeta o cancelar el cobro automático, hazlo antes de esa fecha:</p>
+        <a href="${panelUrl}" style="display:inline-block;background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;margin:16px 0;">Gestionar pago automático</a>
+        <p style="color:#9ca3af;font-size:12px;margin-top:32px;">— Tallerea.cl</p>
+      </div>`,
+  })
+}

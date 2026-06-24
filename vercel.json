@@ -23,6 +23,10 @@
     {
       "path": "/api/cron/reconciliar-preapprovals",
       "schedule": "45 3 * * *"
+    },
+    {
+      "path": "/api/cron/aviso-precobro",
+      "schedule": "0 10 * * *"
     }
   ]
 }

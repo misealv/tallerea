@@ -1654,4 +1654,86 @@ export const SubscriptionService = {
 
     return sub.toObject() as ISubscription
   },
+
+  /** Pausa el cobro automático: MP no cobra hasta que se reactive. */
+  async pausarPagoAutomatico(subscriptionId: string): Promise<ISubscription> {
+    await dbConnect()
+    const sub = await Subscription.findById(subscriptionId)
+    if (!sub) throw new Error('Suscripción no encontrada')
+    if (!sub.pagoAutomatico || !sub.mpPreapprovalId) throw new Error('Sin mandato activo')
+    if (sub.mpPreapprovalStatus === 'paused') throw new Error('El mandato ya está pausado')
+
+    const { pausePreapproval } = await import('@/lib/mercadopago')
+    await pausePreapproval(sub.mpPreapprovalId)
+
+    sub.mpPreapprovalStatus = 'paused'
+    await sub.save()
+    return sub.toObject() as ISubscription
+  },
+
+  /** Reactiva un mandato pausado. */
+  async reactivarPagoAutomatico(subscriptionId: string): Promise<ISubscription> {
+    await dbConnect()
+    const sub = await Subscription.findById(subscriptionId)
+    if (!sub) throw new Error('Suscripción no encontrada')
+    if (!sub.pagoAutomatico || !sub.mpPreapprovalId) throw new Error('Sin mandato para reactivar')
+    if (sub.mpPreapprovalStatus !== 'paused') throw new Error('El mandato no está pausado')
+
+    const { reactivatePreapproval } = await import('@/lib/mercadopago')
+    await reactivatePreapproval(sub.mpPreapprovalId)
+
+    sub.mpPreapprovalStatus = 'authorized'
+    sub.intentosCobroFallidos = 0
+    await sub.save()
+    return sub.toObject() as ISubscription
+  },
+
+  /**
+   * Cambia la tarjeta del mandato: cancela el preapproval anterior + crea uno nuevo.
+   * El alumno conserva el mismo precioSnapshot.
+   */
+  async cambiarTarjetaAutopago(
+    subscriptionId: string,
+    cardTokenId: string,
+    cardLast4: string,
+  ): Promise<ISubscription> {
+    await dbConnect()
+    const sub = await Subscription.findById(subscriptionId)
+    if (!sub) throw new Error('Suscripción no encontrada')
+    if (!sub.pagoAutomatico || !sub.mpPreapprovalId) throw new Error('Sin mandato activo')
+    if (!/^\d{4}$/.test(cardLast4)) throw new Error('cardLast4 debe tener 4 dígitos')
+
+    const [workshop, alumno] = await Promise.all([
+      Workshop.findById(sub.workshopId).select('titulo').lean<{ titulo: string }>(),
+      User.findById(sub.studentId).select('email').lean<{ email: string }>(),
+    ])
+    if (!workshop || !alumno?.email) throw new Error('Datos del taller o alumno no disponibles')
+
+    const monto = sub.precioSnapshot ?? sub.monto
+    if (!Number.isInteger(monto) || monto <= 0) {
+      throw new Error('[FINANCE RISK] Monto inválido para recrear preapproval')
+    }
+
+    const { cancelPreapproval, createPreapproval } = await import('@/lib/mercadopago')
+    try {
+      await cancelPreapproval(sub.mpPreapprovalId)
+    } catch (err) {
+      console.warn(`[AUTOPAGO] cancelPreapproval al cambiar tarjeta sub=${subscriptionId}:`, err)
+    }
+
+    const result = await createPreapproval({
+      subscriptionId: String(sub._id),
+      workshopTitle: workshop.titulo,
+      payerEmail: alumno.email,
+      cardTokenId,
+      transactionAmount: monto,
+    })
+
+    sub.mpPreapprovalId = result.id
+    sub.mpPreapprovalStatus = result.status as ISubscription['mpPreapprovalStatus']
+    sub.cardLast4 = cardLast4
+    sub.intentosCobroFallidos = 0
+    await sub.save()
+    return sub.toObject() as ISubscription
+  },
 }

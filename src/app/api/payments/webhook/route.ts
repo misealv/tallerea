@@ -58,12 +58,9 @@ export async function POST(req: NextRequest) {
       if (!authorizedPaymentId) return NextResponse.json({ ok: true })
 
       const ap = await getAuthorizedPayment(String(authorizedPaymentId))
-      if (ap.status !== 'processed') return NextResponse.json({ ok: true })
 
-      // Resolver subscriptionId: primero external_reference del preapproval (prefijo "pa:"),
-      // si no está propagado al authorized_payment, buscamos por mpPreapprovalId en BD.
+      // [PAGO AUTOMÁTICO] Resolver subscriptionId para cualquier estado relevante
       let subscriptionId: string | undefined
-
       const apAny = ap as unknown as Record<string, unknown>
       const extRef = typeof apAny['external_reference'] === 'string'
         ? (apAny['external_reference'] as string)
@@ -76,6 +73,16 @@ export async function POST(req: NextRequest) {
           .select('_id').lean<{ _id: { toString(): string } }>()
         subscriptionId = sub?._id?.toString()
       }
+
+      // Cobro rechazado → incrementar intentos / degradar
+      if (ap.status === 'rejected') {
+        if (subscriptionId) {
+          await PaymentService.handleRejectedRecurringPayment(subscriptionId, String(authorizedPaymentId))
+        }
+        return NextResponse.json({ ok: true })
+      }
+
+      if (ap.status !== 'processed') return NextResponse.json({ ok: true })
 
       if (!subscriptionId) return NextResponse.json({ ok: true })
 
