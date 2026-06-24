@@ -37,6 +37,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
     }
 
+    // [SECURITY] Anti-replay: rechazar eventos con timestamp fuera de la ventana de ±5 min
+    const tsNum = Number(ts)
+    if (!tsNum || Math.abs(Date.now() - tsNum * 1000) > 5 * 60 * 1000) {
+      return NextResponse.json({ error: 'Timestamp inválido o expirado' }, { status: 401 })
+    }
+
     const body = await req.json()
 
     // ─────────────────────────────────────────────────────────────────
