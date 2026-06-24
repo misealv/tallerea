@@ -1611,7 +1611,7 @@ export const SubscriptionService = {
 
     // [FINANCE RISK] Aplicar descuento de incentivo si está activo (sale del margen de Tallerea)
     const { SiteConfigService } = await import('@/services/SiteConfigService')
-    const { montoFinal, descuentoCLP, descuentoPct } = await SiteConfigService.calcularMontoConDescuento(monto)
+    const { montoFinal } = await SiteConfigService.calcularMontoConDescuento(monto)
 
     // Validar largo de cardLast4
     if (!/^\d{4}$/.test(cardLast4)) throw new Error('cardLast4 debe tener exactamente 4 dígitos')
@@ -1630,11 +1630,6 @@ export const SubscriptionService = {
     sub.mpPreapprovalId = result.id
     sub.mpPreapprovalStatus = result.status as ISubscription['mpPreapprovalStatus']
     sub.cardLast4 = cardLast4
-    // Guardar snapshot del descuento aplicado (informativo, no entra en cuadratura)
-    if (descuentoPct > 0) {
-      sub.set('descuentoAutopagoPct', descuentoPct)
-      sub.set('descuentoAutopagoCLP', descuentoCLP)
-    }
     await sub.save()
 
     return sub.toObject() as ISubscription
