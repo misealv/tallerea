@@ -639,6 +639,27 @@ export const BookingService = {
     const existing = await Booking.findOne(dupFilter)
     if (existing) throw new Error('Este alumno ya tiene una reserva en esta sesión')
 
+    // [BANCO DE SESIONES] Límite de reservas simultáneas — misma regla que reserve()
+    {
+      const wsPoliticaDoc = await Workshop.findById(sub.workshopId)
+        .select('politica').lean<{ politica?: { maxReservasSimultaneas?: number } }>()
+      const { SiteConfigService: SC } = await import('@/services/SiteConfigService')
+      const politicaMax = await SC.resolverPoliticaRollover(wsPoliticaDoc?.politica)
+      if (politicaMax.maxReservasSimultaneas > 0) {
+        const futuras = await Booking.countDocuments({
+          subscriptionId,
+          estado: 'reservada',
+          fecha: { $gt: new Date() },
+        })
+        if (futuras >= politicaMax.maxReservasSimultaneas) {
+          throw new Error(
+            `Límite de reservas simultáneas alcanzado (${politicaMax.maxReservasSimultaneas}). ` +
+            'Cancela una reserva existente para hacer espacio.'
+          )
+        }
+      }
+    }
+
     // Consumir sesión (atómico)
     await SubscriptionService.consumeSesion(subscriptionId)
 
