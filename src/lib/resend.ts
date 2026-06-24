@@ -1326,9 +1326,9 @@ export async function sendAvisoPreCobro({
 
 /** [BANCO DE SESIONES] Notifica al alumno que su acumulación llegó al tope y sesiones fueron descartadas. */
 export async function sendTopeSesionesAlcanzado({
-  studentEmail, studentName, workshopTitle, workshopSlug, sesionesDescartadas, topeAcumulacion,
+  studentEmail, studentName, workshopTitle, sesionesDescartadas, topeAcumulacion,
 }: {
-  studentEmail: string; studentName: string; workshopTitle: string; workshopSlug: string
+  studentEmail: string; studentName: string; workshopTitle: string
   sesionesDescartadas: number; topeAcumulacion: number
 }) {
   if (!process.env.RESEND_API_KEY) return

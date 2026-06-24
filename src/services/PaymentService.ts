@@ -807,13 +807,12 @@ export const PaymentService = {
       try {
         const { sendTopeSesionesAlcanzado } = await import('@/lib/resend')
         const student = await User.findById(subscription.studentId).select('name email').lean<{ name: string; email: string }>()
-        const workshopFull = await Workshop.findById(subscription.workshopId).select('titulo slug').lean<{ titulo: string; slug: string }>()
+        const workshopFull = await Workshop.findById(subscription.workshopId).select('titulo').lean<{ titulo: string }>()
         if (student && workshopFull) {
           await sendTopeSesionesAlcanzado({
             studentName: student.name,
             studentEmail: student.email,
             workshopTitle: workshopFull.titulo,
-            workshopSlug: workshopFull.slug,
             sesionesDescartadas,
             topeAcumulacion: politicaRollover.topeAcumulacionFactor * sesionesACiclo,
           }).catch(() => { /* no bloquear */ })

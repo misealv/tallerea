@@ -28,7 +28,6 @@ vi.mock('@/lib/mercadopago', async (importOriginal) => {
 
 import {
   getPreapproval as mockGetPreapproval,
-  getAuthorizedPayment as mockGetAuthorizedPayment,
 } from '@/lib/mercadopago'
 
 // ─────────────────────────────────────────────────────────────────

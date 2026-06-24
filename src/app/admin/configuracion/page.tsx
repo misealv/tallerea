@@ -134,7 +134,7 @@ export default function AdminConfiguracionPage() {
             onChange={e => set('avisoPreCobroDias', Number(e.target.value))}
             className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
           <p className="text-xs text-gray-400 mt-1">
-            Días de antelación con los que se envía el aviso "Te cobraremos $X el día Y".
+            Días de antelación con los que se envía el aviso &ldquo;Te cobraremos $X el día Y&rdquo;.
           </p>
         </div>
 
