@@ -48,6 +48,11 @@ export interface IPlantillaMensual {
 export interface IPolitica {
   horasAntesCancelacion: number;
   permitirReagendamiento: boolean;
+  // [BANCO DE SESIONES] Fase 7.5 — override por taller (undefined = usar SiteConfig global)
+  rolloverActivo?: boolean;
+  topeAcumulacionFactor?: number;
+  mesesGraciaAlCancelar?: number;
+  maxReservasSimultaneas?: number;
 }
 
 export type ModalidadPrecio = 'gratuito' | 'fijo' | 'voluntario' | 'paquetes';
@@ -174,6 +179,11 @@ const PlantillaMensualSchema = new Schema({
 const PoliticaSchema = new Schema({
   horasAntesCancelacion: { type: Number, default: 24, min: 0 },
   permitirReagendamiento: { type: Boolean, default: true },
+  // [BANCO DE SESIONES] Fase 7.5 — override por taller (optional, undefined = usar SiteConfig)
+  rolloverActivo:         { type: Boolean },
+  topeAcumulacionFactor:  { type: Number, min: 1, max: 10 },
+  mesesGraciaAlCancelar:  { type: Number, min: 1, max: 24 },
+  maxReservasSimultaneas: { type: Number, min: 0, max: 50 },
 }, { _id: false });
 
 const PrecioFijoSchema = new Schema({

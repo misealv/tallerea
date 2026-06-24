@@ -174,6 +174,25 @@ export const BookingService = {
       )
     }
 
+    // [BANCO DE SESIONES] Fase 7.5 — límite de reservas simultáneas abiertas
+    const politicaWorkshop = await Workshop.findById(workshopId)
+      .select('politica').lean<{ politica?: { maxReservasSimultaneas?: number } }>()
+    const { SiteConfigService } = await import('@/services/SiteConfigService')
+    const politicaRollover = await SiteConfigService.resolverPoliticaRollover(politicaWorkshop?.politica)
+    if (politicaRollover.maxReservasSimultaneas > 0) {
+      const futuras = await Booking.countDocuments({
+        subscriptionId,
+        estado: 'reservada',
+        fecha: { $gt: new Date() },
+      })
+      if (futuras >= politicaRollover.maxReservasSimultaneas) {
+        throw new Error(
+          `Límite de reservas simultáneas alcanzado (${politicaRollover.maxReservasSimultaneas}). ` +
+          'Cancela una reserva existente para hacer espacio.'
+        )
+      }
+    }
+
     // Consumir sesión de la suscripción (atómico)
     await SubscriptionService.consumeSesion(subscriptionId)
 

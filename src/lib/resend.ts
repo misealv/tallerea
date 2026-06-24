@@ -1322,3 +1322,31 @@ export async function sendAvisoPreCobro({
       </div>`,
   })
 }
+
+
+/** [BANCO DE SESIONES] Notifica al alumno que su acumulación llegó al tope y sesiones fueron descartadas. */
+export async function sendTopeSesionesAlcanzado({
+  studentEmail, studentName, workshopTitle, workshopSlug, sesionesDescartadas, topeAcumulacion,
+}: {
+  studentEmail: string; studentName: string; workshopTitle: string; workshopSlug: string
+  sesionesDescartadas: number; topeAcumulacion: number
+}) {
+  if (!process.env.RESEND_API_KEY) return
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://tallerea.cl'
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: studentEmail,
+    subject: `Banco de sesiones lleno — ${workshopTitle}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+        <h2 style="color:#7c3aed;">Tu banco de sesiones está lleno</h2>
+        <p>Hola ${escapeHtml(studentName)},</p>
+        <p>Renovamos tu suscripción a <strong>${escapeHtml(workshopTitle)}</strong>, pero tu banco de sesiones ya tenía el máximo acumulado (${topeAcumulacion} sesiones).</p>
+        <p>Por eso, <strong>${sesionesDescartadas} sesión${sesionesDescartadas > 1 ? 'es no fueron acreditadas' : ' no fue acreditada'}</strong> en este ciclo.</p>
+        <p>Para aprovechar cada cobro al máximo, te sugerimos reservar tus sesiones disponibles antes de la próxima renovación.</p>
+        <a href="${baseUrl}/alumno/suscripciones" style="display:inline-block;background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;margin:16px 0;">Ver mis sesiones</a>
+        <p style="color:#9ca3af;font-size:12px;margin-top:32px;">— Tallerea.cl</p>
+      </div>`,
+  })
+}

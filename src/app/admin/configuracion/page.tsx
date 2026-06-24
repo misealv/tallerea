@@ -18,6 +18,12 @@ interface Config {
   incentivoAutopagoCopyCheckout: string
   incentivoAutopagoCopyEmail: string
   autopagoPreseleccionado: boolean
+  // [BANCO DE SESIONES] Fase 7.5
+  rolloverActivo: boolean
+  rolloverSoloAutopago: boolean
+  topeAcumulacionFactor: number
+  mesesGraciaAlCancelar: number
+  maxReservasSimultaneas: number
 }
 
 const DEFAULTS: Config = {
@@ -27,6 +33,9 @@ const DEFAULTS: Config = {
   incentivoAutopagoCopyCheckout: 'Activa el pago automático y ahorra un {pct}% cada mes. Cancela cuando quieras.',
   incentivoAutopagoCopyEmail: 'Activa el pago automático y ahorra un {pct}% cada mes, sin perder tu cupo. Cancela en 1 clic.',
   autopagoPreseleccionado: true,
+  // [BANCO DE SESIONES] Fase 7.5
+  rolloverActivo: true, rolloverSoloAutopago: true,
+  topeAcumulacionFactor: 2, mesesGraciaAlCancelar: 6, maxReservasSimultaneas: 4,
 }
 
 export default function AdminConfiguracionPage() {
@@ -224,6 +233,75 @@ export default function AdminConfiguracionPage() {
         </div>
       </section>
 
+      {/* ── Banco de Sesiones (Fase 7.5) ────────────────────────────── */}
+      <section className="bg-white rounded-xl border border-indigo-100 p-6 space-y-5">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">🏦</span>
+          <h2 className="text-base font-semibold text-gray-800">Banco de sesiones (pago automático)</h2>
+        </div>
+        <p className="text-xs text-gray-500">
+          Las sesiones no usadas se acumulan ciclo a ciclo mientras el alumno tiene el pago automático activo.
+          Si cancela, conserva el saldo durante la ventana de gracia configurada.
+        </p>
+
+        {/* Switch maestro */}
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" checked={config.rolloverActivo}
+            onChange={e => set('rolloverActivo', e.target.checked)}
+            className="w-4 h-4 text-indigo-600 rounded" />
+          <span className="text-sm text-gray-700">Activar acumulación de sesiones (rollover)</span>
+        </label>
+
+        {/* Solo auto-pago */}
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" checked={config.rolloverSoloAutopago}
+            onChange={e => set('rolloverSoloAutopago', e.target.checked)}
+            className="w-4 h-4 text-indigo-600 rounded" />
+          <span className="text-sm text-gray-700">Beneficio exclusivo del pago automático</span>
+        </label>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Tope de acumulación */}
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">
+              Tope de acumulación <span className="text-gray-400">(× sesiones/ciclo)</span>
+            </label>
+            <input type="number" min={1} max={10} value={config.topeAcumulacionFactor}
+              onChange={e => set('topeAcumulacionFactor', Number(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" />
+            <p className="text-xs text-gray-400 mt-1">
+              Si el taller tiene 4 ses./mes y el factor es 2 → tope de 8 sesiones acumuladas.
+            </p>
+          </div>
+
+          {/* Meses de gracia */}
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">
+              Meses de gracia al cancelar
+            </label>
+            <input type="number" min={1} max={24} value={config.mesesGraciaAlCancelar}
+              onChange={e => set('mesesGraciaAlCancelar', Number(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" />
+            <p className="text-xs text-gray-400 mt-1">
+              Ventana para usar el saldo acumulado tras cancelar el mandato o degradar.
+            </p>
+          </div>
+
+          {/* Límite de reservas simultáneas */}
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">
+              Reservas simultáneas máx. <span className="text-gray-400">(0 = sin límite)</span>
+            </label>
+            <input type="number" min={0} max={50} value={config.maxReservasSimultaneas}
+              onChange={e => set('maxReservasSimultaneas', Number(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" />
+            <p className="text-xs text-gray-400 mt-1">
+              Cuántas clases futuras puede tener reservadas al mismo tiempo un alumno.
+            </p>
+          </div>
+        </div>
+      </section>
+
       <div className="flex items-center gap-3">
         <button onClick={save} disabled={saving}
           className="px-5 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 transition">
@@ -231,142 +309,6 @@ export default function AdminConfiguracionPage() {
         </button>
         {msg && <span className={`text-sm ${msg.includes('Error') ? 'text-red-600' : 'text-green-600'}`}>{msg}</span>}
       </div>
-    </div>
-  )
-}
-
-
-export default function AdminConfiguracionPage() {
-  const [config, setConfig] = useState<Config>({
-    comisionPct: 15, liquidacionMinimaDefault: 5000, cuotaPorTalleristaMB: 1024,
-    descuentoPagoAutomaticoPct: 5, avisoPreCobroDias: 3, maxIntentosCobroFallido: 3,
-  })
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState('')
-
-  useEffect(() => {
-    fetch('/api/admin/config').then(r => r.json()).then(data => {
-      setConfig({
-        comisionPct: data.comisionPct,
-        liquidacionMinimaDefault: data.liquidacionMinimaDefault,
-        cuotaPorTalleristaMB: data.cuotaPorTalleristaMB ?? 1024,
-        descuentoPagoAutomaticoPct: data.descuentoPagoAutomaticoPct ?? 5,
-        avisoPreCobroDias: data.avisoPreCobroDias ?? 3,
-        maxIntentosCobroFallido: data.maxIntentosCobroFallido ?? 3,
-      })
-      setLoading(false)
-    })
-  }, [])
-
-  async function save() {
-    setSaving(true)
-    setMsg('')
-    const res = await fetch('/api/admin/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config),
-    })
-    setSaving(false)
-    if (res.ok) setMsg('Configuración guardada')
-    else {
-      const data = await res.json()
-      setMsg(data.error || 'Error al guardar')
-    }
-  }
-
-  if (loading) return <div className="text-gray-500">Cargando...</div>
-
-  return (
-    <div className="max-w-xl space-y-8">
-      <h1 className="text-2xl font-bold text-gray-900">Configuración del Marketplace</h1>
-
-      <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Comisión de Tallerea (%)
-          </label>
-          <input type="number" min="0" max="100" value={config.comisionPct}
-            onChange={(e) => setConfig(prev => ({ ...prev, comisionPct: Number(e.target.value) }))}
-            className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
-          <p className="text-xs text-gray-400 mt-1">
-            Porcentaje que Tallerea cobra sobre cada pago. Aplica a todos los profesores.
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Liquidación mínima por defecto (CLP)
-          </label>
-          <input type="number" min="0" step="1000" value={config.liquidacionMinimaDefault}
-            onChange={(e) => setConfig(prev => ({ ...prev, liquidacionMinimaDefault: Number(e.target.value) }))}
-            className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
-          <p className="text-xs text-gray-400 mt-1">
-            Monto mínimo para generar liquidación a un profesor. Si acumula menos, se posterga.
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Cuota de almacenamiento por tallerista (MB)
-          </label>
-          <input type="number" min="100" max="102400" step="100" value={config.cuotaPorTalleristaMB}
-            onChange={(e) => setConfig(prev => ({ ...prev, cuotaPorTalleristaMB: Number(e.target.value) }))}
-            className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
-          <p className="text-xs text-gray-400 mt-1">
-            Espacio máximo de materiales por tallerista. 1024 = 1 GB. Mínimo 100 MB, máximo 100 GB.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button onClick={save} disabled={saving}
-            className="px-5 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 transition">
-            {saving ? 'Guardando...' : 'Guardar cambios'}
-          </button>
-          {msg && <span className={`text-sm ${msg.includes('Error') ? 'text-red-600' : 'text-green-600'}`}>{msg}</span>}
-        </div>
-      </section>
-
-      {/* Sección: Pago Automático */}
-      <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
-        <h2 className="text-base font-semibold text-gray-800">Pago automático (preapproval MP)</h2>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Descuento por activar pago automático (%)
-          </label>
-          <input type="number" min="0" max="100" value={config.descuentoPagoAutomaticoPct}
-            onChange={(e) => setConfig(prev => ({ ...prev, descuentoPagoAutomaticoPct: Number(e.target.value) }))}
-            className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
-          <p className="text-xs text-gray-400 mt-1">
-            % de descuento que recibe el alumno al domiciliar el pago. 0 = sin descuento.
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Días de aviso antes del cobro
-          </label>
-          <input type="number" min="0" max="30" value={config.avisoPreCobroDias}
-            onChange={(e) => setConfig(prev => ({ ...prev, avisoPreCobroDias: Number(e.target.value) }))}
-            className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
-          <p className="text-xs text-gray-400 mt-1">
-            Días de antelación con los que se envía el email "Te cobraremos $X el día Y".
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Intentos fallidos antes de degradar a manual
-          </label>
-          <input type="number" min="1" max="10" value={config.maxIntentosCobroFallido}
-            onChange={(e) => setConfig(prev => ({ ...prev, maxIntentosCobroFallido: Number(e.target.value) }))}
-            className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
-          <p className="text-xs text-gray-400 mt-1">
-            Tras N cobros fallidos la suscripción pasa a pendiente_pago y se notifica al alumno.
-          </p>
-        </div>
-      </section>
     </div>
   )
 }

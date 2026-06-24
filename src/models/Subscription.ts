@@ -62,6 +62,8 @@ export interface ISubscription extends Document {
   cardLast4?: string;                // últimos 4 dígitos (informativo, no sensible)
   ultimoCobroAutomaticoEn?: Date;
   intentosCobroFallidos: number;     // contador de cobros fallidos; se resetea al cobrar OK
+  // [BANCO DE SESIONES] Fase 7.5
+  saldoEnGracia?: boolean;            // true cuando el saldo entró en ventana de gracia tras cancelar mandato
   createdAt: Date;
 }
 
@@ -125,6 +127,8 @@ const SubscriptionSchema = new Schema<ISubscription>({
   cardLast4:                 { type: String, maxlength: 4 },
   ultimoCobroAutomaticoEn:   { type: Date },
   intentosCobroFallidos:     { type: Number, default: 0, min: 0 },
+  // [BANCO DE SESIONES] Fase 7.5
+  saldoEnGracia:             { type: Boolean, default: false },
 }, { timestamps: true });
 
 // Validaciones de inscripción manual

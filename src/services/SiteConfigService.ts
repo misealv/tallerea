@@ -16,6 +16,12 @@ const DEFAULTS = {
   incentivoAutopagoCopyCheckout: 'Activa el pago automático y ahorra un {pct}% cada mes. Cancela cuando quieras.',
   incentivoAutopagoCopyEmail: 'Activa el pago automático y ahorra un {pct}% cada mes, sin perder tu cupo. Cancela en 1 clic.',
   autopagoPreseleccionado: true,
+  // [BANCO DE SESIONES] Fase 7.5 — 2026-06-24
+  rolloverActivo: true,
+  rolloverSoloAutopago: true,
+  topeAcumulacionFactor: 2,
+  mesesGraciaAlCancelar: 6,
+  maxReservasSimultaneas: 4,
 }
 
 export const SiteConfigService = {
@@ -34,7 +40,9 @@ export const SiteConfigService = {
     'comisionPct' | 'liquidacionMinimaDefault' | 'cuotaPorTalleristaMB' |
     'descuentoPagoAutomaticoPct' | 'avisoPreCobroDias' | 'maxIntentosCobroFallido' |
     'incentivoAutopagoActivo' | 'descuentoPagoAutomaticoActivo' |
-    'incentivoAutopagoCopyCheckout' | 'incentivoAutopagoCopyEmail' | 'autopagoPreseleccionado'
+    'incentivoAutopagoCopyCheckout' | 'incentivoAutopagoCopyEmail' | 'autopagoPreseleccionado' |
+    'rolloverActivo' | 'rolloverSoloAutopago' | 'topeAcumulacionFactor' |
+    'mesesGraciaAlCancelar' | 'maxReservasSimultaneas'
   >>): Promise<ISiteConfig> {
     await connectDB()
     const config = await SiteConfig.findOneAndUpdate(
@@ -79,5 +87,32 @@ export const SiteConfigService = {
     const pct = config.descuentoPagoAutomaticoPct ?? 0
     const raw = tipo === 'checkout' ? config.incentivoAutopagoCopyCheckout : config.incentivoAutopagoCopyEmail
     return (raw ?? '').replace(/\{pct\}/g, String(pct))
+  },
+
+  /**
+   * Resuelve la política de rollover efectiva para una suscripción.
+   * Override del Workshop gana sobre el default global de SiteConfig.
+   * [CICLO] Toda política de banco de sesiones pasa por aquí. Nunca literales.
+   */
+  async resolverPoliticaRollover(workshopPolitica?: {
+    rolloverActivo?: boolean
+    topeAcumulacionFactor?: number
+    mesesGraciaAlCancelar?: number
+    maxReservasSimultaneas?: number
+  }): Promise<{
+    rolloverActivo: boolean
+    rolloverSoloAutopago: boolean
+    topeAcumulacionFactor: number
+    mesesGraciaAlCancelar: number
+    maxReservasSimultaneas: number
+  }> {
+    const config = await this.get()
+    return {
+      rolloverActivo:         workshopPolitica?.rolloverActivo         ?? config.rolloverActivo         ?? true,
+      rolloverSoloAutopago:   config.rolloverSoloAutopago ?? true,
+      topeAcumulacionFactor:  workshopPolitica?.topeAcumulacionFactor  ?? config.topeAcumulacionFactor  ?? 2,
+      mesesGraciaAlCancelar:  workshopPolitica?.mesesGraciaAlCancelar  ?? config.mesesGraciaAlCancelar  ?? 6,
+      maxReservasSimultaneas: workshopPolitica?.maxReservasSimultaneas ?? config.maxReservasSimultaneas ?? 4,
+    }
   },
 }

@@ -717,8 +717,15 @@ export const PaymentService = {
     // Sesiones a sumar: del plan del taller, o 4 como tope de seguridad
     const sesionesACiclo = workshop.plan?.sesionesIncluidas ?? 4
 
+    // [BANCO DE SESIONES] Fase 7.5 — resolver política de rollover para este taller
+    const workshopParaRollover = await Workshop.findById(subscription.workshopId)
+      .select('politica')
+      .lean<{ politica?: { rolloverActivo?: boolean; topeAcumulacionFactor?: number; mesesGraciaAlCancelar?: number; maxReservasSimultaneas?: number } }>()
+    const politicaRollover = await SiteConfigService.resolverPoliticaRollover(workshopParaRollover?.politica)
+
     const session = await mongoose.startSession()
     let newBreakdownId: mongoose.Types.ObjectId | undefined
+    let sesionesDescartadas = 0  // sesiones no acreditadas por tope de acumulación
     try {
       await session.withTransaction(async () => {
         // [INMUTABLE] Crear nuevo PaymentBreakdown por ciclo
@@ -740,9 +747,21 @@ export const PaymentService = {
         }], { session })
         newBreakdownId = breakdown._id as mongoose.Types.ObjectId
 
-        // Acreditar sesiones del ciclo
-        subscription.sesionesTotales += sesionesACiclo
-        subscription.sesionesDisponibles += sesionesACiclo
+        // [BANCO DE SESIONES] Tope de acumulación: saldo + nuevas sesiones ≤ factor × sesionesACiclo
+        // Solo aplica si rolloverActivo y (rolloverSoloAutopago → sub.pagoAutomatico)
+        const aplicaTope = politicaRollover.rolloverActivo &&
+          (!politicaRollover.rolloverSoloAutopago || subscription.pagoAutomatico)
+        const saldoActual = subscription.sesionesDisponibles
+        let nuevoSaldo = saldoActual + sesionesACiclo
+        if (aplicaTope) {
+          const topeEfectivo = sesionesACiclo * politicaRollover.topeAcumulacionFactor
+          if (nuevoSaldo > topeEfectivo) {
+            sesionesDescartadas = nuevoSaldo - topeEfectivo
+            nuevoSaldo = topeEfectivo
+          }
+        }
+        subscription.sesionesTotales += (sesionesACiclo - sesionesDescartadas)
+        subscription.sesionesDisponibles = nuevoSaldo
 
         // Extender fechaVencimiento 1 mes desde el vencimiento vigente (o desde hoy si ya venció)
         const base = subscription.fechaVencimiento > new Date()
@@ -757,6 +776,8 @@ export const PaymentService = {
         subscription.intentosCobroFallidos = 0
         subscription.pagoRef = String(authorizedPaymentId)
         subscription.estado = 'activa'
+        // Al cobrar OK, limpiar flag de gracia si estaba activo
+        if (subscription.saldoEnGracia) subscription.saldoEnGracia = false
 
         await subscription.save({ session })
 
@@ -779,6 +800,27 @@ export const PaymentService = {
       throw err
     } finally {
       await session.endSession()
+    }
+
+    // [BANCO DE SESIONES] Notificar al alumno si se alcanzó el tope y se descartaron sesiones
+    if (sesionesDescartadas > 0) {
+      try {
+        const { sendTopeSesionesAlcanzado } = await import('@/lib/resend')
+        const student = await User.findById(subscription.studentId).select('name email').lean<{ name: string; email: string }>()
+        const workshopFull = await Workshop.findById(subscription.workshopId).select('titulo slug').lean<{ titulo: string; slug: string }>()
+        if (student && workshopFull) {
+          await sendTopeSesionesAlcanzado({
+            studentName: student.name,
+            studentEmail: student.email,
+            workshopTitle: workshopFull.titulo,
+            workshopSlug: workshopFull.slug,
+            sesionesDescartadas,
+            topeAcumulacion: politicaRollover.topeAcumulacionFactor * sesionesACiclo,
+          }).catch(() => { /* no bloquear */ })
+        }
+      } catch {
+        // No bloquear flujo principal por fallo de notificación
+      }
     }
   },
 
@@ -804,6 +846,20 @@ export const PaymentService = {
 
     // Si MP lo canceló, limpiar el mandato localmente para que el alumno pueda re-activar
     if (newStatus === 'cancelled') {
+      // [BANCO DE SESIONES] Fase 7.5 — si hay saldo acumulado, aplicar ventana de gracia
+      if (sub.sesionesDisponibles > 0) {
+        const workshopFull = await Workshop.findById(sub.workshopId)
+          .select('politica').lean<{ politica?: { rolloverActivo?: boolean; mesesGraciaAlCancelar?: number } }>()
+        const politica = await SiteConfigService.resolverPoliticaRollover(workshopFull?.politica)
+        if (politica.rolloverActivo) {
+          const nuevaFechaGracia = new Date()
+          nuevaFechaGracia.setMonth(nuevaFechaGracia.getMonth() + politica.mesesGraciaAlCancelar)
+          if (!sub.fechaVencimiento || nuevaFechaGracia > sub.fechaVencimiento) {
+            sub.fechaVencimiento = nuevaFechaGracia
+          }
+          sub.saldoEnGracia = true
+        }
+      }
       sub.pagoAutomatico = false
       sub.mpPreapprovalId = undefined
       sub.mpPreapprovalStatus = undefined
@@ -839,7 +895,21 @@ export const PaymentService = {
       await session.withTransaction(async () => {
         sub.intentosCobroFallidos = nuevoContador
         if (debeDegradar) {
-          // Degradar ≠ cancelar: el alumno conserva acceso mientras tiene sesiones
+          // Degradar ≠ cancelar: el alumno conserva acceso mientras tiene sesiones.
+          // [BANCO DE SESIONES] Fase 7.5 — aplicar ventana de gracia si hay saldo acumulado
+          if ((sub.sesionesDisponibles ?? 0) > 0) {
+            const workshopFull = await Workshop.findById(sub.workshopId)
+              .select('politica').lean<{ politica?: { rolloverActivo?: boolean; mesesGraciaAlCancelar?: number } }>()
+            const politica = await SiteConfigService.resolverPoliticaRollover(workshopFull?.politica)
+            if (politica.rolloverActivo) {
+              const nuevaFechaGracia = new Date()
+              nuevaFechaGracia.setMonth(nuevaFechaGracia.getMonth() + politica.mesesGraciaAlCancelar)
+              if (!sub.fechaVencimiento || nuevaFechaGracia > sub.fechaVencimiento) {
+                sub.fechaVencimiento = nuevaFechaGracia
+              }
+              sub.saldoEnGracia = true
+            }
+          }
           sub.pagoAutomatico = false
           sub.mpPreapprovalId = undefined
           sub.mpPreapprovalStatus = undefined

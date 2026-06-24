@@ -1662,8 +1662,23 @@ export const SubscriptionService = {
     sub.mpPreapprovalStatus = undefined
     sub.cardLast4 = undefined
     sub.intentosCobroFallidos = 0
-    await sub.save()
 
+    // [BANCO DE SESIONES] Fase 7.5 — ventana de gracia si hay saldo acumulado al cancelar
+    if ((sub.sesionesDisponibles ?? 0) > 0) {
+      const workshopFull = await Workshop.findById(sub.workshopId)
+        .select('politica').lean<{ politica?: { rolloverActivo?: boolean; mesesGraciaAlCancelar?: number } }>()
+      const politica = await SiteConfigService.resolverPoliticaRollover(workshopFull?.politica)
+      if (politica.rolloverActivo) {
+        const nuevaFechaGracia = new Date()
+        nuevaFechaGracia.setMonth(nuevaFechaGracia.getMonth() + politica.mesesGraciaAlCancelar)
+        if (!sub.fechaVencimiento || nuevaFechaGracia > sub.fechaVencimiento) {
+          sub.fechaVencimiento = nuevaFechaGracia
+        }
+        sub.saldoEnGracia = true
+      }
+    }
+
+    await sub.save()
     return sub.toObject() as ISubscription
   },
 

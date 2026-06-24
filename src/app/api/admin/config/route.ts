@@ -22,6 +22,12 @@ const ConfigUpdateSchema = z.object({
   incentivoAutopagoCopyCheckout:  z.string().min(1).max(300).optional(),
   incentivoAutopagoCopyEmail:     z.string().min(1).max(300).optional(),
   autopagoPreseleccionado:        z.boolean().optional(),
+  // [BANCO DE SESIONES] Fase 7.5
+  rolloverActivo:            z.boolean().optional(),
+  rolloverSoloAutopago:      z.boolean().optional(),
+  topeAcumulacionFactor:     z.number().int().min(1).max(10).optional(),
+  mesesGraciaAlCancelar:     z.number().int().min(1).max(24).optional(),
+  maxReservasSimultaneas:    z.number().int().min(0).max(50).optional(),
 }).strict()
 
 export async function GET() {

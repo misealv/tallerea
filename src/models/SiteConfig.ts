@@ -14,6 +14,12 @@ export interface ISiteConfig extends Document {
   incentivoAutopagoCopyCheckout: string  // texto del nudge en checkout
   incentivoAutopagoCopyEmail: string     // texto del nudge en email de renovación manual
   autopagoPreseleccionado: boolean       // si la opción aparece marcada por defecto en checkout (default true)
+  // [BANCO DE SESIONES] Fase 7.5 — rollover exclusivo del auto-pago
+  rolloverActivo: boolean            // switch maestro del banco de sesiones (default true)
+  rolloverSoloAutopago: boolean      // si es beneficio exclusivo del auto-pago (default true)
+  topeAcumulacionFactor: number      // múltiplo de sesiones/mes acumulables (default 2)
+  mesesGraciaAlCancelar: number      // meses de gracia al cancelar/degradar (default 6)
+  maxReservasSimultaneas: number     // tope de bookings futuras abiertas (default 4, 0 = sin límite)
   // Singleton: solo 1 documento
   singleton: boolean
 }
@@ -32,6 +38,12 @@ const SiteConfigSchema = new Schema<ISiteConfig>({
   incentivoAutopagoCopyCheckout:     { type: String,  required: true, default: 'Activa el pago automático y ahorra un {pct}% cada mes. Cancela cuando quieras.', maxlength: 300 },
   incentivoAutopagoCopyEmail:        { type: String,  required: true, default: 'Activa el pago automático y ahorra un {pct}% cada mes, sin perder tu cupo. Cancela en 1 clic.', maxlength: 300 },
   autopagoPreseleccionado:           { type: Boolean, required: true, default: true },
+  // [BANCO DE SESIONES] Fase 7.5 — rollover exclusivo del auto-pago
+  rolloverActivo:            { type: Boolean, required: true, default: true },
+  rolloverSoloAutopago:      { type: Boolean, required: true, default: true },
+  topeAcumulacionFactor:     { type: Number,  required: true, default: 2, min: 1, max: 10 },
+  mesesGraciaAlCancelar:     { type: Number,  required: true, default: 6, min: 1, max: 24 },
+  maxReservasSimultaneas:    { type: Number,  required: true, default: 4, min: 0, max: 50 },
   singleton: { type: Boolean, default: true, unique: true },
 }, { timestamps: true })
 
