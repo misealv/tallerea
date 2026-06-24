@@ -236,7 +236,7 @@ describe('desactivarPagoAutomatico', () => {
 // ─────────────────────────────────────────────────────────────────
 describe('adminUpdate + sincronización de precio', () => {
 
-  it('[FINANCE RISK] llama updatePreapproval cuando cambia precioSnapshot con mandato activo', async () => {
+  it('[FINANCE RISK] llama updatePreapproval con el monto con descuento cuando cambia precioSnapshot con mandato activo', async () => {
     const { sub } = await crearSubActiva({
       pagoAutomatico: true,
       mpPreapprovalId: 'pre_sync_test',
@@ -244,11 +244,16 @@ describe('adminUpdate + sincronización de precio', () => {
     })
     vi.mocked(mockUpdatePreapproval).mockResolvedValue({ id: 'pre_sync_test', status: 'authorized', external_reference: 'pa:x' })
     const { SubscriptionService } = await import('@/services/SubscriptionService')
+    const { SiteConfigService } = await import('@/services/SiteConfigService')
+
+    // H1: el sync al MP debe aplicar el mismo descuento de incentivo que el cobro real,
+    // no el precio bruto. Calculamos el monto esperado con la fuente de verdad.
+    const { montoFinal } = await SiteConfigService.calcularMontoConDescuento(25000)
 
     const result = await SubscriptionService.adminUpdate(String(sub._id), { precioSnapshot: 25000 })
 
     expect(result.precioSnapshot).toBe(25000)
-    expect(vi.mocked(mockUpdatePreapproval)).toHaveBeenCalledWith('pre_sync_test', 25000)
+    expect(vi.mocked(mockUpdatePreapproval)).toHaveBeenCalledWith('pre_sync_test', montoFinal)
   })
 
   it('no llama updatePreapproval si el precio no cambia', async () => {
