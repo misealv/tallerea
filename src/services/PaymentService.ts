@@ -439,6 +439,8 @@ export const PaymentService = {
           subscription.pagoFiado.saldadoEn = new Date()
           subscription.pagoFiado.metodoPagoFinal = 'mercadopago'
         }
+        // [H3] Limpiar ventana de gracia: el pago manual sana la deuda
+        if (subscription.saldoEnGracia) subscription.saldoEnGracia = false
         await subscription.save({ session })
 
         await FinanceService.logWithSession(
