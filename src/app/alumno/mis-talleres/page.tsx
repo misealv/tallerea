@@ -273,8 +273,6 @@ export default async function MisTalleresPage() {
                       clasesPrepagadas: prepaid ? { cantidad: prepaid.cantidad, consumidas: prepaid.consumidas, caducaEn: prepaid.caducaEn?.toISOString() } : undefined,
                     }}
                     descuentoPagoAutomaticoPct={siteConfig.descuentoPagoAutomaticoPct}
-                    onCancel={() => {/* manejado por TallerCard */}}
-                    onRenew={() => {/* manejado por TallerCard */}}
                   />
                   <Link href={`/alumno/mis-talleres/${String(wMedia._id)}/materiales`}
                     className="text-xs text-orange-600 hover:text-orange-800 font-medium ml-1 mt-0.5 inline-block">

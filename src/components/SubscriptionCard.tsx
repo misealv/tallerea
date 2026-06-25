@@ -26,8 +26,8 @@ interface SubscriptionCardProps {
     clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: string }
   }
   descuentoPagoAutomaticoPct?: number   // viene de SiteConfig, se pasa desde la página
-  onCancel: (id: string) => void
-  onRenew: (id: string) => void
+  onCancel?: (id: string) => void
+  onRenew?: (id: string) => void
 }
 
 const estadoConfig: Record<string, { bg: string; label: string }> = {
@@ -153,7 +153,7 @@ export default function SubscriptionCard({ subscription: sub, descuentoPagoAutom
           }
         </p>
         <div className="flex gap-2">
-          {sub.estado === 'activa' && (
+          {sub.estado === 'activa' && onCancel && (
             <button
               onClick={() => onCancel(sub._id)}
               className="text-xs text-gray-500 hover:text-red-600"
@@ -161,7 +161,7 @@ export default function SubscriptionCard({ subscription: sub, descuentoPagoAutom
               Cancelar
             </button>
           )}
-          {(sub.estado === 'vencida' || sub.estado === 'cancelada') && (
+          {(sub.estado === 'vencida' || sub.estado === 'cancelada') && onRenew && (
             <button
               onClick={() => onRenew(sub._id)}
               className="text-xs bg-purple-600 text-white px-3 py-1 rounded-lg hover:bg-purple-700"
