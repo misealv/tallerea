@@ -838,6 +838,12 @@ export const PaymentService = {
         subscription.estado = 'activa'
         // Al cobrar OK, limpiar flag de gracia si estaba activo
         if (subscription.saldoEnGracia) subscription.saldoEnGracia = false
+        // [FIADO] Si había deuda a confianza pendiente, queda saldada con este cobro automático
+        if (subscription.pagoFiado && !subscription.pagoFiado.saldado) {
+          subscription.pagoFiado.saldado = true
+          subscription.pagoFiado.saldadoEn = new Date()
+          subscription.pagoFiado.metodoPagoFinal = 'mercadopago'
+        }
 
         await subscription.save({ session })
 
