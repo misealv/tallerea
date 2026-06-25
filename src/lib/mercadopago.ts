@@ -25,6 +25,10 @@ export interface CreatePreferenceInput {
 export async function createPaymentPreference(input: CreatePreferenceInput) {
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
 
+  // MP exige que back_urls.success sea una URL pública para aceptar auto_return.
+  // En local (http/localhost) rechaza con "auto_return invalid": omitirlo ahí.
+  const isPublicUrl = /^https:\/\//i.test(baseUrl) && !/localhost|127\.0\.0\.1/i.test(baseUrl)
+
   // Dividir nombre en first/last para que MP pre-rellene el formulario
   const nameParts = (input.payerName ?? '').trim().split(/\s+/)
   const firstName = nameParts[0] ?? ''
@@ -53,7 +57,7 @@ export async function createPaymentPreference(input: CreatePreferenceInput) {
         failure: `${baseUrl}/pago/exitoso?estado=error`,
         pending: `${baseUrl}/pago/exitoso?estado=pendiente`,
       },
-      auto_return: 'approved',
+      ...(isPublicUrl && { auto_return: 'approved' as const }),
       external_reference: input.externalRef,
       notification_url: `${baseUrl}/api/payments/webhook`,
     },
