@@ -391,6 +391,29 @@ export const PaymentService = {
       return
     }
 
+    // [FIADO][DOBLE COBRO] Sub ya activa cuya deuda a confianza YA fue saldada.
+    // Un pago MP entrante aquí corresponde a un link viejo pagado tarde (p. ej. el
+    // tallerista marcó la deuda como efectivo/transferencia y luego el alumno pagó el
+    // link). No crear un segundo PaymentBreakdown: evita doble cobro al tallerista.
+    // Las inscripciones/renovaciones legítimas crean subs en 'pendiente_pago', por lo
+    // que nunca caen en esta rama (requiere estado 'activa' + fiado ya saldado).
+    if (subscription.estado === 'activa' && subscription.pagoFiado?.saldado === true) {
+      await FinanceService.log(
+        'ajuste',
+        'PaymentBreakdown',
+        String(subscription.paymentBreakdownId ?? subscription._id),
+        0,
+        String(subscription.studentId),
+        0,
+        {
+          motivo: 'pago_fiado_duplicado_ignorado',
+          paymentId: String(paymentId),
+          metodoPagoFinalPrevio: subscription.pagoFiado.metodoPagoFinal ?? null,
+        }
+      )
+      return
+    }
+
     const workshop = await Workshop.findById(subscription.workshopId)
       .select('ownerId precioModalidad')
       .lean<{ _id: mongoose.Types.ObjectId; ownerId: mongoose.Types.ObjectId; precioModalidad?: 'neto' | 'bruto' }>()
