@@ -155,7 +155,10 @@ SubscriptionSchema.pre('save', function (next) {
     }
     // En estado 'pendiente_pago' aún no hubo pago, así que fechaPago/metodoPago
     // pueden estar vacíos. Se completan al activar (handleApprovedSubscription).
-    if (this.estado !== 'pendiente_pago') {
+    // [FIADO] Una venta a confianza también queda 'activa' con clases prepagadas sin
+    // pago aún: fechaPago/metodoPago se completan al saldar la deuda (mismo handler).
+    const fiadoPendiente = Boolean(this.pagoFiado?.montoAdeudado && !this.pagoFiado.saldado)
+    if (this.estado !== 'pendiente_pago' && !fiadoPendiente) {
       if (!fechaPago) {
         return next(new Error('[PREPAGADO] fechaPago es obligatorio'))
       }
