@@ -1275,18 +1275,25 @@ export const SubscriptionService = {
     ownerId: string
     metodoPagoFinal: 'transferencia' | 'efectivo' | 'mercadopago'
     isAdmin?: boolean
+    isAlumno?: boolean
+    studentId?: string
   }): Promise<{ saldado: boolean; initPoint?: string }> {
     await dbConnect()
 
     const sub = await Subscription.findById(input.subscriptionId)
     if (!sub) throw new Error('Suscripción no encontrada')
 
-    // Ownership (admin puede saldar cualquier deuda)
+    // Ownership: admin cualquier; alumno solo la suya vía MP; tallerista solo su taller
     const workshop = await Workshop.findById(sub.workshopId)
     if (!workshop) throw new Error('Taller no encontrado')
-    const ownerIdStr = String(workshop.ownerId ?? workshop.accountId ?? '')
-    if (!input.isAdmin && ownerIdStr !== input.ownerId) {
-      throw new Error('No tienes permiso sobre esta suscripción')
+    if (input.isAlumno) {
+      if (String(sub.studentId) !== input.studentId) throw new Error('No tienes permiso sobre esta suscripción')
+      if (input.metodoPagoFinal !== 'mercadopago') throw new Error('[FIADO] Alumno solo puede pagar por MercadoPago')
+    } else {
+      const ownerIdStr = String(workshop.ownerId ?? workshop.accountId ?? '')
+      if (!input.isAdmin && ownerIdStr !== input.ownerId) {
+        throw new Error('No tienes permiso sobre esta suscripción')
+      }
     }
 
     // Debe existir deuda a confianza pendiente

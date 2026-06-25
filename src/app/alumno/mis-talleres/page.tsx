@@ -11,6 +11,7 @@ import Workshop from '@/models/Workshop'
 import Location from '@/models/Location'
 import TallerCard from '@/components/TallerCard'
 import SubscriptionCard from '@/components/SubscriptionCard'
+import PagarFiadoBanner from '@/components/PagarFiadoBanner'
 import { shouldHideTrial } from '@/lib/trialFilters'
 import { SiteConfigService } from '@/services/SiteConfigService'
 import { Types } from 'mongoose'
@@ -65,6 +66,7 @@ interface SubscriptionLean {
   mpPreapprovalStatus?: 'authorized' | 'paused' | 'cancelled' | 'pending'
   cardLast4?: string
   clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }
+  pagoFiado?: { saldado: boolean; montoAdeudado: number }
 }
 
 interface BookingLean {
@@ -240,6 +242,12 @@ export default async function MisTalleresPage() {
               const clasesPorCiclo = prepaid?.cantidad ?? s.sesionesTotales
               return (
                 <div key={String(s._id)}>
+                  {s.pagoFiado && !s.pagoFiado.saldado && (
+                    <PagarFiadoBanner
+                      subscriptionId={String(s._id)}
+                      montoAdeudado={s.pagoFiado.montoAdeudado}
+                    />
+                  )}
                   <TallerCard
                     titulo={wMedia.titulo}
                     slug={wMedia.slug}
