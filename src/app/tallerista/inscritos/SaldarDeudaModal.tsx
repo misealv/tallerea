@@ -75,7 +75,7 @@ export default function SaldarDeudaModal({
                 <p className="text-xs text-gray-400 uppercase tracking-wide">Saldar deuda a confianza</p>
                 <h3 className="font-semibold text-gray-800 text-sm mt-0.5">{studentName}</h3>
                 <p className="text-xs text-gray-500">{workshopTitle}</p>
-                <p className="text-xs text-amber-600 mt-1 font-medium">Debe ${montoAdeudado.toLocaleString('es-CL')}</p>
+                <p className="text-xs text-amber-600 mt-1 font-medium">Debe ${(montoAdeudado ?? 0).toLocaleString('es-CL')}</p>
               </div>
               <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
             </div>

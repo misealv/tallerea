@@ -277,7 +277,7 @@ export default async function InscritosGlobalPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Taller</Link>
                             <Link href={`/tallerista/inscritos/${String(student._id)}/reservas`} className="text-xs text-gray-500 hover:underline">Reservas</Link>
-                            {s.pagoFiado && !s.pagoFiado.saldado && (
+                            {s.pagoFiado && !s.pagoFiado.saldado && s.pagoFiado.montoAdeudado > 0 && (
                               <SaldarDeudaModal
                                 subscriptionId={String(s._id)}
                                 studentName={student.name}
@@ -373,7 +373,7 @@ export default async function InscritosGlobalPage() {
                     <div className="flex items-center gap-2 pt-1 border-t border-gray-100 flex-wrap">
                       <Link href={`/tallerista/talleres/${String(workshop._id)}/inscritos`} className="text-xs text-indigo-600 hover:underline">Ver taller</Link>
                       <Link href={`/tallerista/inscritos/${String(student._id)}/reservas`} className="text-xs text-gray-500 hover:underline">Ver reservas</Link>
-                      {s.pagoFiado && !s.pagoFiado.saldado && (
+                      {s.pagoFiado && !s.pagoFiado.saldado && s.pagoFiado.montoAdeudado > 0 && (
                         <SaldarDeudaModal
                           subscriptionId={String(s._id)}
                           studentName={student.name}
