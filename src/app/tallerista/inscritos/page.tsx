@@ -265,7 +265,7 @@ export default async function InscritosGlobalPage() {
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[s.estado] ?? 'bg-gray-100 text-gray-500'}`}>
                             {s.estado === 'pendiente_pago' ? 'pend. pago' : s.estado}
                           </span>
-                          {s.pagoFiado && !s.pagoFiado.saldado && (
+                          {s.pagoFiado && !s.pagoFiado.saldado && s.pagoFiado.montoAdeudado != null && (
                             <span className="ml-1 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium"
                               title={s.pagoFiado.fechaCompromiso ? `Pagar antes del ${new Date(s.pagoFiado.fechaCompromiso).toLocaleDateString('es-CL')}` : 'Pago a confianza'}>
                               🤝 debe ${s.pagoFiado.montoAdeudado.toLocaleString('es-CL')}
@@ -365,7 +365,7 @@ export default async function InscritosGlobalPage() {
                         <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">★ especial</span>
                       )}
                       <span>Vigente hasta {vi.vigenciaDateStr}</span>
-                      {s.pagoFiado && !s.pagoFiado.saldado && (
+                      {s.pagoFiado && !s.pagoFiado.saldado && s.pagoFiado.montoAdeudado != null && (
                         <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">🤝 debe ${s.pagoFiado.montoAdeudado.toLocaleString('es-CL')}</span>
                       )}
                     </div>
