@@ -44,8 +44,18 @@ export async function POST(req: NextRequest) {
     }
 
     // Rutear igual que el webhook (idempotente por diseño en handleApproved*)
+    // [FIX] Faltaban 'rec:' y 'prn:' — sin esto, un pago con esos prefijos caía al
+    // else y se procesaba como si el string completo ("prn:<subId>") fuera un
+    // Enrollment id, fallando silenciosamente si el webhook tampoco llegó.
     let magicUrl: string | undefined
-    if (ref.startsWith('sub:')) {
+    if (ref.startsWith('rec:')) {
+      const [subId, paqueteId] = ref.slice(4).split(':')
+      if (subId && paqueteId) {
+        await PaymentService.handleApprovedRecarga(subId, paqueteId, String(id))
+      }
+    } else if (ref.startsWith('prn:')) {
+      await PaymentService.handleApprovedPrepaidRenewal(ref.slice(4), String(id))
+    } else if (ref.startsWith('sub:')) {
       await PaymentService.handleApprovedSubscription(ref.slice(4), String(id))
     } else if (ref.startsWith('enr:')) {
       const result = await PaymentService.handleApprovedPayment(ref.slice(4), String(id))
