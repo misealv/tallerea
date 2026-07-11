@@ -153,12 +153,10 @@ export default async function InscritosPage({
                     )}
                   </td>
                   <td className="px-4 py-2">
-                    {e.estado !== 'cancelado' && (
-                      <MarcaAsistenciaEnrollmentButton
-                        enrollmentId={String(e._id)}
-                        asistioActual={e.asistio}
-                      />
-                    )}
+                    <MarcaAsistenciaEnrollmentButton
+                      enrollmentId={String(e._id)}
+                      asistioActual={e.asistio}
+                    />
                   </td>
                   <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLOR[e.estado] ?? ''}`}>{e.estado}</span></td>
                   <td className="px-4 py-2">${e.monto.toLocaleString('es-CL')}</td>
