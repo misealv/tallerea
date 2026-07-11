@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import CalendarGridAlumno, { type CalendarSlot } from './CalendarGridAlumno'
+import RenovarAcordadoButton from '@/components/RenovarAcordadoButton'
 
 export type { CalendarSlot }
 
@@ -23,6 +24,9 @@ interface Props {
   subDependentId?: string
   subDependentNombre?: string
   siblingSubscriptions?: SiblingSubscription[]
+  /** Precio acordado (precioSnapshot): habilita renovación self-service al mismo precio especial */
+  precioRenovacion?: number
+  clasesPorCiclo?: number
 }
 
 function getMonday(d: Date): Date {
@@ -41,7 +45,7 @@ function slotsBetween(slots: CalendarSlot[], from: Date, to: Date): CalendarSlot
 
 export default function ReservasCalendar({
   subscriptionId, workshopId, workshopSlug, sesionesDisponibles, fechaVencimiento, allSlots,
-  subDependentId, subDependentNombre, siblingSubscriptions,
+  subDependentId, subDependentNombre, siblingSubscriptions, precioRenovacion, clasesPorCiclo,
 }: Props) {
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()))
 
@@ -78,7 +82,18 @@ export default function ReservasCalendar({
 
       {sesionesDisponibles === 0 && (
         <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-sm px-4 py-3 rounded-xl">
-          Sin sesiones disponibles. <a href={`/talleres/${workshopSlug}`} className="underline">Renovar suscripción →</a>
+          {precioRenovacion ? (
+            <div className="flex flex-col gap-2">
+              <span>Sin sesiones disponibles.</span>
+              <RenovarAcordadoButton
+                subscriptionId={subscriptionId}
+                precio={precioRenovacion}
+                clasesCantidad={clasesPorCiclo ?? 4}
+              />
+            </div>
+          ) : (
+            <>Sin sesiones disponibles. <a href={`/talleres/${workshopSlug}`} className="underline">Renovar suscripción →</a></>
+          )}
         </div>
       )}
 

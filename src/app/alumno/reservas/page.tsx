@@ -25,6 +25,8 @@ interface SubLean {
   clasesPrepagadas?: { cantidad: number; consumidas: number; caducaEn?: Date }
   dependentId?: Types.ObjectId
   dependentNombreSnapshot?: string
+  precioEspecial?: boolean
+  precioSnapshot?: number
 }
 interface BookingLean { _id: Types.ObjectId; subscriptionId?: Types.ObjectId; slotIndex: number; fecha: Date; estado: string; dependentNombreSnapshot?: string }
 
@@ -122,6 +124,11 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
 
       {(() => {
         const vi = getSubViewInfo(sub)
+        // Precio acordado (snapshot): habilita renovación self-service al mismo precio especial
+        const precioRenovacion = sub.precioEspecial && (sub.precioSnapshot ?? 0) > 0
+          ? (sub.precioSnapshot as number)
+          : undefined
+        const clasesPorCiclo = sub.clasesPrepagadas?.cantidad ?? sub.sesionesTotales
         return (
           <ReservasCalendar
             subscriptionId={subId}
@@ -133,6 +140,8 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
             subDependentId={sub.dependentId ? String(sub.dependentId) : undefined}
             subDependentNombre={sub.dependentNombreSnapshot}
             siblingSubscriptions={siblingSubscriptions}
+            precioRenovacion={precioRenovacion}
+            clasesPorCiclo={clasesPorCiclo}
           />
         )
       })()}
